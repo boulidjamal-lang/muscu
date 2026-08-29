@@ -39,8 +39,12 @@
     })();
   </script>
   <title>Mon Coach — nutrition, activité &amp; musculation</title>
-  <meta name="theme-color" content="#06070a" media="(prefers-color-scheme: dark)">
-  <meta name="theme-color" content="#eaeef5" media="(prefers-color-scheme: light)">
+  <!-- Plus de media query ici : la couleur de la barre du navigateur suit
+       désormais le thème choisi DANS l'appli (clair par défaut, sombre
+       explicitement), pas le thème du système — voir le script tout en bas
+       du <head> et appliquerTheme(), qui la tiennent synchronisées. -->
+  <meta name="theme-color" id="meta-theme-color" content="#eaeef5">
+  <meta name="apple-mobile-web-app-title" content="Mon Coach">
   <meta name="apple-mobile-web-app-title" content="Mon Coach">
   
   <!-- Importation d'une police haut de gamme (Outfit) -->
@@ -54,36 +58,37 @@
   <style>
     /* =====================================================================
        CHARTE « LIQUID GLASS » — identique dans l'esprit a l'app Mon Frigo.
-       Un seul jeu de jetons pilote tout : le mode sombre est la valeur par
-       defaut, le mode clair redefinit uniquement les jetons concernes.
-       ===================================================================== */
+       Un seul jeu de jetons pilote tout. Plus de mode « auto » (suivre le
+       systeme) : le mode clair est la valeur par defaut, le mode sombre est
+       un choix explicite qui redefinit les jetons concernes — et seulement
+       lui, jamais le systeme, ne fait basculer l'appli. */
     :root {
-      color-scheme: dark;
+      color-scheme: light;
 
-      --bg: #06070a;
-      --text: #f4f7fb;
-      --text-muted: #97a2b4;
+      --bg: #eaeef5;
+      --text: #0e1420;
+      --text-muted: #5d6879;
 
-      --primary: #14b566;
-      --primary-txt: #04120a;          /* texte pose SUR la couleur primaire */
-      --primary-glow: rgba(20, 181, 102, 0.32);
-      --accent: #6aa2ff;
-      --ai-color: #6aa2ff;             /* accent lisible sur fond sombre */
-      --ai-solide: #3a5fa8;            /* bleu adouci (moins saturé que #1f5fd0), texte blanc : ~6.2:1 */
-      --danger: #ff6b6b;
+      --primary: #00703a;
+      --primary-txt: #ffffff;          /* texte pose SUR la couleur primaire */
+      --primary-glow: rgba(0, 112, 58, 0.30);
+      --accent: #1552c4;
+      --ai-color: #1552c4;
+      --ai-solide: #3a5fa8;
+      --danger: #c62828;
 
-      --protein: #ff7070;
-      --carbs: #ffb454;
-      --fat: #a78bfa;
+      --protein: #c62828;
+      --carbs: #a05a00;
+      --fat: #6d28d9;
 
       /* --- matiere verre --- */
-      --verre: rgba(255, 255, 255, 0.055);
-      --verre-fort: rgba(255, 255, 255, 0.10);
-      --verre-creux: rgba(0, 0, 0, 0.28);
-      --verre-brd: rgba(255, 255, 255, 0.11);
-      --verre-brd-vive: rgba(255, 255, 255, 0.18);
-      --verre-hi: rgba(255, 255, 255, 0.20);
-      --verre-lo: rgba(0, 0, 0, 0.22);
+      --verre: rgba(255, 255, 255, 0.58);
+      --verre-fort: rgba(255, 255, 255, 0.78);
+      --verre-creux: rgba(255, 255, 255, 0.42);
+      --verre-brd: rgba(255, 255, 255, 0.85);
+      --verre-brd-vive: rgba(14, 20, 32, 0.14);
+      --verre-hi: rgba(255, 255, 255, 0.95);
+      --verre-lo: rgba(14, 20, 32, 0.07);
       --verre-flou: 30px;
       --verre-flou-doux: 18px;
       --verre-sat: 190%;
@@ -93,28 +98,28 @@
       --lx: 22%;
       --ly: 6%;
       --verre-sheen:
-        radial-gradient(120% 95% at var(--lx) var(--ly), rgba(255,255,255,0.20), rgba(255,255,255,0.05) 34%, rgba(255,255,255,0) 60%),
-        linear-gradient(158deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.02) 34%, rgba(255,255,255,0) 58%);
+        radial-gradient(120% 95% at var(--lx) var(--ly), rgba(255,255,255,0.62), rgba(255,255,255,0.18) 34%, rgba(255,255,255,0) 60%),
+        linear-gradient(158deg, rgba(255,255,255,0.34) 0%, rgba(255,255,255,0.06) 34%, rgba(255,255,255,0) 58%);
       /* Le bord de la lentille : lumière concentrée en haut, rendue en bas,
          éteinte sur les flancs — la signature d'une épaisseur de verre. */
       --lentille-ep: 7px;
       --lentille-rim:
-        inset 0 1.5px 0.5px -0.5px rgba(255,255,255,0.72),
-        inset 1.5px 0 1.5px -1px rgba(255,255,255,0.26),
-        inset -1.5px 0 1.5px -1px rgba(255,255,255,0.26),
-        inset 0 -2px 2px -1px rgba(255,255,255,0.30),
-        inset 0 0 0 0.5px rgba(255,255,255,0.08);
+        inset 0 1.5px 0.5px -0.5px rgba(255,255,255,0.95),
+        inset 1.5px 0 1.5px -1px rgba(255,255,255,0.6),
+        inset -1.5px 0 1.5px -1px rgba(255,255,255,0.6),
+        inset 0 -2px 2px -1px rgba(255,255,255,0.75),
+        inset 0 0 0 0.5px rgba(14,20,32,0.07);
       /* Reflet plus marqué, réservé aux boutons "verre coloré" : un vrai
          highlight qui glisse en haut à gauche, comme la matière du Liquid
          Glass d'Apple — pas juste une teinte, un vrai reflet de lumière. */
       --verre-sheen-vive:
-        radial-gradient(120% 180% at 12% -20%, rgba(255,255,255,0.55), transparent 42%),
-        linear-gradient(160deg, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0.02) 45%, rgba(255,255,255,0) 65%);
+        radial-gradient(120% 180% at 12% -20%, rgba(255,255,255,0.85), transparent 42%),
+        linear-gradient(160deg, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0.08) 45%, rgba(255,255,255,0) 65%);
       /* Les barres fixes se superposent au contenu qui defile : trop
          translucides, on lisait le texte du dessous a travers. */
-      --barre: rgba(9, 11, 16, 0.94);
-      --ombre: 0 14px 34px rgba(0, 0, 0, 0.45);
-      --ombre-haute: 0 26px 60px rgba(0, 0, 0, 0.6);
+      --barre: rgba(244, 247, 252, 0.95);
+      --ombre: 0 14px 30px rgba(20, 30, 55, 0.14);
+      --ombre-haute: 0 24px 54px rgba(20, 30, 55, 0.20);
 
       /* Halos retirés : le fond reste uni. Le verre garde son relief grâce
          aux inserts lumineux (--verre-hi/--verre-lo) et au sheen diagonal,
@@ -127,81 +132,55 @@
       --rayon: clamp(16px, 4.8vw, 22px);
     }
 
-    /* ---- MODE CLAIR : jetons recalibres, pas simplement inverses ---- */
-    :root[data-theme="light"],
-    :root[data-theme="auto"] {}
+    /* ---- MODE SOMBRE : jetons recalibres, pas simplement inverses.
+       Choix explicite uniquement (bouton ☀️/🌙 ou réglages) — l'appli ne
+       regarde plus jamais prefers-color-scheme pour décider de son propre
+       thème (seule la couleur de la barre du navigateur, hors de la page,
+       continuait de suivre le système : un mode « auto » interne à l'appli
+       ne servait donc à rien de plus, et pouvait même désynchroniser les
+       deux au pire moment). ---- */
+    :root[data-theme="dark"] {
+      color-scheme: dark;
 
-    @media (prefers-color-scheme: light) {
-      :root:not([data-theme="dark"]) {
-        color-scheme: light;
-        --bg: #eaeef5;
-        --text: #0e1420;
-        --text-muted: #5d6879;
-        --primary: #00703a;
-        --primary-txt: #ffffff;
-        --primary-glow: rgba(0, 112, 58, 0.30);
-        --accent: #1552c4;
-        --ai-color: #1552c4;
-        --ai-solide: #3a5fa8;
-        --danger: #c62828;
-        --protein: #c62828;
-        --carbs: #a05a00;
-        --fat: #6d28d9;
-        --barre: rgba(244, 247, 252, 0.95);
-        --verre: rgba(255, 255, 255, 0.58);
-        --verre-fort: rgba(255, 255, 255, 0.78);
-        --verre-creux: rgba(255, 255, 255, 0.42);
-        --verre-brd: rgba(255, 255, 255, 0.85);
-        --verre-brd-vive: rgba(14, 20, 32, 0.14);
-        --verre-hi: rgba(255, 255, 255, 0.95);
-        --verre-lo: rgba(14, 20, 32, 0.07);
-        --verre-sheen:
-          radial-gradient(120% 95% at var(--lx) var(--ly), rgba(255,255,255,0.62), rgba(255,255,255,0.18) 34%, rgba(255,255,255,0) 60%),
-          linear-gradient(158deg, rgba(255,255,255,0.34) 0%, rgba(255,255,255,0.06) 34%, rgba(255,255,255,0) 58%);
-        --lentille-rim:
-          inset 0 1.5px 0.5px -0.5px rgba(255,255,255,0.95),
-          inset 1.5px 0 1.5px -1px rgba(255,255,255,0.6),
-          inset -1.5px 0 1.5px -1px rgba(255,255,255,0.6),
-          inset 0 -2px 2px -1px rgba(255,255,255,0.75),
-          inset 0 0 0 0.5px rgba(14,20,32,0.07);
-        --verre-sheen-vive:
-          radial-gradient(120% 180% at 12% -20%, rgba(255,255,255,0.85), transparent 42%),
-          linear-gradient(160deg, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0.08) 45%, rgba(255,255,255,0) 65%);
-        --ombre: 0 14px 30px rgba(20, 30, 55, 0.14);
-        --ombre-haute: 0 24px 54px rgba(20, 30, 55, 0.20);
-        --ambiance: none;
-      }
-    }
+      --bg: #06070a;
+      --text: #f4f7fb;
+      --text-muted: #97a2b4;
 
-    :root[data-theme="light"] {
-      color-scheme: light;
-      --bg: #eaeef5;
-      --text: #0e1420;
-      --text-muted: #5d6879;
-      --primary: #00703a;
-      --primary-txt: #ffffff;
-      --primary-glow: rgba(0, 112, 58, 0.30);
-      --accent: #1552c4;
-      --ai-color: #1552c4;
+      --primary: #14b566;
+      --primary-txt: #04120a;
+      --primary-glow: rgba(20, 181, 102, 0.32);
+      --accent: #6aa2ff;
+      --ai-color: #6aa2ff;
       --ai-solide: #3a5fa8;
-      --danger: #c62828;
-      --protein: #c62828;
-      --carbs: #a05a00;
-      --fat: #6d28d9;
-      --barre: rgba(244, 247, 252, 0.95);
-      --verre: rgba(255, 255, 255, 0.58);
-      --verre-fort: rgba(255, 255, 255, 0.78);
-      --verre-creux: rgba(255, 255, 255, 0.42);
-      --verre-brd: rgba(255, 255, 255, 0.85);
-      --verre-brd-vive: rgba(14, 20, 32, 0.14);
-      --verre-hi: rgba(255, 255, 255, 0.95);
-      --verre-lo: rgba(14, 20, 32, 0.07);
-      --verre-sheen: linear-gradient(135deg, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0.14) 30%, rgba(255,255,255,0) 55%);
+      --danger: #ff6b6b;
+
+      --protein: #ff7070;
+      --carbs: #ffb454;
+      --fat: #a78bfa;
+
+      --verre: rgba(255, 255, 255, 0.055);
+      --verre-fort: rgba(255, 255, 255, 0.10);
+      --verre-creux: rgba(0, 0, 0, 0.28);
+      --verre-brd: rgba(255, 255, 255, 0.11);
+      --verre-brd-vive: rgba(255, 255, 255, 0.18);
+      --verre-hi: rgba(255, 255, 255, 0.20);
+      --verre-lo: rgba(0, 0, 0, 0.22);
+      --verre-sheen:
+        radial-gradient(120% 95% at var(--lx) var(--ly), rgba(255,255,255,0.20), rgba(255,255,255,0.05) 34%, rgba(255,255,255,0) 60%),
+        linear-gradient(158deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.02) 34%, rgba(255,255,255,0) 58%);
+      --lentille-rim:
+        inset 0 1.5px 0.5px -0.5px rgba(255,255,255,0.72),
+        inset 1.5px 0 1.5px -1px rgba(255,255,255,0.26),
+        inset -1.5px 0 1.5px -1px rgba(255,255,255,0.26),
+        inset 0 -2px 2px -1px rgba(255,255,255,0.30),
+        inset 0 0 0 0.5px rgba(255,255,255,0.08);
       --verre-sheen-vive:
-        radial-gradient(120% 180% at 12% -20%, rgba(255,255,255,0.85), transparent 42%),
-        linear-gradient(160deg, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0.08) 45%, rgba(255,255,255,0) 65%);
-      --ombre: 0 14px 30px rgba(20, 30, 55, 0.14);
-      --ombre-haute: 0 24px 54px rgba(20, 30, 55, 0.20);
+        radial-gradient(120% 180% at 12% -20%, rgba(255,255,255,0.55), transparent 42%),
+        linear-gradient(160deg, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0.02) 45%, rgba(255,255,255,0) 65%);
+      --barre: rgba(9, 11, 16, 0.94);
+      --ombre: 0 14px 34px rgba(0, 0, 0, 0.45);
+      --ombre-haute: 0 26px 60px rgba(0, 0, 0, 0.6);
+
       --ambiance: none;
     }
 
@@ -216,8 +195,8 @@
     /* Le flou est couteux et penible pour certains utilisateurs : on le coupe
        proprement plutot que de laisser le systeme le faire a moitie. */
     @media (prefers-reduced-transparency: reduce) {
-      :root { --verre-flou: 0px; --verre-flou-doux: 0px; --verre: rgba(20,24,33,0.94); }
-      :root[data-theme="light"] { --verre: rgba(255,255,255,0.96); }
+      :root { --verre-flou: 0px; --verre-flou-doux: 0px; --verre: rgba(255,255,255,0.96); }
+      :root[data-theme="dark"] { --verre: rgba(20,24,33,0.94); }
     }
     html.sans-verre *, html.sans-verre *::before, html.sans-verre *::after {
       backdrop-filter: none !important;
@@ -1598,13 +1577,17 @@
 </div>
 <script>
   /* Le theme est applique AVANT le premier rendu : sans cela, l'app clignotait
-     en sombre pendant une frame avant de passer en clair. */
+     en sombre pendant une frame avant de passer en clair. Clair par défaut
+     (y compris pour une ancienne valeur "auto" enregistrée, désormais
+     retirée) ; seul "dark" bascule explicitement. */
   (function () {
     try {
-      var t = localStorage.getItem('elite_theme') || 'auto';
+      var t = localStorage.getItem('elite_theme') === 'dark' ? 'dark' : 'light';
       var d = localStorage.getItem('elite_densite') || 'confort';
       document.documentElement.setAttribute('data-theme', t);
       document.documentElement.setAttribute('data-densite', d);
+      var mtc = document.getElementById('meta-theme-color');
+      if (mtc) mtc.setAttribute('content', t === 'dark' ? '#06070a' : '#eaeef5');
     } catch (e) {}
 
     var splash = document.getElementById('splash-screen');
@@ -2548,7 +2531,6 @@
     <div class="input-group">
       <label>🎨 Thème</label>
       <div class="segment" id="segment-theme">
-        <button type="button" onclick="choisirTheme('auto')" aria-pressed="false">Auto</button>
         <button type="button" onclick="choisirTheme('light')" aria-pressed="false">Clair</button>
         <button type="button" onclick="choisirTheme('dark')" aria-pressed="false">Sombre</button>
       </div>
@@ -4847,10 +4829,10 @@ function mettreAJourStats() {
    l'info-bulle aient partout le même habillage soigné plutôt que le style
    par défaut de Chart.js (rectangle blanc, ombre dure) qui jurait avec le
    reste du verre. ===================================================== */
+// Plus de mode « auto » à consulter : le thème est toujours l'un des deux
+// choix explicites, clair par défaut. Seul data-theme="dark" bascule.
 function themeClairActif() {
-  return document.documentElement.getAttribute('data-theme') === 'light'
-    || (document.documentElement.getAttribute('data-theme') !== 'dark'
-        && window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches);
+  return document.documentElement.getAttribute('data-theme') !== 'dark';
 }
 function paletteGraphique() {
   const styles = getComputedStyle(document.documentElement);
@@ -5175,7 +5157,10 @@ function majNoteCleIA() {
    THEME ET DENSITE
    ===================================================================== */
 function themeActuel() {
-  try { return localStorage.getItem('elite_theme') || 'auto'; } catch (e) { return 'auto'; }
+  try {
+    const t = localStorage.getItem('elite_theme');
+    return t === 'dark' ? 'dark' : 'light'; // clair par défaut, y compris pour une ancienne valeur "auto" enregistrée
+  } catch (e) { return 'light'; }
 }
 
 /* Le bouton du haut et le segment des réglages appellent tous les deux
@@ -5217,39 +5202,32 @@ function forcerRepeintureVerre() {
 }
 
 function appliquerTheme(t) {
+  t = t === 'dark' ? 'dark' : 'light';
   document.documentElement.setAttribute('data-theme', t);
   try { localStorage.setItem('elite_theme', t); } catch (e) {}
   forcerRepeintureVerre();
 
-  const effectif = themeEffectif();
   const b = document.getElementById('btn-theme');
   if (b) {
     // L'icone annonce ce que fera l'appui, pas l'etat courant.
-    b.textContent = effectif === 'dark' ? '☀️' : '🌙';
-    b.title = effectif === 'dark' ? 'Passer en clair' : 'Passer en sombre';
+    b.textContent = t === 'dark' ? '☀️' : '🌙';
+    b.title = t === 'dark' ? 'Passer en clair' : 'Passer en sombre';
     b.setAttribute('aria-label', b.title);
   }
-  majSegment('segment-theme', ['auto', 'light', 'dark'], t);
+  // La couleur de la barre du navigateur suivait le systeme via une media
+  // query CSS sur la balise <meta> ; elle suit maintenant ce même choix
+  // explicite, pour ne plus jamais désynchroniser barre et contenu.
+  const mtc = document.getElementById('meta-theme-color');
+  if (mtc) mtc.setAttribute('content', t === 'dark' ? '#06070a' : '#eaeef5');
+  majSegment('segment-theme', ['light', 'dark'], t);
   // Les graphiques sont dessines en pixels : leurs couleurs ne suivent pas le
   // theme toutes seules, il faut les redessiner.
   if (ecranActif === 'stats') { mettreAJourStats(); renderStatsMuscu(); }
 }
 function choisirTheme(t) { appliquerTheme(t); }
 
-/* Le bouton faisait tourner auto -> clair -> sombre -> auto. Sur un telephone
-   regle en clair, le troisieme appui repassait par « auto », donc en clair :
-   on croyait que le mode sombre n'avait pas pris. Le bouton ne fait plus que
-   basculer clair/sombre, toujours de facon explicite ; « suivre le systeme »
-   reste disponible dans les reglages. */
 function basculerTheme() {
-  appliquerTheme(themeEffectif() === 'dark' ? 'light' : 'dark');
-}
-
-// Ce que l'oeil voit reellement, y compris quand le theme vaut « auto ».
-function themeEffectif() {
-  const t = themeActuel();
-  if (t === 'light' || t === 'dark') return t;
-  return (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+  appliquerTheme(themeActuel() === 'dark' ? 'light' : 'dark');
 }
 function choisirDensite(d) {
   document.documentElement.setAttribute('data-densite', d);
