@@ -5105,7 +5105,6 @@ function depuisFeuille(mode) {
    toute la machinerie de fusion pour un cas qui n'arrive presque jamais.
    ===================================================================== */
 const SUPA_URL_LS = 'mc_supa_url', SUPA_KEY_LS = 'mc_supa_key', SUPA_ID_LS = 'mc_supa_id';
-const SUPA_ID_AUTO_LS = 'mc_supa_id_auto';
 let supa = null;
 let syncTimer = null;
 let syncEnCours = false;
@@ -5151,27 +5150,16 @@ function tenterConnexionAutomatique() {
   connexionCompte();
 }
 
-/* Sans compte et sans identifiant personnalisé, DEUX personnes différentes
-   qui ouvrent l'appli sur deux appareils tombaient toutes les deux sur le
-   même compartiment "moi" — leurs journées se mélangeaient. Un appareil qui
-   a déjà des repas enregistrés utilisait forcément "moi" jusqu'ici (c'était
-   la seule valeur possible) : il continue sur "moi" pour ne pas perdre le
-   fil avec ce qui est déjà envoyé sur Supabase. Un appareil tout neuf reçoit
-   à la place un identifiant qui lui est propre, généré une seule fois et
-   conservé — plus jamais de collision par défaut entre deux personnes qui
-   n'ont ni l'une ni l'autre créé de compte. Se connecter (👤) reste la
-   solution la plus sûre, celle-ci n'est qu'un filet de sécurité.*/
-function idParDefautAppareil() {
-  if (Object.keys(appData || {}).length > 0) return 'moi';
-  let id = null;
-  try { id = localStorage.getItem(SUPA_ID_AUTO_LS); } catch (e) {}
-  if (!id) {
-    id = 'appareil-' + Math.random().toString(36).slice(2, 10);
-    try { localStorage.setItem(SUPA_ID_AUTO_LS, id); } catch (e) {}
-  }
-  return id;
-}
-
+/* La connexion étant obligatoire (connexionObligatoire, ci-dessus) et
+   vérifiée avant que quoi que ce soit d'autre ne puisse arriver, l'appli
+   dispose toujours d'un compte réel (sessionUtilisateur.id) au moment où
+   confSupabase() est utilisée pour de vrai — que ce soit pour la
+   nutrition ou pour la musculation. Il n'y a donc plus de repli
+   automatique vers un identifiant partagé de type "moi" ou "appareil-…" :
+   c'est justement ce genre de repli silencieux qui mélangeait les
+   données de deux personnes différentes avant que ce verrou n'existe.
+   L'« identifiant personnalisé » des réglages Supabase reste un repli
+   manuel pour les cas avancés (compte non encore migré, par exemple). */
 function confSupabase() {
   try {
     return {
@@ -5180,11 +5168,12 @@ function confSupabase() {
       // Un compte connecté prend le pas sur l'identifiant libre : c'est lui
       // qui isole vraiment les données une fois les policies RLS activées.
       id: (sessionUtilisateur && sessionUtilisateur.id)
-        || (localStorage.getItem(SUPA_ID_LS) || '').trim()
-        || idParDefautAppareil(),
+        || (localStorage.getItem(SUPA_ID_LS) || '').trim(),
       table: SUPA_TABLE_DEFAUT
     };
-  } catch (e) { return { url: SUPA_URL_DEFAUT, cle: SUPA_CLE_DEFAUT, id: 'moi', table: SUPA_TABLE_DEFAUT }; }
+  } catch (e) {
+    return { url: SUPA_URL_DEFAUT, cle: SUPA_CLE_DEFAUT, id: (sessionUtilisateur && sessionUtilisateur.id) || '', table: SUPA_TABLE_DEFAUT };
+  }
 }
 
 /* Ecoute les changements de session (connexion, déconnexion, jeton
