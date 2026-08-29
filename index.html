@@ -1506,7 +1506,14 @@
       flex: 1; min-width: 110px; padding: 8px 10px; min-height: 38px;
       background: var(--verre); border: 1px solid var(--verre-brd); color: var(--text);
       border-radius: 10px; font-family: inherit; font-size: 0.78rem; outline: none;
+      /* Même flèche personnalisée que .input-group select : sans ça, ce menu
+         affichait la flèche native du navigateur, visuellement différente. */
+      appearance: none; -webkit-appearance: none;
+      background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%);
+      background-position: calc(100% - 16px) 50%, calc(100% - 11px) 50%;
+      background-size: 5px 5px, 5px 5px; background-repeat: no-repeat; padding-right: 28px;
     }
+    .exo-en-programme-technique select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 22%, transparent); }
     /* Le bloc superset entoure plusieurs .session-exo-bloc d'un même pointillé :
        leur séparation interne (border-bottom) reste, seul le dernier de la
        liste — qu'il soit ou non dans ce bloc — perd la sienne. */
@@ -3552,15 +3559,6 @@ function majCoucheOuverte() {
   const ouvert = !!document.querySelector('.modal.show, .feuille.show');
   document.body.classList.toggle('couche-ouverte', ouvert);
 }
-function fermerToutesModales() {
-  document.querySelectorAll('.modal.show').forEach(m => {
-    if (m.id === 'compte-modal' && connexionObligatoire) return;
-    if (m.id === 'modal-bienvenue' && bilanForce) return;
-    if (m.id === 'barcode-modal') stopperScanner();
-    m.classList.remove('show');
-  });
-  majCoucheOuverte();
-}
 
 function ouvrirManuel(mealId) {
   activeMealId = mealId;
@@ -3994,7 +3992,28 @@ async function startScanner() {
   try {
     await stopperScanner();
     html5QrCode = new Html5Qrcode('reader');
-    await html5QrCode.start({ facingMode: 'environment' }, { fps: 10, qrbox: 240 }, onScanSuccess);
+    /* Sans indication de résolution, beaucoup de téléphones Android démarrent
+       la caméra sur un flux d'aperçu basse résolution dont le pilote utilise
+       une mise au point simplifiée (quasi fixe) — d'où le besoin de rapprocher
+       et éloigner le téléphone plusieurs fois pour que ça accroche enfin. Deux
+       choses aident : demander explicitement une résolution confortable (ça
+       pousse le pilote vers le pipeline caméra complet, avec vraie autofocus),
+       et demander la mise au point continue via la contrainte "advanced" —
+       ignorée sans erreur là où elle n'est pas supportée (iOS Safari,
+       notamment), donc sans risque. */
+    const contraintesVideo = {
+      facingMode: 'environment',
+      width: { ideal: 1920 }, height: { ideal: 1080 },
+      advanced: [{ focusMode: 'continuous' }]
+    };
+    await html5QrCode.start(contraintesVideo, { fps: 10, qrbox: 250, aspectRatio: 1.0 }, onScanSuccess);
+    // Filet de sécurité : sur certains appareils, la contrainte de mise au
+    // point n'est vraiment prise en compte qu'une fois le flux démarré.
+    try {
+      if (typeof html5QrCode.applyVideoConstraints === 'function') {
+        await html5QrCode.applyVideoConstraints({ advanced: [{ focusMode: 'continuous' }] });
+      }
+    } catch (e) { /* pas supporté sur cet appareil : la mise au point par défaut du navigateur prend le relais */ }
   } catch (err) {
     const lecteur = document.getElementById('reader');
     if (lecteur) lecteur.innerHTML = '<p style="color:var(--text-muted);padding:20px;text-align:center;">Caméra indisponible. Utilisez la recherche par code.</p>';
@@ -8484,6 +8503,11 @@ function toggleSupersetProgramme(i) {
 }
 function retirerExerciceProgramme(i) {
   programmeEnEdition.exercices.splice(i, 1);
+  // Un exercice qui devient le dernier de la liste ne peut plus être lié à
+  // "celui d'après" : sans ça, un superset supprimé en plein milieu de sa
+  // chaîne pouvait laisser un drapeau orphelin sur le nouveau dernier.
+  const dernier = programmeEnEdition.exercices[programmeEnEdition.exercices.length - 1];
+  if (dernier) dernier.supersetSuivant = false;
   renderProgrammeExercicesEnEdition();
 }
 function deplacerExerciceProgramme(i, delta) {
@@ -8805,6 +8829,8 @@ function retirerSerieSession(ei) {
 }
 function retirerExerciceSession(ei) {
   musculationSessionActive.exercices.splice(ei, 1);
+  const dernier = musculationSessionActive.exercices[musculationSessionActive.exercices.length - 1];
+  if (dernier) dernier.supersetSuivant = false;
   sauvegarderSessionActive();
   renderSessionModal();
 }
@@ -8882,13 +8908,29 @@ window.addEventListener('click', (e) => {
   }
 });
 
-/* Echap fermait... rien du tout : sur ordinateur il fallait viser la croix. */
+/* Echap fermait... rien du tout : sur ordinateur il fallait viser la croix.
+   Plusieurs modales/feuilles peuvent être empilées (un sélecteur d'exercice
+   ouvert par-dessus un programme ou une séance en cours, par exemple, ou
+   #modal-edit-aliment par-dessus la feuille "Aliments partagés") : Echap ne
+   doit refermer QUE celle du dessus, jamais tout d'un coup — sans quoi on
+   perdait d'un coup le programme ou la séance en train d'être modifiés.
+   Le z-index détermine le niveau ; à z-index égal, la dernière du DOM est
+   la plus au-dessus (deux modales de même niveau peuvent coexister, ex.
+   #exercice-perso-modal ouverte depuis #picker-exercices-modal). */
 window.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
-  const editAliment = document.getElementById('modal-edit-aliment');
-  if (editAliment && editAliment.classList.contains('show')) { fermerModal('modal-edit-aliment'); return; }
-  if (document.querySelector('.feuille.show')) { fermerFeuilleRepas(); return; }
-  if (document.querySelector('.modal.show')) { fermerToutesModales(); return; }
+  const ouvertes = Array.from(document.querySelectorAll('.modal.show, .feuille.show'));
+  if (ouvertes.length) {
+    let zMax = -Infinity;
+    ouvertes.forEach(el => { zMax = Math.max(zMax, parseInt(getComputedStyle(el).zIndex, 10) || 0); });
+    const dessus = ouvertes.filter(el => (parseInt(getComputedStyle(el).zIndex, 10) || 0) === zMax).pop();
+    if (dessus.id === 'compte-modal' && connexionObligatoire) return;
+    if (dessus.id === 'modal-bienvenue' && bilanForce) return;
+    if (dessus.id === 'barcode-modal') stopperScanner();
+    dessus.classList.remove('show');
+    majCoucheOuverte();
+    return;
+  }
   if (fabOuvert) { fermerFab(); return; }
   const sug = document.getElementById('off-suggestions-list');
   if (sug && sug.style.display !== 'none') cacherSuggestionsOFF();
