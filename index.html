@@ -2466,12 +2466,6 @@
       <p class="note" id="popup-note-sync" style="margin:10px 0 0;"></p>
     </div>
 
-    <div class="bloc-verre" style="padding:15px; margin-bottom:16px;">
-      <label style="display:block;font-weight:700;font-size:0.72rem;margin-bottom:6px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px;">🥗 Base d'aliments (Ciqual)</label>
-      <p class="note" id="popup-note-base" style="margin:0;"></p>
-      <p class="note" id="popup-note-schema" style="margin:8px 0 0;"></p>
-    </div>
-
     <button class="btn btn-primary" onclick="synchroniser('manuel')">🔄 Synchroniser maintenant</button>
     <button class="btn btn-secondaire" style="margin-top:10px; width:100%;" onclick="fermerModal('sync-info-modal'); ouvrirModal('settings-modal');">⚙️ Réglages de synchronisation</button>
   </div>
@@ -2658,7 +2652,7 @@
       </div>
 
       <p class="note" id="note-sync" style="margin:10px 0 0;"></p>
-      <p class="note" style="margin:8px 0 0;">L'état détaillé de la synchronisation (base d'aliments, colonnes détectées) est visible dans le pop-up ☁️ « À jour » sur l'écran principal.</p>
+      <p class="note" style="margin:8px 0 0;">L'état détaillé de la synchronisation est visible dans le pop-up ☁️ « À jour » sur l'écran principal.</p>
       <details style="margin-top:10px;">
         <summary style="cursor:pointer;font-size:0.75rem;color:var(--text-muted);font-weight:700;">Préparer la table des aliments</summary>
         <p class="note" style="margin:10px 0 0;">À exécuter une fois. Ajoute le code-barres, la recherche sans accents, et l'index qui la rend instantanée. Aucune donnée existante n'est touchée.</p>
@@ -3832,6 +3826,39 @@ function proposerInstallationSiPertinent() {
     preparerModalInstallation();
     ouvrirModal('install-modal');
   }, 1200);
+}
+
+/* =====================================================================
+   MISE À JOUR AUTOMATIQUE (PWA sur l'écran d'accueil)
+   Un onglet de navigateur classique revérifie le réseau à chaque ouverture
+   (meta Cache-Control tout en haut du <head>) ; une appli lancée depuis
+   l'écran d'accueil, elle, tourne dans son propre process et peut rester
+   figée sur l'ancienne version bien plus longtemps, sans qu'aucune action
+   de la personne ne la force à revérifier. Solution : à chaque réveil de
+   l'appli, une requête HEAD ultra-légère (pas de re-téléchargement de toute
+   la page) compare l'ETag actuel du fichier servi à celui vu au lancement ;
+   s'il a changé, un nouveau déploiement a eu lieu → rechargement silencieux.
+   Sans risque pour les données : tout est dans localStorage, jamais perdu
+   par un rechargement (voir le commentaire du <head>). ETag stocké en
+   sessionStorage (pas localStorage) : chaque lancement repart d'une
+   référence fraîche plutôt que de comparer à un ETag vieux de plusieurs mois.
+   ===================================================================== */
+async function verifierNouvelleVersion() {
+  try {
+    const resp = await fetch(location.pathname + '?_v=' + Date.now(), { method: 'HEAD', cache: 'no-store' });
+    if (!resp.ok) return;
+    const reference = resp.headers.get('etag') || resp.headers.get('last-modified');
+    if (!reference) return; // hébergement qui ne fournit ni l'un ni l'autre : rien à comparer
+    const precedente = sessionStorage.getItem('appVersionRef');
+    if (precedente && precedente !== reference) {
+      location.reload();
+      return;
+    }
+    sessionStorage.setItem('appVersionRef', reference);
+  } catch (e) {
+    // Hors ligne, ou requête bloquée : sans nouvelles, on ne touche à rien —
+    // on retentera au prochain réveil de l'appli.
+  }
 }
 
 function ouvrirManuel(mealId) {
@@ -9623,8 +9650,11 @@ window.addEventListener('load', () => {
   window.addEventListener('offline', () => majEtatSync('hors-ligne',
     'Hors ligne : les données restent sur cet appareil, l’envoi reprendra au retour du réseau.'));
   document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) synchroniser('retour');
+    if (!document.hidden) { synchroniser('retour'); verifierNouvelleVersion(); }
   });
+  // Référence initiale (aucun rechargement à ce stade, juste la mémoriser) :
+  // sans ça, un premier retour au premier plan n'aurait rien à comparer.
+  verifierNouvelleVersion();
 
   // Les bornes des curseurs doivent exister meme si l'onglet Stats n'a jamais
   // ete ouvert : sinon « Analyser ma periode » travaillait sur un intervalle
