@@ -81,12 +81,21 @@
       --carbs: #a05a00;
       --fat: #6d28d9;
 
-      /* --- matiere verre --- */
-      --verre: rgba(255, 255, 255, 0.58);
-      --verre-fort: rgba(255, 255, 255, 0.78);
-      --verre-creux: rgba(255, 255, 255, 0.42);
-      --verre-brd: rgba(255, 255, 255, 0.85);
-      --verre-brd-vive: rgba(14, 20, 32, 0.14);
+      /* --- matiere verre ---
+         --verre-brd valait rgba(255,255,255,0.85) : une bordure quasi
+         BLANCHE sur un fond --bg déjà presque blanc (#eaeef5), invisible
+         en pratique. Ça passait inaperçu tant le mode clair n'était qu'une
+         option annexe (le survol :hover bascule sur --verre-brd-vive, plus
+         sombre — mais il n'y a pas de survol au doigt sur un téléphone).
+         Devenu le thème PAR DÉFAUT, le manque de contraste des cartes
+         saute aux yeux. Bordure par défaut repassée à une teinte sombre
+         translucide (visible sans survol), le remplissage des cartes
+         légèrement plus opaque pour qu'elles se détachent mieux du fond. */
+      --verre: rgba(255, 255, 255, 0.72);
+      --verre-fort: rgba(255, 255, 255, 0.88);
+      --verre-creux: rgba(255, 255, 255, 0.55);
+      --verre-brd: rgba(14, 20, 32, 0.16);
+      --verre-brd-vive: rgba(14, 20, 32, 0.30);
       --verre-hi: rgba(255, 255, 255, 0.95);
       --verre-lo: rgba(14, 20, 32, 0.07);
       --verre-flou: 30px;
@@ -1779,15 +1788,6 @@
       <button class="btn btn-secondaire" style="width:100%;" onclick="ouvrirBibliotheque()">🔍 Parcourir les exercices</button>
     </div>
 
-    <div class="titre-section">📥 Importer un historique</div>
-    <div class="fitness-card">
-      <p class="note" style="margin:0 0 12px;">Déjà des séances enregistrées dans Strong ? Importe-les ici (Strong → Réglages → Exporter les données → CSV) : les exercices reconnus rejoignent la base existante, les autres deviennent des exercices personnalisés.</p>
-      <input type="file" id="import-strong-input" accept=".csv,text/csv" class="hidden" onchange="importerStrongCSV(this.files[0])">
-      <button class="btn btn-secondaire" style="width:100%;" onclick="document.getElementById('import-strong-input').click()">📥 Importer depuis Strong (CSV)</button>
-      <p class="note" style="margin:12px 0 8px;">Le CSV ne contient que le journal des séances déjà faites, jamais les "Routines" (programmes en cours) de Strong — reconstruis-les ici à partir de ta séance la plus récente sous chaque nom.</p>
-      <button class="btn btn-secondaire" style="width:100%;" onclick="genererProgrammesDepuisHistorique()">🗂️ Créer les programmes depuis l'historique</button>
-    </div>
-
     <p class="note" style="margin:4px 2px 0;">📊 Les statistiques de musculation (progression, records, historique…) sont dans l'onglet <a href="#" onclick="event.preventDefault(); allerA('stats');" style="color:var(--accent);">Statistiques</a>.</p>
   </section>
 
@@ -1842,7 +1842,26 @@
       <div id="analysis-box-stats" class="analysis-output hidden"></div>
     </div>
 
-    <!-- ========== MUSCULATION ========== -->
+    <!-- ========== MUSCULATION ==========
+         Période indépendante de celle des repas ci-dessus : les séances
+         n'ont pas le même rythme que les repas (quelques fois par semaine
+         contre trois fois par jour), pas de raison de partager le même
+         curseur. Par défaut sur tout l'historique disponible (rien ne
+         change tant qu'on n'y touche pas). -->
+    <div class="bloc-verre">
+      <h3 style="margin-top:0;font-size:0.85rem;text-transform:uppercase;letter-spacing:0.8px;">🗓️ Période analysée (séances)</h3>
+      <div class="plage">
+        <div class="plage-piste"><div class="plage-remplie" id="muscu-plage-remplie"></div></div>
+        <input type="range" id="muscu-slider-start" min="0" max="179" value="0" aria-label="Début de la période (séances)" oninput="mettreAJourStatsMuscu()">
+        <input type="range" id="muscu-slider-end" min="0" max="179" value="179" aria-label="Fin de la période (séances)" oninput="mettreAJourStatsMuscu()">
+      </div>
+      <div class="plage-bornes">
+        <span><small>Du</small> <span id="muscu-start-date-label">-</span></span>
+        <span><small>au</small> <span id="muscu-end-date-label">-</span></span>
+      </div>
+      <div class="plage-duree" id="muscu-plage-duree"></div>
+    </div>
+
     <div class="titre-section">🏋️ Musculation</div>
     <div class="stats-grille" id="muscu-stats-totaux"></div>
 
@@ -1865,7 +1884,10 @@
     <div class="titre-section">📋 Statistiques par programme</div>
     <div id="muscu-stats-programmes"></div>
 
-    <div class="titre-section">🗓️ Historique des séances (30 derniers jours)</div>
+    <!-- Plus de fenêtre fixe (30 j) dans le titre : la période affichée ici
+         est désormais celle du curseur « Période analysée (séances) »
+         ci-dessus, visible juste au-dessus (Du … au …). -->
+    <div class="titre-section">🗓️ Historique des séances</div>
     <div id="muscu-historique-container"></div>
   </section>
 
@@ -4790,8 +4812,21 @@ function prepareStats() {
     start.value = Math.max(0, globalMasterLabels.length - 30);
     end.value = globalMasterLabels.length - 1;
   }
+  // Curseur indépendant pour la Musculation : même grille de dates (les 180
+  // derniers jours calendaires), mais une plage à part — par défaut la
+  // totalité de l'historique disponible, pour ne rien masquer tant qu'on
+  // n'a pas volontairement resserré la période.
+  const mStart = document.getElementById('muscu-slider-start');
+  const mEnd = document.getElementById('muscu-slider-end');
+  if (mStart && mEnd) {
+    mStart.max = mEnd.max = globalMasterLabels.length - 1;
+    if (!mStart.dataset.touche) {
+      mStart.value = 0;
+      mEnd.value = globalMasterLabels.length - 1;
+    }
+  }
   mettreAJourStats();
-  renderStatsMuscu();
+  mettreAJourStatsMuscu();
 }
 /* Les curseurs émettent « input » à chaque pixel. Sans temporisation, glisser
    le doigt détruisait et recréait les 4 graphiques des centaines de fois :
@@ -4839,6 +4874,52 @@ function mettreAJourStats() {
   if (!ecran || !ecran.classList.contains('actif')) return;
   statsTimer = setTimeout(() => renderCharts(s, e), 120);
 }
+
+/* --- Curseur de période INDÉPENDANT pour la Musculation ---
+   Même grille de 180 jours calendaires que le curseur des repas
+   (globalMasterLabels), mais une paire de poignées à part : les séances
+   n'ont pas le même rythme que les repas, pas de raison de forcer la même
+   fenêtre de temps sur les deux. */
+// globalMasterLabels ne contient que des libellés d'affichage ("24/07"),
+// pas de date ISO exploitable pour filtrer musculationHistorique (dates au
+// format YYYY-MM-DD) : on la recalcule avec la même base que
+// buildMasterArrays (180 jours calendaires se terminant aujourd'hui).
+function dateIsoPourIndexStats(idx) {
+  return shiftDate(todayStr(), -(179 - idx));
+}
+function bornesPlageMuscu() {
+  const a = document.getElementById('muscu-slider-start');
+  const b = document.getElementById('muscu-slider-end');
+  let s = Number(a.value), e = Number(b.value);
+  if (s > e) {
+    if (document.activeElement === a) { e = s; b.value = String(e); }
+    else { s = e; a.value = String(s); }
+  }
+  return { s, e, max: Number(a.max) || 1 };
+}
+let statsMuscuTimer = null;
+function mettreAJourStatsMuscu() {
+  const startEl = document.getElementById('muscu-slider-start');
+  if (!startEl) return; // Écran Statistiques pas encore construit au premier chargement.
+  const { s, e, max } = bornesPlageMuscu();
+  document.getElementById('muscu-start-date-label').textContent = globalMasterLabels[s] || '-';
+  document.getElementById('muscu-end-date-label').textContent = globalMasterLabels[e] || '-';
+  const remplie = document.getElementById('muscu-plage-remplie');
+  if (remplie && max > 0) {
+    remplie.style.left = (s / max * 100) + '%';
+    remplie.style.right = (100 - e / max * 100) + '%';
+  }
+  const duree = document.getElementById('muscu-plage-duree');
+  if (duree) {
+    const n = e - s + 1;
+    duree.textContent = n === 1 ? '1 jour' : n + ' jours';
+  }
+  clearTimeout(statsMuscuTimer);
+  const ecran = document.getElementById('ecran-stats');
+  if (!ecran || !ecran.classList.contains('actif')) return;
+  statsMuscuTimer = setTimeout(() => renderStatsMuscu(dateIsoPourIndexStats(s), dateIsoPourIndexStats(e)), 120);
+}
+
 /* =====================================================================
    STYLE COMMUN À TOUS LES GRAPHIQUES (nutrition + musculation, compte
    personnel + panneau Administration) : une seule fabrique de palette et
@@ -4899,6 +4980,19 @@ function optionsGraphiqueBase(p, opts) {
     }
   };
 }
+/* Coins arrondis SEULEMENT aux deux extrémités d'une pile de barres
+   EMPILÉES (bas du premier jeu de données, haut du dernier) : arrondir un
+   segment du milieu casse visuellement la jointure avec son voisin (le
+   coin mange un morceau de la couleur pile à la frontière) — mais tout
+   laisser à angle droit détonnait avec les autres graphiques en barres,
+   tous arrondis. `index`/`total` : position du jeu de données dans le
+   tableau `datasets`, dans l'ordre où il est empilé (le premier est en bas). */
+function rayonPileBarres(index, total, rayon) {
+  if (total <= 1) return rayon;
+  if (index === 0) return { topLeft: 0, topRight: 0, bottomLeft: rayon, bottomRight: rayon };
+  if (index === total - 1) return { topLeft: rayon, topRight: rayon, bottomLeft: 0, bottomRight: 0 };
+  return 0;
+}
 
 function renderCharts(s, e) {
   // Chart.js vient d'un CDN : hors ligne, l'onglet s'ouvrait vide et figé
@@ -4952,18 +5046,13 @@ function renderCharts(s, e) {
       { label: 'Objectif', data: globalMasterTarget.slice(s, e + 1), borderColor: cAccent, borderDash: [5, 5], tension: 0.35, pointRadius: 0, fill: false, borderWidth: 2, spanGaps: false }
     ] }, options: optionsGraphiqueBase(p, { avecLegende: true })
   });
-  // Pas de borderRadius ici (contrairement aux autres graphiques en barres) :
-  // sur des barres EMPILÉES, arrondir chaque segment individuellement casse
-  // visuellement les segments du bas/milieu de la pile (coins arrondis qui
-  // "mangent" un morceau de la couleur pile à la jointure avec le segment
-  // suivant) — seul le segment tout en haut de la pile s'en sortait bien.
   if (macrosChartInstance) macrosChartInstance.destroy();
   macrosChartInstance = new Chart(document.getElementById('macrosChart'), {
     type: 'bar',
     data: { labels, datasets: [
-      { label: 'Prot.', data: globalMasterProtein.slice(s, e + 1), backgroundColor: cProt },
-      { label: 'Gluc.', data: globalMasterCarbs.slice(s, e + 1), backgroundColor: cGluc },
-      { label: 'Lip.', data: globalMasterFat.slice(s, e + 1), backgroundColor: cLip }
+      { label: 'Prot.', data: globalMasterProtein.slice(s, e + 1), backgroundColor: cProt, borderRadius: rayonPileBarres(0, 3, 5), borderSkipped: false },
+      { label: 'Gluc.', data: globalMasterCarbs.slice(s, e + 1), backgroundColor: cGluc, borderRadius: rayonPileBarres(1, 3, 5), borderSkipped: false },
+      { label: 'Lip.', data: globalMasterFat.slice(s, e + 1), backgroundColor: cLip, borderRadius: rayonPileBarres(2, 3, 5), borderSkipped: false }
     ] }, options: Object.assign({}, optionsGraphiqueBase(p, { avecLegende: true }), { scales: Object.assign({}, baseOpts.scales, { x: Object.assign({ stacked: true }, baseOpts.scales.x), y: Object.assign({ stacked: true }, baseOpts.scales.y) }) })
   });
   // Même traitement visuel que le graphique Calories juste au-dessus : une
@@ -4979,12 +5068,13 @@ function renderCharts(s, e) {
 
   if (workoutChartInstance) workoutChartInstance.destroy();
 
-  // Pas de borderRadius : barres empilées, même raison que macrosChart plus haut.
-  const workoutDatasets = Object.keys(SPORT_LABELS).map(sportKey => {
+  const clesSport = Object.keys(SPORT_LABELS);
+  const workoutDatasets = clesSport.map((sportKey, i) => {
     return {
       label: SPORT_LABELS[sportKey],
       data: globalMasterWorkoutData[sportKey].slice(s, e + 1),
-      backgroundColor: SPORT_COLORS[sportKey] || '#ffffff'
+      backgroundColor: SPORT_COLORS[sportKey] || '#ffffff',
+      borderRadius: rayonPileBarres(i, clesSport.length, 5), borderSkipped: false
     };
   });
 
@@ -6458,15 +6548,13 @@ function filtrerStatsCompte() {
   const gluc = jours.map(j => sumMeals(j.day).c || null);
   const lip  = jours.map(j => sumMeals(j.day).f || null);
 
-  // Pas de borderRadius : barres empilées, même raison que le graphique
-  // Macronutriments du compte personnel (voir son commentaire plus haut).
   if (adminMacrosChartInstance) adminMacrosChartInstance.destroy();
   adminMacrosChartInstance = new Chart(document.getElementById('adminMacrosChart'), {
     type: 'bar',
     data: { labels, datasets: [
-      { label: 'Protéines', data: prot, backgroundColor: cProt },
-      { label: 'Glucides',  data: gluc, backgroundColor: cGluc },
-      { label: 'Lipides',   data: lip,  backgroundColor: cLip }
+      { label: 'Protéines', data: prot, backgroundColor: cProt, borderRadius: rayonPileBarres(0, 3, 5), borderSkipped: false },
+      { label: 'Glucides',  data: gluc, backgroundColor: cGluc, borderRadius: rayonPileBarres(1, 3, 5), borderSkipped: false },
+      { label: 'Lipides',   data: lip,  backgroundColor: cLip, borderRadius: rayonPileBarres(2, 3, 5), borderSkipped: false }
     ] },
     options: Object.assign({}, optionsGraphiqueBase(p, { avecLegende: true }), {
       scales: {
@@ -7964,350 +8052,6 @@ function libelleExercice(exo) {
   return exo.nomEn ? exo.nom + ' (' + exo.nomEn + ')' : exo.nom;
 }
 
-/* =====================================================================
-   IMPORT D'HISTORIQUE DEPUIS STRONG (CSV)
-   Reconstruit des séances complètes (avec leurs séries) à partir d'un
-   export CSV de l'appli Strong (Strong → Réglages → Exporter les
-   données). Les exercices sont rapprochés au mieux de la base existante
-   (nom + matériel) ; ceux qui restent inconnus deviennent des exercices
-   personnalisés plutôt que d'être perdus ou mal classés en silence.
-   ===================================================================== */
-
-// Analyse CSV minimaliste mais correcte : gère les champs entre guillemets
-// (avec virgules et guillemets échappés "" à l'intérieur), qu'un simple
-// split(',') casserait sur un nom d'entraînement comme "Push, Pull".
-function parserLigneCSV(ligne) {
-  const champs = [];
-  let cur = '', dansGuillemets = false;
-  for (let i = 0; i < ligne.length; i++) {
-    const c = ligne[i];
-    if (dansGuillemets) {
-      if (c === '"') { if (ligne[i + 1] === '"') { cur += '"'; i++; } else dansGuillemets = false; }
-      else cur += c;
-    } else {
-      if (c === '"') dansGuillemets = true;
-      else if (c === ',') { champs.push(cur); cur = ''; }
-      else cur += c;
-    }
-  }
-  champs.push(cur);
-  return champs;
-}
-function parserCSV(texte) {
-  const lignes = texte.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').filter(l => l.length);
-  if (!lignes.length) return [];
-  const entetes = parserLigneCSV(lignes[0]).map(h => h.trim());
-  return lignes.slice(1).map(l => {
-    const vals = parserLigneCSV(l);
-    const obj = {};
-    entetes.forEach((h, i) => { obj[h] = (vals[i] || '').trim(); });
-    return obj;
-  });
-}
-
-// Colonnes attendues, en français (export natif de l'appli) ou en anglais
-// (téléphone réglé en anglais) : on prend la première correspondance trouvée.
-const COLONNES_STRONG = {
-  date: ['Date'],
-  seance: ["Nom de l'entraînement", 'Workout Name'],
-  duree: ['Durée', 'Duration'],
-  exercice: ["Nom de l'exercice", 'Exercise Name'],
-  poids: ['Poids', 'Weight'],
-  reps: ['Réps', 'Reps'],
-  notesEntrainement: ["Notes d'entraînement", 'Workout Notes']
-};
-function colonneStrong(ligne, cle) {
-  for (const nom of COLONNES_STRONG[cle]) { if (nom in ligne) return ligne[nom]; }
-  return '';
-}
-function parserDureeStrong(txt) {
-  const h = /(\d+)\s*h/.exec(txt || '');
-  const m = /(\d+)\s*min/.exec(txt || '');
-  return (h ? parseInt(h[1], 10) * 60 : 0) + (m ? parseInt(m[1], 10) : 0);
-}
-
-/* Regroupe les lignes CSV (une ligne = une série) en séances, puis en
-   blocs d'exercices. Volontairement PAS de regroupement global par nom
-   d'exercice : si le même exercice réapparaît plus tard, non-consécutif,
-   dans la même séance (constaté dans de vrais exports Strong), c'est
-   qu'il a été refait comme un bloc à part — on le garde en deux entrées
-   plutôt que de mélanger leurs séries dans le désordre. */
-function regrouperStrongEnSeances(lignes) {
-  const sessionsParDate = new Map();
-  const ordre = [];
-  lignes.forEach(ligne => {
-    const dateBrute = colonneStrong(ligne, 'date');
-    if (!dateBrute) return;
-    let session = sessionsParDate.get(dateBrute);
-    if (!session) {
-      session = { dateBrute, nom: colonneStrong(ligne, 'seance') || 'Séance importée', dureeTexte: colonneStrong(ligne, 'duree'), notes: '', blocs: [] };
-      sessionsParDate.set(dateBrute, session);
-      ordre.push(session);
-    }
-    if (!session.notes) session.notes = colonneStrong(ligne, 'notesEntrainement');
-    const nomExercice = colonneStrong(ligne, 'exercice');
-    if (!nomExercice) return;
-    const dernierBloc = session.blocs[session.blocs.length - 1];
-    const bloc = (dernierBloc && dernierBloc.nomExercice === nomExercice)
-      ? dernierBloc
-      : (session.blocs.push({ nomExercice, sets: [] }), session.blocs[session.blocs.length - 1]);
-    bloc.sets.push({ poids: parseFloat(colonneStrong(ligne, 'poids')) || 0, reps: parseFloat(colonneStrong(ligne, 'reps')) || 0 });
-  });
-  return ordre;
-}
-
-/* --- Rapprochement d'un nom d'exercice Strong avec la base existante ---
-   Les deux applis ne partagent pas exactement le même vocabulaire
-   ("Bench Press (Dumbbell)" côté Strong vs nomEn "Dumbbell Bench Press"
-   ici, équipement en préfixe plutôt qu'en suffixe) : on compare donc par
-   recoupement de mots significatifs plutôt que par égalité stricte, et le
-   matériel entre parenthèses (ou détecté dans le nom) prime pour ne pas
-   confondre par exemple un curl à la poulie avec un curl à la barre juste
-   parce que le mot "curl" seul suffit à dépasser le seuil de score. */
-function normaliserTexteExercice(s) { return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase(); }
-const SEPARATION_MOTS_COLLES_STRONG = { skullcrusher: 'skull crusher' };
-function decouperMotsStrong(s) {
-  let t = normaliserTexteExercice(s);
-  Object.keys(SEPARATION_MOTS_COLLES_STRONG).forEach(k => { t = t.split(k).join(SEPARATION_MOTS_COLLES_STRONG[k]); });
-  return t.replace(/[^a-z0-9]+/g, ' ').trim().split(/\s+/).filter(Boolean);
-}
-const MOTS_MATERIEL_STRONG = new Set(['barbell', 'dumbbell', 'cable', 'machine', 'smith', 'bodyweight', 'kettlebell', 'band', 'banded', 'plate', 'assisted', 'weighted', 'ez', 'bar']);
-const MOTS_FILLER_STRONG = new Set(['bicep', 'biceps', 'tricep', 'triceps']); // jamais discriminants dans notre base
-const SYNONYMES_MOTS_STRONG = { flye: 'fly' };
-function motsSignificatifsStrong(s) {
-  return decouperMotsStrong(s).map(w => SYNONYMES_MOTS_STRONG[w] || w).filter(w => !MOTS_MATERIEL_STRONG.has(w) && !MOTS_FILLER_STRONG.has(w));
-}
-function scoreChevauchementMots(a, b) {
-  const A = new Set(a), B = new Set(b);
-  let inter = 0; A.forEach(w => { if (B.has(w)) inter++; });
-  const union = new Set([...A, ...B]).size;
-  return union ? inter / union : 0;
-}
-const EQUIP_STRONG_VERS_MATERIEL = {
-  barbell: 'barre', dumbbell: 'haltere', cable: 'poulie', machine: 'machine',
-  'smith machine': 'machine', bodyweight: 'poids_corps', kettlebell: 'kettlebell',
-  band: 'elastique', plate: 'autre', assisted: 'autre', weighted: 'poids_corps'
-};
-function devinerMaterielDepuisNomStrong(nomComplet) {
-  const t = decouperMotsStrong(nomComplet);
-  if (t.includes('barbell')) return 'barre';
-  if (t.includes('dumbbell')) return 'haltere';
-  if (t.includes('cable') || t.includes('pulldown') || t.includes('pulley')) return 'poulie';
-  if (t.includes('machine') || t.includes('smith')) return 'machine';
-  if (t.includes('kettlebell')) return 'kettlebell';
-  if (t.includes('band') || t.includes('banded')) return 'elastique';
-  return null;
-}
-function construireIndexExercicesBase() {
-  return EXERCICES_BASE.map(exo => ({ exo, mots: motsSignificatifsStrong(exo.nomEn) }));
-}
-function matcherExerciceStrong(nomStrong, indexBase) {
-  const m = /^(.*?)(?:\s*\(([^)]+)\))?\s*$/.exec(nomStrong);
-  const nomBase = (m[1] || nomStrong).trim();
-  const tagEquip = (m[2] || '').trim().toLowerCase();
-  const materielAttendu = EQUIP_STRONG_VERS_MATERIEL[tagEquip] || devinerMaterielDepuisNomStrong(nomStrong);
-  const motsCherches = motsSignificatifsStrong(nomBase);
-  function meilleur(liste) {
-    let meilleurExo = null, meilleurScore = 0, meilleurNbMots = Infinity;
-    liste.forEach(entree => {
-      const sc = scoreChevauchementMots(motsCherches, entree.mots);
-      if (sc > meilleurScore || (sc === meilleurScore && entree.mots.length < meilleurNbMots)) {
-        meilleurScore = sc; meilleurExo = entree.exo; meilleurNbMots = entree.mots.length;
-      }
-    });
-    return { exo: meilleurExo, score: meilleurScore };
-  }
-  if (materielAttendu) {
-    const r = meilleur(indexBase.filter(e => e.exo.materiel === materielAttendu));
-    if (r.score >= 0.5) return { exo: r.exo, materielAttendu };
-  }
-  const r2 = meilleur(indexBase);
-  if (r2.score >= 0.6) return { exo: r2.exo, materielAttendu };
-  return { exo: null, materielAttendu };
-}
-/* Devine un groupe musculaire plausible pour un exercice non reconnu, à
-   partir de mots-clés courants (français et anglais) — loin d'être
-   infaillible, mais nettement mieux qu'un classement au hasard ; le
-   groupe reste modifiable ensuite comme pour tout exercice personnalisé. */
-function devinerGroupeDepuisNom(nom) {
-  const t = ' ' + normaliserTexteExercice(nom) + ' ';
-  const test = (mots) => mots.some(m => t.includes(' ' + m) || t.includes(m + ' '));
-  if (test(['pec', 'peck', 'chest', 'pectoraux', 'bench', 'fly', 'flye', 'crossover', 'ecarte'])) return 'pectoraux';
-  if (test(['lat', 'pulldown', 'row', 'rowing', 'pull', 'dos', 'back', 'retropul', 'tirage'])) return 'dos';
-  if (test(['shoulder', 'delt', 'epaule', 'raise', 'militaire', 'overhead'])) return 'epaules';
-  if (test(['trap', 'shrug', 'haussement'])) return 'trapezes';
-  if (test(['curl']) && !test(['leg', 'jambe', 'hamstring', 'ischio'])) return 'biceps';
-  if (test(['tricep', 'pushdown', 'skull', 'crusher', 'kickback', 'dip'])) return 'triceps';
-  if (test(['squat', 'quad', 'leg extension', 'fente', 'lunge'])) return 'quadriceps';
-  if (test(['leg curl', 'hamstring', 'ischio', 'rdl'])) return 'ischios';
-  if (test(['glute', 'fessier', 'hip thrust'])) return 'fessiers';
-  if (test(['adduct'])) return 'adducteurs';
-  if (test(['calf', 'mollet'])) return 'mollets';
-  if (test(['crunch', 'abdo', 'abs', 'plank', 'gainage'])) return 'abdos';
-  if (test(['hyperextension', 'lombaire', 'good morning'])) return 'lombaires';
-  if (test(['forearm', 'wrist', 'avant bras', 'poignet'])) return 'avant_bras';
-  if (test(['course', 'velo', 'rameur', 'run', 'bike', 'cardio', 'elliptique'])) return 'cardio';
-  return 'autres';
-}
-
-function lireFichierTexte(file) {
-  return new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => resolve(r.result);
-    r.onerror = () => reject(r.error);
-    r.readAsText(file, 'utf-8');
-  });
-}
-/* Point d'entrée, appelé au choix d'un fichier dans le sélecteur de
-   l'onglet Séance. Tout se joue en local (aucun envoi réseau du fichier) ;
-   seul le résultat final (séances + exercices personnalisés créés) est
-   ensuite enregistré et synchronisé comme n'importe quelle séance. */
-async function importerStrongCSV(file) {
-  const inputEl = document.getElementById('import-strong-input');
-  if (!file) return;
-  let texte;
-  try { texte = await lireFichierTexte(file); }
-  catch (e) { alert("Impossible de lire ce fichier."); if (inputEl) inputEl.value = ''; return; }
-
-  const lignes = parserCSV(texte);
-  if (inputEl) inputEl.value = '';
-  if (!lignes.length) { alert("Fichier vide ou illisible : vérifie qu'il s'agit bien d'un export CSV de Strong."); return; }
-
-  const sessions = regrouperStrongEnSeances(lignes);
-  if (!sessions.length) { alert("Aucune séance reconnue dans ce fichier."); return; }
-
-  const indexBase = construireIndexExercicesBase();
-  // Un seul rapprochement par nom Strong, même s'il apparaît dans 50 séances.
-  const cacheExercices = new Map();
-  let nbCrees = 0;
-  function resoudreExercice(nomStrong) {
-    if (cacheExercices.has(nomStrong)) return cacheExercices.get(nomStrong);
-    const dejaPerso = musculationExosPerso.find(e => e.nom.trim().toLowerCase() === nomStrong.trim().toLowerCase());
-    if (dejaPerso) { cacheExercices.set(nomStrong, dejaPerso); return dejaPerso; }
-    const { exo, materielAttendu } = matcherExerciceStrong(nomStrong, indexBase);
-    if (exo) { cacheExercices.set(nomStrong, exo); return exo; }
-    const nouveau = {
-      id: idUnique('perso'), nom: nomStrong.trim(),
-      groupe: devinerGroupeDepuisNom(nomStrong),
-      secondaires: [], materiel: materielAttendu || 'autre',
-      perso: true, maj: Date.now()
-    };
-    musculationExosPerso.push(nouveau);
-    cacheExercices.set(nomStrong, nouveau);
-    nbCrees++;
-    return nouveau;
-  }
-
-  const debutsExistants = new Set(musculationHistorique.map(h => h.debut));
-  const nouvellesEntrees = [];
-  let ignorees = 0;
-  sessions.forEach(s => {
-    const debut = Date.parse(s.dateBrute.replace(' ', 'T'));
-    if (!debut || isNaN(debut)) return;
-    if (debutsExistants.has(debut)) { ignorees++; return; }
-    const exercices = s.blocs.map(b => {
-      const exo = resoudreExercice(b.nomExercice);
-      return {
-        exerciceId: exo.id, nom: exo.nom,
-        series: b.sets.map(st => ({ poids: st.poids, reps: st.reps, fait: true })),
-        technique: 'normale', supersetSuivant: false
-      };
-    });
-    if (!exercices.length) return;
-    // Durées aberrantes (séance jamais "terminée" dans Strong, parfois
-    // close plusieurs jours plus tard) : constaté dans de vrais exports —
-    // on retombe alors sur une estimation à partir du nombre de séries
-    // plutôt que d'importer une séance de 190 heures.
-    let dureeMin = parserDureeStrong(s.dureeTexte);
-    const nbSeries = exercices.reduce((n, e) => n + e.series.length, 0);
-    if (!dureeMin || dureeMin > 300) dureeMin = Math.max(20, Math.min(180, Math.round(nbSeries * 2.5)));
-    const fin = debut + dureeMin * 60000;
-    nouvellesEntrees.push({
-      id: idUnique('hist'), programmeId: null, programmeNom: s.nom || 'Séance importée',
-      date: dateEnChaine(new Date(debut)),
-      debut, fin, dureeMin, notes: s.notes || '', maj: Date.now(),
-      exercices
-    });
-  });
-
-  if (!nouvellesEntrees.length) {
-    alert(ignorees
-      ? `Rien à importer : les ${ignorees} séance(s) de ce fichier sont déjà dans ton historique.`
-      : 'Aucune séance exploitable dans ce fichier.');
-    if (nbCrees) musculationExosPerso.length -= nbCrees; // annule les perso créés en pure perte
-    return;
-  }
-
-  const dates = nouvellesEntrees.map(e => e.date).sort();
-  const resume = `Importer ${nouvellesEntrees.length} séance(s) (${formatDateDisplay(dates[0])} → ${formatDateDisplay(dates[dates.length - 1])}) ?\n\n`
-    + `${nbCrees} exercice(s) non reconnu(s) seront créés comme exercices personnalisés (groupe musculaire deviné automatiquement — vérifie-le ensuite, notamment pour ceux classés en « Autres »).\n`
-    + (ignorees ? `${ignorees} séance(s) déjà présentes dans ton historique seront ignorées.\n` : '')
-    + `\nLes poids sont importés tels quels, en kilogrammes : vérifie que c'était bien l'unité utilisée dans Strong avant de confirmer.`;
-  if (!confirm(resume)) {
-    if (nbCrees) musculationExosPerso.length -= nbCrees;
-    return;
-  }
-
-  musculationHistorique.push(...nouvellesEntrees);
-  musculationHistorique.sort((a, b) => b.debut - a.debut);
-  sauvegarderHistorique();
-  sauvegarderExosPerso();
-  if (ecranActif === 'seance') renderSeance();
-  if (ecranActif === 'stats') renderStatsMuscu();
-  alert(`${nouvellesEntrees.length} séance(s) importée(s) avec succès.`);
-  // Strong distingue son journal de séances (ce que ce CSV exporte) de ses
-  // "Routines" (les programmes en cours, jamais inclus dans cet export) :
-  // sans ça, l'historique arrive bien mais "Mes programmes" reste vide.
-  // On propose donc, juste après, de reconstruire un programme par nom de
-  // séance à partir de la plus récente de chaque nom — l'approximation la
-  // plus proche du programme "actuel" que l'historique seul permette.
-  genererProgrammesDepuisHistorique();
-}
-
-/* Reconstruit un programme par nom de séance distinct dans l'historique
-   (à partir de la séance la PLUS RÉCENTE de ce nom), pour les noms qui
-   n'ont pas déjà de programme correspondant. Utile après un import CSV
-   (voir importerStrongCSV, qui l'appelle automatiquement) ou simplement
-   pour reconstituer un programme après coup à partir de séances libres
-   répétées sous le même nom. N'écrase jamais un programme existant. */
-function genererProgrammesDepuisHistorique() {
-  const parNom = new Map();
-  musculationHistorique.forEach(h => {
-    const nom = (h.programmeNom || '').trim();
-    if (!nom || !h.exercices.length) return;
-    const existant = parNom.get(nom);
-    if (!existant || h.debut > existant.debut) parNom.set(nom, h);
-  });
-  const nomsExistants = new Set(musculationProgrammes.map(p => p.nom.trim().toLowerCase()));
-  const aCreer = Array.from(parNom.entries()).filter(([nom]) => !nomsExistants.has(nom.toLowerCase()));
-  if (!aCreer.length) {
-    alert(musculationHistorique.length
-      ? "Rien à créer : chaque nom de séance de ton historique a déjà un programme correspondant."
-      : "Aucun historique de séance pour l'instant : importe ou enregistre d'abord des séances.");
-    return;
-  }
-  const resume = `Créer ${aCreer.length} programme(s) à partir de ta séance la plus récente sous chaque nom ?\n\n`
-    + aCreer.map(([nom, h]) => `• ${nom} (${h.exercices.length} exercice(s), ${formatDateDisplay(h.date)})`).join('\n')
-    + `\n\nSéries, répétitions et repos par défaut (90 s) sont repris de cette séance-là ; modifiable ensuite comme n'importe quel programme.`;
-  if (!confirm(resume)) return;
-  aCreer.forEach(([nom, h]) => {
-    musculationProgrammes.push({
-      id: idUnique('prog'), nom, creeLe: Date.now(), maj: Date.now(),
-      exercices: h.exercices.map(e => {
-        const derniereSerie = e.series[e.series.length - 1];
-        return {
-          exerciceId: e.exerciceId, series: e.series.length || 3,
-          reps: String((derniereSerie && derniereSerie.reps) || 10), repos: 90,
-          technique: e.technique || 'normale', supersetSuivant: !!e.supersetSuivant
-        };
-      })
-    });
-  });
-  sauvegarderProgrammes();
-  if (ecranActif === 'seance') renderSeance();
-  alert(`${aCreer.length} programme(s) créé(s) à partir de ton historique.`);
-}
-
 function chargerMuscu() {
   try { musculationProgrammes = JSON.parse(localStorage.getItem(MUSCU_PROGRAMMES_KEY)) || []; } catch (e) { musculationProgrammes = []; }
   try { musculationHistorique = JSON.parse(localStorage.getItem(MUSCU_HISTORIQUE_KEY)) || []; } catch (e) { musculationHistorique = []; }
@@ -8597,15 +8341,37 @@ function tooltipMuscu(c) {
   };
 }
 
-function renderStatsMuscu() {
-  muscuContexteActuel = { historique: musculationHistorique, admin: false };
-  renderStatsTotauxMuscu(musculationHistorique, 'muscu-stats-totaux');
-  renderChartSeancesParMois(musculationHistorique, 'muscuParMoisChart', 'muscuParMoisChartInstance');
-  initialiserSelectProgression(musculationHistorique, 'muscu-exo-select', 'muscu-progression-vide');
-  renderStatsRecordsMuscu(musculationHistorique, 'muscu-stats-records');
-  renderChartSeancesParGroupeMuscu(musculationHistorique, 'muscuGroupeChart', 'muscuGroupeChartInstance');
-  renderStatsProgrammesMuscu(musculationHistorique, 'muscu-stats-programmes');
-  renderHistoriqueSeances(musculationHistorique, 'muscu-historique-container', 30);
+/* dateDebut/dateFin (ISO, optionnels) : période choisie sur le curseur
+   indépendant de la Musculation (voir mettreAJourStatsMuscu). Appelée aussi
+   sans arguments — après une séance terminée, un changement de thème, une
+   synchro… — auquel cas on relit la période en cours sur le curseur
+   lui-même plutôt que de perdre le filtre déjà choisi ; et si le curseur
+   n'existe pas encore (tout premier chargement), tout l'historique. */
+function renderStatsMuscu(dateDebut, dateFin) {
+  if (dateDebut === undefined) {
+    const startEl = document.getElementById('muscu-slider-start');
+    if (startEl && globalMasterLabels.length) {
+      const { s, e } = bornesPlageMuscu();
+      dateDebut = dateIsoPourIndexStats(s);
+      dateFin = dateIsoPourIndexStats(e);
+    }
+  }
+  const historiqueFiltre = (dateDebut && dateFin)
+    ? musculationHistorique.filter(h => h.date >= dateDebut && h.date <= dateFin)
+    : musculationHistorique;
+
+  muscuContexteActuel = { historique: historiqueFiltre, admin: false };
+  renderStatsTotauxMuscu(historiqueFiltre, 'muscu-stats-totaux');
+  renderChartSeancesParMois(historiqueFiltre, 'muscuParMoisChart', 'muscuParMoisChartInstance', dateDebut, dateFin);
+  initialiserSelectProgression(historiqueFiltre, 'muscu-exo-select', 'muscu-progression-vide');
+  renderStatsRecordsMuscu(historiqueFiltre, 'muscu-stats-records');
+  renderChartSeancesParGroupeMuscu(historiqueFiltre, 'muscuGroupeChart', 'muscuGroupeChartInstance');
+  renderStatsProgrammesMuscu(historiqueFiltre, 'muscu-stats-programmes');
+  // 3650 j (10 ans) plutôt que la fenêtre habituelle de 30 j : l'historique
+  // passé ici est déjà filtré par le curseur de période, ce paramètre ne
+  // doit plus re-filtrer par-dessus (et encore moins par rapport à
+  // aujourd'hui si la période choisie est dans le passé).
+  renderHistoriqueSeances(historiqueFiltre, 'muscu-historique-container', 3650);
 }
 
 /* Chaque fonction ci-dessous prend en paramètre l'historique à utiliser et
@@ -8636,13 +8402,29 @@ function renderStatsTotauxMuscu(historique, idCible) {
    dynamiquement (window[nomInstance]) : nécessaire pour que les mêmes
    fonctions de rendu servent à la fois aux graphiques de l'onglet
    Statistiques et à ceux, distincts, du panneau Administration. */
-function renderChartSeancesParMois(historique, idCanvas, nomInstance) {
+// dateDebut/dateFin (ISO, optionnels) : un mois par mois calendaire couvert
+// par la période choisie (plafonné aux 12 plus récents, pour rester lisible
+// même quand la période couvre tout l'historique sur plusieurs années).
+// Omis (panneau Administration, qui n'a pas encore ce curseur) → repli sur
+// les 6 derniers mois réels, comme avant.
+function renderChartSeancesParMois(historique, idCanvas, nomInstance, dateDebut, dateFin) {
   const canvas = document.getElementById(idCanvas);
   if (!canvas || typeof Chart === 'undefined') return;
-  const NB_MOIS = 6;
-  const base = new Date(); base.setDate(1);
-  const mois = [];
-  for (let i = NB_MOIS - 1; i >= 0; i--) mois.push(new Date(base.getFullYear(), base.getMonth() - i, 1));
+  let mois;
+  if (dateDebut && dateFin) {
+    const finMois = new Date(dateFin + 'T12:00:00'); finMois.setDate(1);
+    const debutMois = new Date(dateDebut + 'T12:00:00'); debutMois.setDate(1);
+    mois = [];
+    let cur = new Date(finMois);
+    while (cur >= debutMois && mois.length < 60) { mois.unshift(new Date(cur)); cur.setMonth(cur.getMonth() - 1); }
+    if (!mois.length) mois = [finMois];
+    if (mois.length > 12) mois = mois.slice(-12);
+  } else {
+    const NB_MOIS = 6;
+    const base = new Date(); base.setDate(1);
+    mois = [];
+    for (let i = NB_MOIS - 1; i >= 0; i--) mois.push(new Date(base.getFullYear(), base.getMonth() - i, 1));
+  }
   const labels = mois.map(m => m.toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' }));
   const cles = mois.map(m => m.getFullYear() + '-' + String(m.getMonth() + 1).padStart(2, '0'));
   const counts = cles.map(cle => historique.filter(h => h.date.slice(0, 7) === cle).length);
@@ -9554,6 +9336,18 @@ window.addEventListener('load', () => {
     sl.addEventListener('change', () => { sl.dataset.touche = '1'; });
     el.addEventListener('change', () => { sl.dataset.touche = '1'; });
     mettreAJourStats();
+  }
+  // Même chose pour le curseur indépendant de la Musculation, par défaut
+  // sur tout l'historique (voir prepareStats).
+  const mSl = document.getElementById('muscu-slider-start');
+  const mEl = document.getElementById('muscu-slider-end');
+  if (mSl && mEl) {
+    mSl.max = mEl.max = globalMasterLabels.length - 1;
+    mSl.value = 0;
+    mEl.value = globalMasterLabels.length - 1;
+    mSl.addEventListener('change', () => { mSl.dataset.touche = '1'; });
+    mEl.addEventListener('change', () => { mSl.dataset.touche = '1'; });
+    mettreAJourStatsMuscu();
   }
 
   const lim = limiteIA();
