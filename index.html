@@ -1494,6 +1494,31 @@
     .historique-carte-nom { font-weight: 700; font-size: 0.88rem; }
     .historique-carte-date { font-size: 0.72rem; color: var(--text-muted); white-space: nowrap; }
     .historique-carte-meta { font-size: 0.74rem; color: var(--text-muted); margin-top: 4px; }
+
+    /* --- Techniques d'intensification (dégressif, pyramidal) et supersets --- */
+    .badge-technique {
+      display: inline-block; font-size: 0.62rem; font-weight: 700; padding: 2px 8px;
+      border-radius: 99px; background: var(--verre-fort); color: var(--text-muted);
+      margin-left: 6px; vertical-align: middle; white-space: nowrap;
+    }
+    .exo-en-programme-technique { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+    .exo-en-programme-technique select {
+      flex: 1; min-width: 110px; padding: 8px 10px; min-height: 38px;
+      background: var(--verre); border: 1px solid var(--verre-brd); color: var(--text);
+      border-radius: 10px; font-family: inherit; font-size: 0.78rem; outline: none;
+    }
+    /* Le bloc superset entoure plusieurs .session-exo-bloc d'un même pointillé :
+       leur séparation interne (border-bottom) reste, seul le dernier de la
+       liste — qu'il soit ou non dans ce bloc — perd la sienne. */
+    .session-superset-bloc {
+      border: 1.5px dashed var(--accent); border-radius: 16px;
+      padding: 14px 14px 2px; margin-bottom: 16px;
+    }
+    .session-superset-bloc .session-exo-bloc:last-of-type { border-bottom: none; margin-bottom: 6px; }
+    .session-superset-titre {
+      font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.7px; font-weight: 800;
+      color: var(--accent); margin-bottom: 12px;
+    }
   </style>
 </head>
 <body>
@@ -7921,8 +7946,35 @@ function construireExercicesSession(programme) {
       series = [];
       for (let i = 0; i < nbSeries; i++) series.push({ poids: null, reps: parseRepsCible(pe.reps), fait: false });
     }
-    return { exerciceId: pe.exerciceId, nom: exo ? exo.nom : 'Exercice', series };
+    return {
+      exerciceId: pe.exerciceId, nom: exo ? exo.nom : 'Exercice', series,
+      technique: pe.technique || 'normale', supersetSuivant: !!pe.supersetSuivant
+    };
   });
+}
+
+/* Regroupe une liste d'exercices (d'une séance en cours ou d'un historique)
+   en blocs : un exercice marqué supersetSuivant reste collé à celui qui le
+   suit, formant un bloc de 2 (ou plus, en chaînant) exécuté sans repos
+   entre chaque exercice — un vrai superset/circuit plutôt qu'un simple
+   enchaînement de blocs séparés. Renvoie un tableau de tableaux d'index. */
+function grouperBlocsExercices(liste) {
+  const blocs = [];
+  let i = 0;
+  while (i < liste.length) {
+    const bloc = [i];
+    while (liste[i] && liste[i].supersetSuivant && i + 1 < liste.length) {
+      i++;
+      bloc.push(i);
+    }
+    blocs.push(bloc);
+    i++;
+  }
+  return blocs;
+}
+const TECHNIQUE_LABELS = { degressif: '💧 Dégressif', pyramidal: '🔺 Pyramidal' };
+function badgeTechnique(technique) {
+  return (technique && TECHNIQUE_LABELS[technique]) ? ` <span class="badge-technique">${TECHNIQUE_LABELS[technique]}</span>` : '';
 }
 
 /* =====================================================================
@@ -8251,14 +8303,28 @@ function voirDetailProgramme(cle) {
   ].map(([l, v]) => `<div><small>${l}</small><div class="stats-valeur">${v}</div></div>`).join('');
   document.getElementById('programme-detail-note').textContent =
     'Exercices de la dernière séance effectuée sous ce programme (' + formatDateDisplay(derniere.date) + ') :';
-  document.getElementById('programme-detail-container').innerHTML = derniere.exercices.map(e => {
-    const exoRef = trouverExercice(e.exerciceId);
-    const label = exoRef ? libelleExercice(exoRef) : e.nom;
-    const series = e.series.map((s, i) => `<div style="display:flex; justify-content:space-between; font-size:0.82rem; padding:4px 0; border-bottom:1px solid var(--verre-brd);">
-      <span>Série ${i + 1}</span><span>${s.poids ?? '—'} kg × ${s.reps ?? '—'}</span></div>`).join('');
-    return `<div style="margin-bottom:14px;"><div style="font-weight:700; font-size:0.88rem; margin-bottom:6px;">${escapeHtml(label)}</div>${series}</div>`;
-  }).join('');
+  document.getElementById('programme-detail-container').innerHTML = renderListeExercicesDetail(derniere.exercices);
   ouvrirModal('programme-detail-modal');
+}
+
+/* Rendu partagé de la liste d'exercices d'une séance (en cours, ou déjà
+   enregistrée dans l'historique) : regroupe les supersets et affiche
+   l'éventuelle technique (dégressif/pyramidal). Réutilisé par le détail
+   d'une séance de l'historique et le détail d'un programme. */
+function renderListeExercicesDetail(liste) {
+  return grouperBlocsExercices(liste).map(indices => {
+    const contenu = indices.map(i => {
+      const e = liste[i];
+      const exoRef = trouverExercice(e.exerciceId);
+      const label = exoRef ? libelleExercice(exoRef) : e.nom;
+      const series = e.series.map((s, si) => `<div style="display:flex; justify-content:space-between; font-size:0.82rem; padding:4px 0; border-bottom:1px solid var(--verre-brd);">
+        <span>Série ${si + 1}</span><span>${s.poids ?? '—'} kg × ${s.reps ?? '—'}${s.fait ? ' ✅' : ''}</span></div>`).join('');
+      return `<div style="margin-bottom:14px;"><div style="font-weight:700; font-size:0.88rem; margin-bottom:6px;">${escapeHtml(label)}${badgeTechnique(e.technique)}</div>${series}</div>`;
+    }).join('');
+    return indices.length > 1
+      ? `<div class="session-superset-bloc"><div class="session-superset-titre">🔗 Superset</div>${contenu}</div>`
+      : contenu;
+  }).join('');
 }
 
 function renderStatsRecordsMuscu(historique, idCible) {
@@ -8319,16 +8385,8 @@ function voirDetailHistorique(id) {
   historiqueDetailCourant = id;
   document.getElementById('titre-historique-detail').textContent =
     '🗓️ ' + (h.programmeNom || 'Séance libre') + ' — ' + formatDateDisplay(h.date);
-  const lignes = h.exercices.map(e => {
-    const series = e.series.map((s, i) => `<div style="display:flex; justify-content:space-between; font-size:0.82rem; padding:4px 0; border-bottom:1px solid var(--verre-brd);">
-      <span>Série ${i + 1}</span><span>${s.poids ?? '—'} kg × ${s.reps ?? '—'} ${s.fait ? '✅' : ''}</span>
-    </div>`).join('');
-    const exoRef = trouverExercice(e.exerciceId);
-    const label = exoRef ? libelleExercice(exoRef) : e.nom;
-    return `<div style="margin-bottom:14px;"><div style="font-weight:700; font-size:0.88rem; margin-bottom:6px;">${escapeHtml(label)}</div>${series}</div>`;
-  }).join('');
   document.getElementById('historique-detail-container').innerHTML =
-    lignes + (h.notes ? `<p class="note">📝 ${escapeHtml(h.notes)}</p>` : '');
+    renderListeExercicesDetail(h.exercices) + (h.notes ? `<p class="note">📝 ${escapeHtml(h.notes)}</p>` : '');
   // Depuis le panneau Administration, cette fenêtre reste consultative :
   // l'admin ne supprime pas les données d'un compte depuis cette vue.
   const btnSuppr = document.getElementById('btn-suppr-seance-historique');
@@ -8374,6 +8432,7 @@ function renderProgrammeExercicesEnEdition() {
   c.innerHTML = programmeEnEdition.exercices.map((pe, i) => {
     const exo = trouverExercice(pe.exerciceId);
     const meta = exo ? (GROUPES_MUSCULAIRES[exo.groupe] + ' · ' + MATERIELS[exo.materiel].label) : 'Exercice introuvable';
+    const dernierDeLaListe = i === programmeEnEdition.exercices.length - 1;
     return `<div class="exo-en-programme">
       <div class="exo-en-programme-entete">
         <div>
@@ -8383,10 +8442,18 @@ function renderProgrammeExercicesEnEdition() {
         <div style="display:flex; gap:6px; align-items:center;">
           <div class="exo-en-programme-reordre">
             <button type="button" onclick="deplacerExerciceProgramme(${i},-1)" ${i === 0 ? 'disabled' : ''} aria-label="Monter">▲</button>
-            <button type="button" onclick="deplacerExerciceProgramme(${i},1)" ${i === programmeEnEdition.exercices.length - 1 ? 'disabled' : ''} aria-label="Descendre">▼</button>
+            <button type="button" onclick="deplacerExerciceProgramme(${i},1)" ${dernierDeLaListe ? 'disabled' : ''} aria-label="Descendre">▼</button>
           </div>
           <button class="btn-delete" onclick="retirerExerciceProgramme(${i})" aria-label="Retirer l'exercice">&times;</button>
         </div>
+      </div>
+      <div class="exo-en-programme-technique">
+        <select onchange="modifierExerciceProgramme(${i},'technique',this.value)" aria-label="Technique">
+          <option value="normale" ${pe.technique === 'normale' || !pe.technique ? 'selected' : ''}>Normale</option>
+          <option value="degressif" ${pe.technique === 'degressif' ? 'selected' : ''}>💧 Dégressif</option>
+          <option value="pyramidal" ${pe.technique === 'pyramidal' ? 'selected' : ''}>🔺 Pyramidal</option>
+        </select>
+        ${dernierDeLaListe ? '' : `<button type="button" class="filtre-chip" aria-pressed="${pe.supersetSuivant ? 'true' : 'false'}" onclick="toggleSupersetProgramme(${i})">🔗 Superset avec le suivant</button>`}
       </div>
       <div class="exo-en-programme-champs">
         <div class="input-group"><label>Séries</label><input type="number" min="1" value="${pe.series}" onchange="modifierExerciceProgramme(${i},'series',this.value)"></div>
@@ -8401,7 +8468,19 @@ function modifierExerciceProgramme(i, champ, valeur) {
   if (!pe) return;
   if (champ === 'series') pe.series = Math.max(1, Number(valeur) || 1);
   else if (champ === 'repos') pe.repos = Math.max(0, Number(valeur) || 0);
+  else if (champ === 'technique') pe.technique = valeur;
   else pe.reps = valeur;
+}
+/* Un exercice marqué "superset avec le suivant" est exécuté juste après le
+   suivant, sans repos entre les deux — deux boutons cochés à la suite
+   forment donc un superset à 3 exercices, etc. La liaison est purement
+   positionnelle (pas un identifiant partagé à maintenir) : elle suit
+   naturellement un réordonnancement plutôt que de s'y perdre. */
+function toggleSupersetProgramme(i) {
+  const pe = programmeEnEdition.exercices[i];
+  if (!pe) return;
+  pe.supersetSuivant = !pe.supersetSuivant;
+  renderProgrammeExercicesEnEdition();
 }
 function retirerExerciceProgramme(i) {
   programmeEnEdition.exercices.splice(i, 1);
@@ -8530,7 +8609,7 @@ function rendrePickerExercices() {
 }
 function choisirExercicePicker(id) {
   if (pickerMode === 'programme') {
-    programmeEnEdition.exercices.push({ exerciceId: id, series: 3, reps: '8-12', repos: 90 });
+    programmeEnEdition.exercices.push({ exerciceId: id, series: 3, reps: '8-12', repos: 90, technique: 'normale', supersetSuivant: false });
     fermerModal('picker-exercices-modal');
     renderProgrammeExercicesEnEdition();
   } else if (pickerMode === 'session') {
@@ -8646,7 +8725,7 @@ function ajouterExerciceASession(id) {
   const series = derniere && derniere.series.length
     ? derniere.series.map(s => ({ poids: s.poids, reps: s.reps, fait: false }))
     : [{ poids: null, reps: null, fait: false }, { poids: null, reps: null, fait: false }, { poids: null, reps: null, fait: false }];
-  musculationSessionActive.exercices.push({ exerciceId: id, nom: exo.nom, series });
+  musculationSessionActive.exercices.push({ exerciceId: id, nom: exo.nom, series, technique: 'normale', supersetSuivant: false });
   sauvegarderSessionActive();
   renderSessionModal();
 }
@@ -8658,37 +8737,43 @@ function renderSessionModal() {
   if (!s.exercices.length) {
     c.innerHTML = '<div class="vide">Ajoute un premier exercice pour commencer.</div>';
   } else {
-    c.innerHTML = s.exercices.map((exo, ei) => {
-      const derniere = dernierePerfExercice(exo.exerciceId);
-      const infoDerniere = derniere
-        ? 'Dernière fois (' + formatDateDisplay(derniere.date) + ') : ' +
-          derniere.series.filter(x => x.fait).map(x => (x.poids ?? '—') + '×' + (x.reps ?? '—')).join(', ')
-        : 'Première fois sur cet exercice.';
-      const lignesSeries = exo.series.map((set, si) => `
-        <tr>
-          <td class="serie-num">${si + 1}</td>
-          <td><input type="number" inputmode="decimal" step="0.5" value="${set.poids ?? ''}" placeholder="—" onchange="modifierSerieSession(${ei},${si},'poids',this.value)"></td>
-          <td><input type="number" inputmode="numeric" step="1" value="${set.reps ?? ''}" placeholder="—" onchange="modifierSerieSession(${ei},${si},'reps',this.value)"></td>
-          <td><button type="button" class="serie-check ${set.fait ? 'faite' : ''}" onclick="basculerSerieSession(${ei},${si})" aria-label="Marquer la série comme faite">✓</button></td>
-        </tr>`).join('');
-      return `<div class="session-exo-bloc">
-        <div class="session-exo-titre">
-          <span class="session-exo-nom">${escapeHtml(trouverExercice(exo.exerciceId) ? libelleExercice(trouverExercice(exo.exerciceId)) : exo.nom)}</span>
-          <button class="btn-delete" onclick="retirerExerciceSession(${ei})" aria-label="Retirer l'exercice">&times;</button>
-        </div>
-        <div class="session-exo-derniere">${escapeHtml(infoDerniere)}</div>
-        <table class="serie-table">
-          <thead><tr><th>Série</th><th>Poids (kg)</th><th>Répétitions</th><th>✓</th></tr></thead>
-          <tbody>${lignesSeries}</tbody>
-        </table>
-        <div style="display:flex; gap:8px; margin-top:8px;">
-          <button class="btn-icone" style="font-size:0.75rem; font-weight:700;" onclick="ajouterSerieSession(${ei})">+ Série</button>
-          ${exo.series.length > 1 ? `<button class="btn-icone" style="font-size:0.75rem; font-weight:700;" onclick="retirerSerieSession(${ei})">– Série</button>` : ''}
-        </div>
-      </div>`;
+    c.innerHTML = grouperBlocsExercices(s.exercices).map(indices => {
+      const contenu = indices.map(ei => renderSessionExerciceBlocHTML(s.exercices[ei], ei)).join('');
+      return indices.length > 1
+        ? `<div class="session-superset-bloc"><div class="session-superset-titre">🔗 Superset — enchaîne les exercices sans repos entre eux</div>${contenu}</div>`
+        : contenu;
     }).join('');
   }
   document.getElementById('session-notes').value = s.notes || '';
+}
+function renderSessionExerciceBlocHTML(exo, ei) {
+  const derniere = dernierePerfExercice(exo.exerciceId);
+  const infoDerniere = derniere
+    ? 'Dernière fois (' + formatDateDisplay(derniere.date) + ') : ' +
+      derniere.series.filter(x => x.fait).map(x => (x.poids ?? '—') + '×' + (x.reps ?? '—')).join(', ')
+    : 'Première fois sur cet exercice.';
+  const lignesSeries = exo.series.map((set, si) => `
+    <tr>
+      <td class="serie-num">${si + 1}</td>
+      <td><input type="number" inputmode="decimal" step="0.5" value="${set.poids ?? ''}" placeholder="—" onchange="modifierSerieSession(${ei},${si},'poids',this.value)"></td>
+      <td><input type="number" inputmode="numeric" step="1" value="${set.reps ?? ''}" placeholder="—" onchange="modifierSerieSession(${ei},${si},'reps',this.value)"></td>
+      <td><button type="button" class="serie-check ${set.fait ? 'faite' : ''}" onclick="basculerSerieSession(${ei},${si})" aria-label="Marquer la série comme faite">✓</button></td>
+    </tr>`).join('');
+  return `<div class="session-exo-bloc">
+    <div class="session-exo-titre">
+      <span class="session-exo-nom">${escapeHtml(trouverExercice(exo.exerciceId) ? libelleExercice(trouverExercice(exo.exerciceId)) : exo.nom)}${badgeTechnique(exo.technique)}</span>
+      <button class="btn-delete" onclick="retirerExerciceSession(${ei})" aria-label="Retirer l'exercice">&times;</button>
+    </div>
+    <div class="session-exo-derniere">${escapeHtml(infoDerniere)}</div>
+    <table class="serie-table">
+      <thead><tr><th>Série</th><th>Poids (kg)</th><th>Répétitions</th><th>✓</th></tr></thead>
+      <tbody>${lignesSeries}</tbody>
+    </table>
+    <div style="display:flex; gap:8px; margin-top:8px;">
+      <button class="btn-icone" style="font-size:0.75rem; font-weight:700;" onclick="ajouterSerieSession(${ei})">+ Série</button>
+      ${exo.series.length > 1 ? `<button class="btn-icone" style="font-size:0.75rem; font-weight:700;" onclick="retirerSerieSession(${ei})">– Série</button>` : ''}
+    </div>
+  </div>`;
 }
 function modifierSerieSession(ei, si, champ, valeur) {
   const set = musculationSessionActive.exercices[ei] && musculationSessionActive.exercices[ei].series[si];
@@ -8738,8 +8823,10 @@ function terminerSeance() {
   const entree = {
     id: idUnique('hist'), programmeId: s.programmeId, programmeNom: s.programmeNom || 'Séance libre',
     date: todayStr(), debut: s.debut, fin, dureeMin, notes: s.notes || '', maj: fin,
-    exercices: s.exercices.map(e => ({ exerciceId: e.exerciceId, nom: e.nom, series: e.series.filter(x => x.fait || x.poids || x.reps) }))
-      .filter(e => e.series.length)
+    exercices: s.exercices.map(e => ({
+      exerciceId: e.exerciceId, nom: e.nom, series: e.series.filter(x => x.fait || x.poids || x.reps),
+      technique: e.technique || 'normale', supersetSuivant: !!e.supersetSuivant
+    })).filter(e => e.series.length)
   };
   musculationHistorique.unshift(entree);
   sauvegarderHistorique();
