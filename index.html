@@ -1707,8 +1707,22 @@
       <button class="btn btn-secondaire" style="width:100%;" onclick="ouvrirBibliotheque()">🔍 Parcourir les exercices</button>
     </div>
 
-    <div class="titre-section">📈 Ce mois-ci</div>
-    <div class="stats-grille" id="seance-stats-mois"></div>
+    <div class="titre-section">📊 Statistiques</div>
+    <div class="stats-grille" id="seance-stats-totaux"></div>
+
+    <div class="chart-container"><canvas id="seanceParMoisChart"></canvas></div>
+
+    <div class="titre-section">🏷️ Répartition par matériel</div>
+    <div class="chart-container"><canvas id="seanceMaterielChart"></canvas></div>
+
+    <div class="titre-section">💪 Volume par groupe musculaire</div>
+    <div class="chart-container"><canvas id="seanceGroupeChart"></canvas></div>
+
+    <div class="titre-section">📋 Statistiques par programme</div>
+    <div id="seance-stats-programmes"></div>
+
+    <div class="titre-section">🏆 Records personnels</div>
+    <div id="seance-stats-records"></div>
 
     <div class="titre-section">🗓️ Historique des séances</div>
     <div id="historique-seances-container"></div>
@@ -1861,6 +1875,20 @@
 
       <div class="titre-section">Minutes de sport</div>
       <div class="chart-container"><canvas id="adminSportChart"></canvas></div>
+
+      <!-- Musculation de ce compte : visible uniquement ici, dans le panneau
+           Administration — jamais mélangée aux données d'un autre compte. -->
+      <div class="titre-section">🏋️ Musculation — <span id="admin-muscu-nom"></span></div>
+      <div class="stats-grille" id="admin-muscu-totaux"></div>
+      <div class="chart-container"><canvas id="adminMuscuMoisChart"></canvas></div>
+      <div class="titre-section">🏷️ Répartition par matériel</div>
+      <div class="chart-container"><canvas id="adminMuscuMaterielChart"></canvas></div>
+      <div class="titre-section">💪 Volume par groupe musculaire</div>
+      <div class="chart-container"><canvas id="adminMuscuGroupeChart"></canvas></div>
+      <div class="titre-section">📋 Programmes</div>
+      <div id="admin-muscu-programmes"></div>
+      <div class="titre-section">🏆 Records personnels</div>
+      <div id="admin-muscu-records"></div>
     </div>
   </section>
 
@@ -4960,6 +4988,7 @@ function appliquerTheme(t) {
   // Les graphiques sont dessines en pixels : leurs couleurs ne suivent pas le
   // theme toutes seules, il faut les redessiner.
   if (ecranActif === 'stats') mettreAJourStats();
+  if (ecranActif === 'seance') renderStatsMuscu();
 }
 function choisirTheme(t) { appliquerTheme(t); }
 
@@ -5399,6 +5428,12 @@ async function executerSuppressionDefinitive(utilisateur) {
     if (rj.error) throw new Error('journées : ' + rj.error.message);
     const rp = await supa.from('profil').delete().eq('utilisateur', utilisateur);
     if (rp.error) throw new Error('profil : ' + rp.error.message);
+    const rpm = await supa.from('programmes_musculation').delete().eq('utilisateur', utilisateur);
+    if (rpm.error) throw new Error('programmes de musculation : ' + rpm.error.message);
+    const rsm = await supa.from('seances_musculation').delete().eq('utilisateur', utilisateur);
+    if (rsm.error) throw new Error('séances de musculation : ' + rsm.error.message);
+    const rem = await supa.from('exercices_perso_musculation').delete().eq('utilisateur', utilisateur);
+    if (rem.error) throw new Error('exercices personnalisés : ' + rem.error.message);
 
     // Panneau de réinitialisation : sans lui, un appareil qui a encore
     // l'ancienne copie en mémoire la repousserait vers Supabase à sa
@@ -6050,6 +6085,31 @@ function remplirFicheCompteAdmin(user) {
 }
 let adminMacrosChartInstance = null, adminSportChartInstance = null;
 
+/* Musculation d'un compte, vue depuis le panneau Administration : les
+   mêmes fonctions de rendu que l'onglet Séance (renderStatsTotauxMuscu,
+   renderChart*Muscu, renderStatsProgrammesMuscu, renderStatsRecordsMuscu),
+   appliquées à l'historique de CE compte plutôt qu'à musculationHistorique.
+   Aucune donnée n'est jamais écrite dans les variables locales de
+   l'administrateur : uniquement lues depuis Supabase, affichées, oubliées. */
+async function chargerStatsMuscuAdmin(utilisateur, nomAffiche) {
+  const cible = document.getElementById('admin-muscu-nom');
+  if (cible) cible.textContent = nomAffiche;
+  try {
+    const { data, error } = await supa.from('seances_musculation').select('donnees').eq('utilisateur', utilisateur);
+    if (error) throw error;
+    const historique = (data || []).map(r => r.donnees).sort((a, b) => (Number(b.maj) || 0) - (Number(a.maj) || 0));
+    renderStatsTotauxMuscu(historique, 'admin-muscu-totaux');
+    renderChartSeancesParMois(historique, 'adminMuscuMoisChart', 'adminMuscuMoisChartInstance');
+    renderChartMaterielMuscu(historique, 'adminMuscuMaterielChart', 'adminMuscuMaterielChartInstance');
+    renderChartGroupeMuscu(historique, 'adminMuscuGroupeChart', 'adminMuscuGroupeChartInstance');
+    renderStatsProgrammesMuscu(historique, 'admin-muscu-programmes');
+    renderStatsRecordsMuscu(historique, 'admin-muscu-records');
+  } catch (e) {
+    const p = document.getElementById('admin-muscu-programmes');
+    if (p) p.innerHTML = '<p class="note">Erreur de chargement de la musculation : ' + escapeHtml(e.message) + '</p>';
+  }
+}
+
 async function voirStatsCompte(utilisateur, nomAffiche) {
   const zone = document.getElementById('admin-stats-zone');
   const resume = document.getElementById('admin-stats-resume');
@@ -6058,6 +6118,9 @@ async function voirStatsCompte(utilisateur, nomAffiche) {
   remplirFicheCompteAdmin(adminComptes[utilisateur] || {});
   resume.innerHTML = '<p class="note">Chargement…</p>';
   zone.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  // Indépendant du reste : un compte peut avoir des séances de musculation
+  // sans une seule journée de nutrition enregistrée, ou l'inverse.
+  chargerStatsMuscuAdmin(utilisateur, nomAffiche);
   try {
     const { data, error } = await supa.from('journees').select('jour, donnees').eq('utilisateur', utilisateur).order('jour');
     if (error) throw error;
@@ -6506,14 +6569,20 @@ async function synchroniser(raison) {
     if (resetLe && resetLe > derniereReset) {
       appData = {};
       userProfile = { height: 175, age: 25, gender: 'm', weight: 70 };
+      musculationProgrammes = []; musculationHistorique = []; musculationExosPerso = [];
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
         localStorage.setItem(PROFILE_KEY, JSON.stringify(userProfile));
+        localStorage.setItem(MUSCU_PROGRAMMES_KEY, JSON.stringify(musculationProgrammes));
+        localStorage.setItem(MUSCU_HISTORIQUE_KEY, JSON.stringify(musculationHistorique));
+        localStorage.setItem(MUSCU_EXOS_PERSO_KEY, JSON.stringify(musculationExosPerso));
+        localStorage.removeItem(MUSCU_SUPPR_LS);
         localStorage.setItem('mc_dernier_reset_' + id, String(resetLe));
       } catch (e) {}
       invaliderHistorique();
       renderApp();
       if (ecranActif === 'stats') prepareStats();
+      if (ecranActif === 'seance') renderSeance();
     }
 
     // ---------- 1. Ce que le serveur a de plus récent ----------
@@ -6578,6 +6647,11 @@ async function synchroniser(raison) {
       renderApp();
       if (ecranActif === 'stats') prepareStats();
     }
+
+    // Musculation : programmes, séances et exercices personnalisés, chacun
+    // dans sa propre table (voir synchroniserMuscu) — jamais mélangés à
+    // ceux d'un autre compte, chaque ligne restant scopée à `id` ci-dessus.
+    await synchroniserMuscu(id);
 
     // Les aliments en attente repartent avec la même occasion réseau.
     viderFileAliments();
@@ -6977,6 +7051,43 @@ alter table profil enable row level security;
 drop policy if exists "acces profil" on profil;
 create policy "acces profil" on profil for all using (true) with check (true);
 
+-- Musculation : une ligne par programme / par séance enregistrée / par
+-- exercice personnalisé, comme "journees" — jamais un seul blob par
+-- compte, pour que deux appareils puissent chacun ajouter une séance
+-- différente sans que l'un écrase la séance de l'autre à la synchro.
+create table if not exists programmes_musculation (
+  utilisateur text not null default 'moi',
+  id          text not null,
+  donnees     jsonb not null,
+  maj         bigint not null default 0,
+  primary key (utilisateur, id)
+);
+alter table programmes_musculation enable row level security;
+drop policy if exists "acces programmes_musculation" on programmes_musculation;
+create policy "acces programmes_musculation" on programmes_musculation for all using (true) with check (true);
+
+create table if not exists seances_musculation (
+  utilisateur text not null default 'moi',
+  id          text not null,
+  donnees     jsonb not null,
+  maj         bigint not null default 0,
+  primary key (utilisateur, id)
+);
+alter table seances_musculation enable row level security;
+drop policy if exists "acces seances_musculation" on seances_musculation;
+create policy "acces seances_musculation" on seances_musculation for all using (true) with check (true);
+
+create table if not exists exercices_perso_musculation (
+  utilisateur text not null default 'moi',
+  id          text not null,
+  donnees     jsonb not null,
+  maj         bigint not null default 0,
+  primary key (utilisateur, id)
+);
+alter table exercices_perso_musculation enable row level security;
+drop policy if exists "acces exercices_perso_musculation" on exercices_perso_musculation;
+create policy "acces exercices_perso_musculation" on exercices_perso_musculation for all using (true) with check (true);
+
 -- La table des aliments n'est pas créée ici : l'application lit celle que
 -- tu as déjà. Prépare-la avec le SQL « Préparer la table des aliments ».`;
 
@@ -7039,6 +7150,27 @@ create policy "journees par compte" on journees
 drop policy if exists "acces profil" on profil;
 drop policy if exists "profil par compte" on profil;
 create policy "profil par compte" on profil
+  for all
+  using ((utilisateur = auth.uid()::text and not est_bloque(utilisateur)) or auth.jwt() ->> 'email' = 'jambou592@gmail.com')
+  with check ((utilisateur = auth.uid()::text and not est_bloque(utilisateur)) or auth.jwt() ->> 'email' = 'jambou592@gmail.com');
+
+drop policy if exists "acces programmes_musculation" on programmes_musculation;
+drop policy if exists "programmes_musculation par compte" on programmes_musculation;
+create policy "programmes_musculation par compte" on programmes_musculation
+  for all
+  using ((utilisateur = auth.uid()::text and not est_bloque(utilisateur)) or auth.jwt() ->> 'email' = 'jambou592@gmail.com')
+  with check ((utilisateur = auth.uid()::text and not est_bloque(utilisateur)) or auth.jwt() ->> 'email' = 'jambou592@gmail.com');
+
+drop policy if exists "acces seances_musculation" on seances_musculation;
+drop policy if exists "seances_musculation par compte" on seances_musculation;
+create policy "seances_musculation par compte" on seances_musculation
+  for all
+  using ((utilisateur = auth.uid()::text and not est_bloque(utilisateur)) or auth.jwt() ->> 'email' = 'jambou592@gmail.com')
+  with check ((utilisateur = auth.uid()::text and not est_bloque(utilisateur)) or auth.jwt() ->> 'email' = 'jambou592@gmail.com');
+
+drop policy if exists "acces exercices_perso_musculation" on exercices_perso_musculation;
+drop policy if exists "exercices_perso_musculation par compte" on exercices_perso_musculation;
+create policy "exercices_perso_musculation par compte" on exercices_perso_musculation
   for all
   using ((utilisateur = auth.uid()::text and not est_bloque(utilisateur)) or auth.jwt() ->> 'email' = 'jambou592@gmail.com')
   with check ((utilisateur = auth.uid()::text and not est_bloque(utilisateur)) or auth.jwt() ->> 'email' = 'jambou592@gmail.com');
@@ -7257,11 +7389,11 @@ const MUSCU_SESSION_KEY = 'elite_musculation_session_active_v1';
 
 const GROUPES_MUSCULAIRES = {
   pectoraux: 'Pectoraux', dos: 'Dos', epaules: 'Épaules', biceps: 'Biceps', triceps: 'Triceps',
-  quadriceps: 'Quadriceps', ischios: 'Ischio-jambiers', fessiers: 'Fessiers', mollets: 'Mollets',
+  quadriceps: 'Quadriceps', ischios: 'Ischio-jambiers', fessiers: 'Fessiers', adducteurs: 'Adducteurs', mollets: 'Mollets',
   abdos: 'Abdominaux', lombaires: 'Lombaires', avant_bras: 'Avant-bras', trapezes: 'Trapèzes', cardio: 'Cardio'
 };
 const ORDRE_GROUPES = ['pectoraux', 'dos', 'epaules', 'biceps', 'triceps', 'quadriceps', 'ischios',
-  'fessiers', 'mollets', 'abdos', 'lombaires', 'avant_bras', 'trapezes', 'cardio'];
+  'fessiers', 'adducteurs', 'mollets', 'abdos', 'lombaires', 'avant_bras', 'trapezes', 'cardio'];
 
 const MATERIELS = {
   barre: { label: 'Barre', ic: '🏋️' },
@@ -7284,171 +7416,279 @@ const ORDRE_MATERIELS = ['barre', 'haltere', 'machine', 'poulie', 'poids_corps',
    base commune lors d'une future mise à jour de l'appli). */
 const EXERCICES_BASE = [
   // --- Pectoraux ---
-  { id: 'e1', nom: 'Développé couché barre', groupe: 'pectoraux', secondaires: ['triceps', 'epaules'], materiel: 'barre' },
-  { id: 'e2', nom: 'Développé incliné barre', groupe: 'pectoraux', secondaires: ['triceps', 'epaules'], materiel: 'barre' },
-  { id: 'e3', nom: 'Développé décliné barre', groupe: 'pectoraux', secondaires: ['triceps'], materiel: 'barre' },
-  { id: 'e4', nom: 'Développé couché haltères', groupe: 'pectoraux', secondaires: ['triceps', 'epaules'], materiel: 'haltere' },
-  { id: 'e5', nom: 'Développé incliné haltères', groupe: 'pectoraux', secondaires: ['triceps', 'epaules'], materiel: 'haltere' },
-  { id: 'e6', nom: 'Développé décliné haltères', groupe: 'pectoraux', secondaires: ['triceps'], materiel: 'haltere' },
-  { id: 'e7', nom: 'Écarté couché haltères', groupe: 'pectoraux', secondaires: [], materiel: 'haltere' },
-  { id: 'e8', nom: 'Écarté incliné haltères', groupe: 'pectoraux', secondaires: [], materiel: 'haltere' },
-  { id: 'e9', nom: 'Pull-over haltère', groupe: 'pectoraux', secondaires: ['dos'], materiel: 'haltere' },
-  { id: 'e10', nom: 'Développé couché machine (presse à pecs)', groupe: 'pectoraux', secondaires: ['triceps'], materiel: 'machine' },
-  { id: 'e11', nom: 'Écarté à la poulie vis-à-vis', groupe: 'pectoraux', secondaires: [], materiel: 'poulie' },
-  { id: 'e12', nom: 'Peck-deck (butterfly) machine', groupe: 'pectoraux', secondaires: [], materiel: 'machine' },
-  { id: 'e13', nom: 'Pompes', groupe: 'pectoraux', secondaires: ['triceps', 'epaules'], materiel: 'poids_corps' },
-  { id: 'e14', nom: 'Pompes inclinées', groupe: 'pectoraux', secondaires: ['triceps'], materiel: 'poids_corps' },
-  { id: 'e15', nom: 'Pompes déclinées (pieds surélevés)', groupe: 'pectoraux', secondaires: ['epaules', 'triceps'], materiel: 'poids_corps' },
-  { id: 'e16', nom: 'Dips pectoraux (buste penché en avant)', groupe: 'pectoraux', secondaires: ['triceps'], materiel: 'poids_corps' },
-  { id: 'e17', nom: 'Développé couché prise serrée', groupe: 'pectoraux', secondaires: ['triceps'], materiel: 'barre' },
-  { id: 'e18', nom: 'Crossover à la poulie basse', groupe: 'pectoraux', secondaires: [], materiel: 'poulie' },
-  { id: 'e19', nom: 'Crossover à la poulie haute', groupe: 'pectoraux', secondaires: [], materiel: 'poulie' },
+  { id: 'e1', nom: 'Développé couché barre', nomEn: 'Barbell Bench Press', groupe: 'pectoraux', secondaires: ['triceps', 'epaules'], materiel: 'barre' },
+  { id: 'e2', nom: 'Développé incliné barre', nomEn: 'Barbell Incline Bench Press', groupe: 'pectoraux', secondaires: ['triceps', 'epaules'], materiel: 'barre' },
+  { id: 'e3', nom: 'Développé décliné barre', nomEn: 'Barbell Decline Bench Press', groupe: 'pectoraux', secondaires: ['triceps'], materiel: 'barre' },
+  { id: 'e4', nom: 'Développé couché haltères', nomEn: 'Dumbbell Bench Press', groupe: 'pectoraux', secondaires: ['triceps', 'epaules'], materiel: 'haltere' },
+  { id: 'e5', nom: 'Développé incliné haltères', nomEn: 'Dumbbell Incline Press', groupe: 'pectoraux', secondaires: ['triceps', 'epaules'], materiel: 'haltere' },
+  { id: 'e6', nom: 'Développé décliné haltères', nomEn: 'Dumbbell Decline Press', groupe: 'pectoraux', secondaires: ['triceps'], materiel: 'haltere' },
+  { id: 'e7', nom: 'Écarté couché haltères', nomEn: 'Dumbbell Flye', groupe: 'pectoraux', secondaires: [], materiel: 'haltere' },
+  { id: 'e8', nom: 'Écarté incliné haltères', nomEn: 'Incline Dumbbell Flye', groupe: 'pectoraux', secondaires: [], materiel: 'haltere' },
+  { id: 'e9', nom: 'Pull-over haltère', nomEn: 'Dumbbell Pullover', groupe: 'pectoraux', secondaires: ['dos'], materiel: 'haltere' },
+  { id: 'e10', nom: 'Développé couché machine (presse à pecs)', nomEn: 'Chest Press Machine', groupe: 'pectoraux', secondaires: ['triceps'], materiel: 'machine' },
+  { id: 'e11', nom: 'Écarté à la poulie vis-à-vis', nomEn: 'Cable Flye', groupe: 'pectoraux', secondaires: [], materiel: 'poulie' },
+  { id: 'e12', nom: 'Peck-deck (butterfly) machine', nomEn: 'Pec Deck Machine', groupe: 'pectoraux', secondaires: [], materiel: 'machine' },
+  { id: 'e13', nom: 'Pompes', nomEn: 'Push-Up', groupe: 'pectoraux', secondaires: ['triceps', 'epaules'], materiel: 'poids_corps' },
+  { id: 'e14', nom: 'Pompes inclinées', nomEn: 'Incline Push-Up', groupe: 'pectoraux', secondaires: ['triceps'], materiel: 'poids_corps' },
+  { id: 'e15', nom: 'Pompes déclinées (pieds surélevés)', nomEn: 'Decline Push-Up', groupe: 'pectoraux', secondaires: ['epaules', 'triceps'], materiel: 'poids_corps' },
+  { id: 'e16', nom: 'Dips pectoraux (buste penché en avant)', nomEn: 'Chest Dip', groupe: 'pectoraux', secondaires: ['triceps'], materiel: 'poids_corps' },
+  { id: 'e17', nom: 'Développé couché prise serrée', nomEn: 'Close-Grip Bench Press', groupe: 'pectoraux', secondaires: ['triceps'], materiel: 'barre' },
+  { id: 'e18', nom: 'Crossover à la poulie basse', nomEn: 'Low Cable Crossover', groupe: 'pectoraux', secondaires: [], materiel: 'poulie' },
+  { id: 'e19', nom: 'Crossover à la poulie haute', nomEn: 'High Cable Crossover', groupe: 'pectoraux', secondaires: [], materiel: 'poulie' },
+  { id: 'e141', nom: 'Développé couché Smith machine', nomEn: 'Smith Machine Bench Press', groupe: 'pectoraux', secondaires: ['triceps'], materiel: 'machine' },
+  { id: 'e142', nom: 'Développé incliné Smith machine', nomEn: 'Smith Machine Incline Press', groupe: 'pectoraux', secondaires: ['triceps'], materiel: 'machine' },
+  { id: 'e143', nom: 'Dips lestés', nomEn: 'Weighted Dip', groupe: 'pectoraux', secondaires: ['triceps'], materiel: 'poids_corps' },
+  { id: 'e144', nom: 'Pompes lestées', nomEn: 'Weighted Push-Up', groupe: 'pectoraux', secondaires: ['triceps'], materiel: 'poids_corps' },
+  { id: 'e145', nom: 'Pompes sur anneaux', nomEn: 'Ring Push-Up', groupe: 'pectoraux', secondaires: ['triceps', 'epaules'], materiel: 'poids_corps' },
+  { id: 'e146', nom: 'Écarté à la poulie unilatéral', nomEn: 'Single-Arm Cable Flye', groupe: 'pectoraux', secondaires: [], materiel: 'poulie' },
+  { id: 'e147', nom: 'Développé couché prise large', nomEn: 'Wide-Grip Bench Press', groupe: 'pectoraux', secondaires: ['epaules'], materiel: 'barre' },
+  { id: 'e148', nom: 'Développé landmine', nomEn: 'Landmine Press', groupe: 'pectoraux', secondaires: ['epaules', 'triceps'], materiel: 'barre' },
 
   // --- Dos ---
-  { id: 'e20', nom: 'Tractions pronation', groupe: 'dos', secondaires: ['biceps'], materiel: 'poids_corps' },
-  { id: 'e21', nom: 'Tractions supination', groupe: 'dos', secondaires: ['biceps'], materiel: 'poids_corps' },
-  { id: 'e22', nom: 'Tirage vertical prise large (lat pulldown)', groupe: 'dos', secondaires: ['biceps'], materiel: 'poulie' },
-  { id: 'e23', nom: 'Tirage vertical prise serrée', groupe: 'dos', secondaires: ['biceps'], materiel: 'poulie' },
-  { id: 'e24', nom: 'Rowing barre buste penché', groupe: 'dos', secondaires: ['biceps'], materiel: 'barre' },
-  { id: 'e25', nom: 'Rowing haltère unilatéral', groupe: 'dos', secondaires: ['biceps'], materiel: 'haltere' },
-  { id: 'e26', nom: 'Rowing T-bar', groupe: 'dos', secondaires: ['biceps'], materiel: 'barre' },
-  { id: 'e27', nom: 'Tirage horizontal à la poulie basse', groupe: 'dos', secondaires: ['biceps'], materiel: 'poulie' },
-  { id: 'e28', nom: 'Rowing machine assis', groupe: 'dos', secondaires: ['biceps'], materiel: 'machine' },
-  { id: 'e29', nom: 'Soulevé de terre', groupe: 'dos', secondaires: ['ischios', 'fessiers', 'lombaires'], materiel: 'barre' },
-  { id: 'e30', nom: 'Soulevé de terre roumain', groupe: 'ischios', secondaires: ['fessiers', 'dos'], materiel: 'barre' },
-  { id: 'e31', nom: 'Soulevé de terre sumo', groupe: 'fessiers', secondaires: ['ischios', 'dos'], materiel: 'barre' },
-  { id: 'e32', nom: 'Rowing prise inversée barre', groupe: 'dos', secondaires: ['biceps'], materiel: 'barre' },
-  { id: 'e33', nom: 'Face pull', groupe: 'dos', secondaires: ['epaules'], materiel: 'poulie' },
-  { id: 'e34', nom: 'Extension lombaire (banc à lombaires)', groupe: 'lombaires', secondaires: [], materiel: 'autre' },
-  { id: 'e35', nom: 'Superman (extension lombaire au sol)', groupe: 'lombaires', secondaires: [], materiel: 'poids_corps' },
-  { id: 'e36', nom: 'Good morning barre', groupe: 'lombaires', secondaires: ['ischios', 'fessiers'], materiel: 'barre' },
-  { id: 'e37', nom: 'Rowing Yates', groupe: 'dos', secondaires: ['biceps'], materiel: 'barre' },
-  { id: 'e38', nom: 'Tirage bras tendus à la poulie', groupe: 'dos', secondaires: [], materiel: 'poulie' },
+  { id: 'e20', nom: 'Tractions pronation', nomEn: 'Pull-Up', groupe: 'dos', secondaires: ['biceps'], materiel: 'poids_corps' },
+  { id: 'e21', nom: 'Tractions supination', nomEn: 'Chin-Up', groupe: 'dos', secondaires: ['biceps'], materiel: 'poids_corps' },
+  { id: 'e22', nom: 'Tirage vertical prise large', nomEn: 'Lat Pulldown (Wide Grip)', groupe: 'dos', secondaires: ['biceps'], materiel: 'poulie' },
+  { id: 'e23', nom: 'Tirage vertical prise serrée', nomEn: 'Close-Grip Lat Pulldown', groupe: 'dos', secondaires: ['biceps'], materiel: 'poulie' },
+  { id: 'e24', nom: 'Rowing barre buste penché', nomEn: 'Barbell Bent-Over Row', groupe: 'dos', secondaires: ['biceps'], materiel: 'barre' },
+  { id: 'e25', nom: 'Rowing haltère unilatéral', nomEn: 'One-Arm Dumbbell Row', groupe: 'dos', secondaires: ['biceps'], materiel: 'haltere' },
+  { id: 'e26', nom: 'Rowing T-bar', nomEn: 'T-Bar Row', groupe: 'dos', secondaires: ['biceps'], materiel: 'barre' },
+  { id: 'e27', nom: 'Tirage horizontal à la poulie basse', nomEn: 'Seated Cable Row', groupe: 'dos', secondaires: ['biceps'], materiel: 'poulie' },
+  { id: 'e28', nom: 'Rowing machine assis', nomEn: 'Machine Row', groupe: 'dos', secondaires: ['biceps'], materiel: 'machine' },
+  { id: 'e29', nom: 'Soulevé de terre', nomEn: 'Deadlift', groupe: 'dos', secondaires: ['ischios', 'fessiers', 'lombaires'], materiel: 'barre' },
+  { id: 'e30', nom: 'Soulevé de terre roumain', nomEn: 'Romanian Deadlift', groupe: 'ischios', secondaires: ['fessiers', 'dos'], materiel: 'barre' },
+  { id: 'e31', nom: 'Soulevé de terre sumo', nomEn: 'Sumo Deadlift', groupe: 'fessiers', secondaires: ['ischios', 'dos'], materiel: 'barre' },
+  { id: 'e32', nom: 'Rowing prise inversée barre', nomEn: 'Reverse-Grip Barbell Row', groupe: 'dos', secondaires: ['biceps'], materiel: 'barre' },
+  { id: 'e33', nom: 'Face pull', nomEn: 'Face Pull', groupe: 'dos', secondaires: ['epaules'], materiel: 'poulie' },
+  { id: 'e34', nom: 'Extension lombaire (banc à lombaires)', nomEn: 'Back Extension', groupe: 'lombaires', secondaires: [], materiel: 'autre' },
+  { id: 'e35', nom: 'Superman (extension lombaire au sol)', nomEn: 'Superman', groupe: 'lombaires', secondaires: [], materiel: 'poids_corps' },
+  { id: 'e36', nom: 'Good morning barre', nomEn: 'Barbell Good Morning', groupe: 'lombaires', secondaires: ['ischios', 'fessiers'], materiel: 'barre' },
+  { id: 'e37', nom: 'Rowing Yates', nomEn: 'Yates Row', groupe: 'dos', secondaires: ['biceps'], materiel: 'barre' },
+  { id: 'e38', nom: 'Tirage bras tendus à la poulie', nomEn: 'Straight-Arm Pulldown', groupe: 'dos', secondaires: [], materiel: 'poulie' },
+  { id: 'e149', nom: 'Rowing Pendlay', nomEn: 'Pendlay Row', groupe: 'dos', secondaires: ['biceps'], materiel: 'barre' },
+  { id: 'e150', nom: 'Rowing Seal (buste allongé)', nomEn: 'Seal Row', groupe: 'dos', secondaires: ['biceps'], materiel: 'machine' },
+  { id: 'e151', nom: 'Rowing câble assis prise large', nomEn: 'Wide-Grip Seated Cable Row', groupe: 'dos', secondaires: ['biceps'], materiel: 'poulie' },
+  { id: 'e152', nom: 'Tirage vertical unilatéral', nomEn: 'Single-Arm Lat Pulldown', groupe: 'dos', secondaires: ['biceps'], materiel: 'poulie' },
+  { id: 'e153', nom: 'Traction lestée', nomEn: 'Weighted Pull-Up', groupe: 'dos', secondaires: ['biceps'], materiel: 'poids_corps' },
+  { id: 'e154', nom: 'Traction assistée', nomEn: 'Assisted Pull-Up Machine', groupe: 'dos', secondaires: ['biceps'], materiel: 'machine' },
+  { id: 'e155', nom: 'Rowing inversé (Australian pull-up)', nomEn: 'Inverted Row', groupe: 'dos', secondaires: ['biceps'], materiel: 'poids_corps' },
+  { id: 'e156', nom: 'Soulevé de terre trap bar', nomEn: 'Trap Bar Deadlift', groupe: 'dos', secondaires: ['quadriceps', 'fessiers'], materiel: 'barre' },
+  { id: 'e157', nom: 'Rack pull', nomEn: 'Rack Pull', groupe: 'dos', secondaires: ['ischios', 'fessiers'], materiel: 'barre' },
+  { id: 'e158', nom: 'Meadows row', nomEn: 'Meadows Row', groupe: 'dos', secondaires: ['biceps'], materiel: 'barre' },
+  { id: 'e159', nom: 'Rowing buste soutenu', nomEn: 'Chest-Supported Row Machine', groupe: 'dos', secondaires: ['biceps'], materiel: 'machine' },
+  { id: 'e160', nom: 'Traction négative', nomEn: 'Negative Pull-Up', groupe: 'dos', secondaires: ['biceps'], materiel: 'poids_corps' },
 
   // --- Épaules ---
-  { id: 'e39', nom: 'Développé militaire barre', groupe: 'epaules', secondaires: ['triceps'], materiel: 'barre' },
-  { id: 'e40', nom: 'Développé haltères assis', groupe: 'epaules', secondaires: ['triceps'], materiel: 'haltere' },
-  { id: 'e41', nom: 'Développé Arnold', groupe: 'epaules', secondaires: ['triceps'], materiel: 'haltere' },
-  { id: 'e42', nom: 'Élévations latérales haltères', groupe: 'epaules', secondaires: [], materiel: 'haltere' },
-  { id: 'e43', nom: 'Élévations latérales à la poulie', groupe: 'epaules', secondaires: [], materiel: 'poulie' },
-  { id: 'e44', nom: 'Élévations frontales haltères', groupe: 'epaules', secondaires: [], materiel: 'haltere' },
-  { id: 'e45', nom: 'Élévations frontales barre', groupe: 'epaules', secondaires: [], materiel: 'barre' },
-  { id: 'e46', nom: 'Oiseau (élévations arrière buste penché)', groupe: 'epaules', secondaires: ['dos'], materiel: 'haltere' },
-  { id: 'e47', nom: 'Développé militaire machine', groupe: 'epaules', secondaires: ['triceps'], materiel: 'machine' },
-  { id: 'e48', nom: 'Rowing menton barre (upright row)', groupe: 'epaules', secondaires: ['trapezes'], materiel: 'barre' },
-  { id: 'e49', nom: 'Rowing menton à la poulie', groupe: 'epaules', secondaires: ['trapezes'], materiel: 'poulie' },
-  { id: 'e50', nom: 'Presse épaules machine assise', groupe: 'epaules', secondaires: ['triceps'], materiel: 'machine' },
-  { id: 'e51', nom: 'Élévations latérales machine', groupe: 'epaules', secondaires: [], materiel: 'machine' },
-  { id: 'e52', nom: 'Handstand push-up', groupe: 'epaules', secondaires: ['triceps'], materiel: 'poids_corps' },
-  { id: 'e53', nom: 'Pike push-up', groupe: 'epaules', secondaires: ['triceps'], materiel: 'poids_corps' },
-  { id: 'e54', nom: 'Élévations arrière à la poulie vis-à-vis', groupe: 'epaules', secondaires: ['dos'], materiel: 'poulie' },
+  { id: 'e39', nom: 'Développé militaire barre', nomEn: 'Barbell Overhead Press', groupe: 'epaules', secondaires: ['triceps'], materiel: 'barre' },
+  { id: 'e40', nom: 'Développé haltères assis', nomEn: 'Seated Dumbbell Press', groupe: 'epaules', secondaires: ['triceps'], materiel: 'haltere' },
+  { id: 'e41', nom: 'Développé Arnold', nomEn: 'Arnold Press', groupe: 'epaules', secondaires: ['triceps'], materiel: 'haltere' },
+  { id: 'e42', nom: 'Élévations latérales haltères', nomEn: 'Dumbbell Lateral Raise', groupe: 'epaules', secondaires: [], materiel: 'haltere' },
+  { id: 'e43', nom: 'Élévations latérales à la poulie', nomEn: 'Cable Lateral Raise', groupe: 'epaules', secondaires: [], materiel: 'poulie' },
+  { id: 'e44', nom: 'Élévations frontales haltères', nomEn: 'Dumbbell Front Raise', groupe: 'epaules', secondaires: [], materiel: 'haltere' },
+  { id: 'e45', nom: 'Élévations frontales barre', nomEn: 'Barbell Front Raise', groupe: 'epaules', secondaires: [], materiel: 'barre' },
+  { id: 'e46', nom: 'Oiseau (élévations arrière buste penché)', nomEn: 'Bent-Over Reverse Flye', groupe: 'epaules', secondaires: ['dos'], materiel: 'haltere' },
+  { id: 'e47', nom: 'Développé militaire machine', nomEn: 'Shoulder Press Machine', groupe: 'epaules', secondaires: ['triceps'], materiel: 'machine' },
+  { id: 'e48', nom: 'Rowing menton barre', nomEn: 'Barbell Upright Row', groupe: 'epaules', secondaires: ['trapezes'], materiel: 'barre' },
+  { id: 'e49', nom: 'Rowing menton à la poulie', nomEn: 'Cable Upright Row', groupe: 'epaules', secondaires: ['trapezes'], materiel: 'poulie' },
+  { id: 'e50', nom: 'Presse épaules machine assise', nomEn: 'Seated Shoulder Press Machine', groupe: 'epaules', secondaires: ['triceps'], materiel: 'machine' },
+  { id: 'e51', nom: 'Élévations latérales machine', nomEn: 'Lateral Raise Machine', groupe: 'epaules', secondaires: [], materiel: 'machine' },
+  { id: 'e52', nom: 'Handstand push-up', nomEn: 'Handstand Push-Up', groupe: 'epaules', secondaires: ['triceps'], materiel: 'poids_corps' },
+  { id: 'e53', nom: 'Pike push-up', nomEn: 'Pike Push-Up', groupe: 'epaules', secondaires: ['triceps'], materiel: 'poids_corps' },
+  { id: 'e54', nom: 'Élévations arrière à la poulie vis-à-vis', nomEn: 'Cable Reverse Flye', groupe: 'epaules', secondaires: ['dos'], materiel: 'poulie' },
+  { id: 'e161', nom: 'Développé militaire Smith machine', nomEn: 'Smith Machine Overhead Press', groupe: 'epaules', secondaires: ['triceps'], materiel: 'machine' },
+  { id: 'e162', nom: 'Développé nuque barre', nomEn: 'Behind-the-Neck Press', groupe: 'epaules', secondaires: ['triceps'], materiel: 'barre' },
+  { id: 'e163', nom: 'Élévations latérales buste penché', nomEn: 'Bent-Over Lateral Raise', groupe: 'epaules', secondaires: [], materiel: 'haltere' },
+  { id: 'e164', nom: 'Cuban press', nomEn: 'Cuban Press', groupe: 'epaules', secondaires: [], materiel: 'haltere' },
+  { id: 'e165', nom: 'Élévations latérales landmine', nomEn: 'Landmine Lateral Raise', groupe: 'epaules', secondaires: [], materiel: 'barre' },
+  { id: 'e166', nom: 'Y-raise haltères', nomEn: 'Y-Raise', groupe: 'epaules', secondaires: ['trapezes'], materiel: 'haltere' },
+  { id: 'e167', nom: 'Z press', nomEn: 'Z Press', groupe: 'epaules', secondaires: ['triceps'], materiel: 'barre' },
+  { id: 'e168', nom: 'Développé épaules unilatéral assis', nomEn: 'Single-Arm Seated Dumbbell Press', groupe: 'epaules', secondaires: ['triceps'], materiel: 'haltere' },
 
   // --- Biceps ---
-  { id: 'e55', nom: 'Curl barre droite', groupe: 'biceps', secondaires: [], materiel: 'barre' },
-  { id: 'e56', nom: 'Curl barre EZ', groupe: 'biceps', secondaires: [], materiel: 'barre' },
-  { id: 'e57', nom: 'Curl haltères alterné', groupe: 'biceps', secondaires: [], materiel: 'haltere' },
-  { id: 'e58', nom: 'Curl marteau (hammer curl)', groupe: 'biceps', secondaires: ['avant_bras'], materiel: 'haltere' },
-  { id: 'e59', nom: 'Curl incliné haltères', groupe: 'biceps', secondaires: [], materiel: 'haltere' },
-  { id: 'e60', nom: 'Curl concentré', groupe: 'biceps', secondaires: [], materiel: 'haltere' },
-  { id: 'e61', nom: 'Curl pupitre barre (Scott / preacher curl)', groupe: 'biceps', secondaires: [], materiel: 'barre' },
-  { id: 'e62', nom: 'Curl pupitre haltère', groupe: 'biceps', secondaires: [], materiel: 'haltere' },
-  { id: 'e63', nom: 'Curl à la poulie basse', groupe: 'biceps', secondaires: [], materiel: 'poulie' },
-  { id: 'e64', nom: 'Curl corde à la poulie', groupe: 'biceps', secondaires: ['avant_bras'], materiel: 'poulie' },
-  { id: 'e65', nom: 'Curl machine', groupe: 'biceps', secondaires: [], materiel: 'machine' },
-  { id: 'e66', nom: 'Curl 21 barre', groupe: 'biceps', secondaires: [], materiel: 'barre' },
-  { id: 'e67', nom: 'Curl inversé barre (reverse curl)', groupe: 'avant_bras', secondaires: ['biceps'], materiel: 'barre' },
+  { id: 'e55', nom: 'Curl barre droite', nomEn: 'Barbell Curl', groupe: 'biceps', secondaires: [], materiel: 'barre' },
+  { id: 'e56', nom: 'Curl barre EZ', nomEn: 'EZ-Bar Curl', groupe: 'biceps', secondaires: [], materiel: 'barre' },
+  { id: 'e57', nom: 'Curl haltères alterné', nomEn: 'Alternating Dumbbell Curl', groupe: 'biceps', secondaires: [], materiel: 'haltere' },
+  { id: 'e58', nom: 'Curl marteau', nomEn: 'Hammer Curl', groupe: 'biceps', secondaires: ['avant_bras'], materiel: 'haltere' },
+  { id: 'e59', nom: 'Curl incliné haltères', nomEn: 'Incline Dumbbell Curl', groupe: 'biceps', secondaires: [], materiel: 'haltere' },
+  { id: 'e60', nom: 'Curl concentré', nomEn: 'Concentration Curl', groupe: 'biceps', secondaires: [], materiel: 'haltere' },
+  { id: 'e61', nom: 'Curl pupitre barre', nomEn: 'Preacher Curl', groupe: 'biceps', secondaires: [], materiel: 'barre' },
+  { id: 'e62', nom: 'Curl pupitre haltère', nomEn: 'Dumbbell Preacher Curl', groupe: 'biceps', secondaires: [], materiel: 'haltere' },
+  { id: 'e63', nom: 'Curl à la poulie basse', nomEn: 'Cable Curl', groupe: 'biceps', secondaires: [], materiel: 'poulie' },
+  { id: 'e64', nom: 'Curl corde à la poulie', nomEn: 'Rope Cable Curl', groupe: 'biceps', secondaires: ['avant_bras'], materiel: 'poulie' },
+  { id: 'e65', nom: 'Curl machine', nomEn: 'Curl Machine', groupe: 'biceps', secondaires: [], materiel: 'machine' },
+  { id: 'e66', nom: 'Curl 21 barre', nomEn: '21s Curl', groupe: 'biceps', secondaires: [], materiel: 'barre' },
+  { id: 'e67', nom: 'Curl inversé barre', nomEn: 'Reverse-Grip Barbell Curl', groupe: 'avant_bras', secondaires: ['biceps'], materiel: 'barre' },
+  { id: 'e169', nom: 'Curl câble unilatéral', nomEn: 'Single-Arm Cable Curl', groupe: 'biceps', secondaires: [], materiel: 'poulie' },
+  { id: 'e170', nom: 'Curl Zottman', nomEn: 'Zottman Curl', groupe: 'biceps', secondaires: ['avant_bras'], materiel: 'haltere' },
+  { id: 'e171', nom: 'Curl araignée barre', nomEn: 'Spider Curl', groupe: 'biceps', secondaires: [], materiel: 'barre' },
+  { id: 'e172', nom: 'Curl drag', nomEn: 'Drag Curl', groupe: 'biceps', secondaires: [], materiel: 'barre' },
+  { id: 'e173', nom: 'Curl incliné à la poulie', nomEn: 'Cable Incline Curl', groupe: 'biceps', secondaires: [], materiel: 'poulie' },
+  { id: 'e233', nom: 'Curl araignée à la poulie', nomEn: 'Cable Spider Curl', groupe: 'biceps', secondaires: [], materiel: 'poulie' },
 
   // --- Triceps ---
-  { id: 'e68', nom: 'Extension triceps à la poulie haute (barre)', groupe: 'triceps', secondaires: [], materiel: 'poulie' },
-  { id: 'e69', nom: 'Extension triceps à la poulie haute (corde)', groupe: 'triceps', secondaires: [], materiel: 'poulie' },
-  { id: 'e70', nom: 'Barre au front (skull crusher)', groupe: 'triceps', secondaires: [], materiel: 'barre' },
-  { id: 'e71', nom: 'Extension triceps haltère au-dessus de la tête', groupe: 'triceps', secondaires: [], materiel: 'haltere' },
-  { id: 'e72', nom: 'Extension triceps unilatérale haltère', groupe: 'triceps', secondaires: [], materiel: 'haltere' },
-  { id: 'e73', nom: 'Kickback triceps haltère', groupe: 'triceps', secondaires: [], materiel: 'haltere' },
-  { id: 'e74', nom: 'Dips triceps sur banc', groupe: 'triceps', secondaires: ['pectoraux'], materiel: 'poids_corps' },
-  { id: 'e75', nom: 'Dips aux barres parallèles', groupe: 'triceps', secondaires: ['pectoraux'], materiel: 'poids_corps' },
-  { id: 'e76', nom: 'Extension triceps machine', groupe: 'triceps', secondaires: [], materiel: 'machine' },
-  { id: 'e77', nom: 'Pompes diamant', groupe: 'triceps', secondaires: ['pectoraux'], materiel: 'poids_corps' },
-  { id: 'e78', nom: 'Extension triceps unilatérale à la poulie', groupe: 'triceps', secondaires: [], materiel: 'poulie' },
+  { id: 'e68', nom: 'Extension triceps à la poulie haute (barre)', nomEn: 'Triceps Pushdown (Bar)', groupe: 'triceps', secondaires: [], materiel: 'poulie' },
+  { id: 'e69', nom: 'Extension triceps à la poulie haute (corde)', nomEn: 'Triceps Rope Pushdown', groupe: 'triceps', secondaires: [], materiel: 'poulie' },
+  { id: 'e70', nom: 'Barre au front', nomEn: 'Skull Crusher', groupe: 'triceps', secondaires: [], materiel: 'barre' },
+  { id: 'e71', nom: 'Extension triceps haltère au-dessus de la tête', nomEn: 'Overhead Dumbbell Extension', groupe: 'triceps', secondaires: [], materiel: 'haltere' },
+  { id: 'e72', nom: 'Extension triceps unilatérale haltère', nomEn: 'Single-Arm Overhead Extension', groupe: 'triceps', secondaires: [], materiel: 'haltere' },
+  { id: 'e73', nom: 'Kickback triceps haltère', nomEn: 'Dumbbell Triceps Kickback', groupe: 'triceps', secondaires: [], materiel: 'haltere' },
+  { id: 'e74', nom: 'Dips triceps sur banc', nomEn: 'Bench Dip', groupe: 'triceps', secondaires: ['pectoraux'], materiel: 'poids_corps' },
+  { id: 'e75', nom: 'Dips aux barres parallèles', nomEn: 'Parallel Bar Dip', groupe: 'triceps', secondaires: ['pectoraux'], materiel: 'poids_corps' },
+  { id: 'e76', nom: 'Extension triceps machine', nomEn: 'Triceps Extension Machine', groupe: 'triceps', secondaires: [], materiel: 'machine' },
+  { id: 'e77', nom: 'Pompes diamant', nomEn: 'Diamond Push-Up', groupe: 'triceps', secondaires: ['pectoraux'], materiel: 'poids_corps' },
+  { id: 'e78', nom: 'Extension triceps unilatérale à la poulie', nomEn: 'Single-Arm Cable Extension', groupe: 'triceps', secondaires: [], materiel: 'poulie' },
+  { id: 'e174', nom: 'JM press', nomEn: 'JM Press', groupe: 'triceps', secondaires: [], materiel: 'barre' },
+  { id: 'e175', nom: 'Extension triceps assis haltère', nomEn: 'Seated Dumbbell French Press', groupe: 'triceps', secondaires: [], materiel: 'haltere' },
+  { id: 'e176', nom: 'Extension triceps Smith machine', nomEn: 'Smith Machine Triceps Extension', groupe: 'triceps', secondaires: [], materiel: 'machine' },
+  { id: 'e177', nom: 'Kickback triceps à la poulie', nomEn: 'Cable Triceps Kickback', groupe: 'triceps', secondaires: [], materiel: 'poulie' },
+  { id: 'e178', nom: 'Extension triceps barre EZ debout', nomEn: 'Standing EZ-Bar Extension', groupe: 'triceps', secondaires: [], materiel: 'barre' },
 
   // --- Quadriceps ---
-  { id: 'e79', nom: 'Squat barre (back squat)', groupe: 'quadriceps', secondaires: ['fessiers'], materiel: 'barre' },
-  { id: 'e80', nom: 'Front squat', groupe: 'quadriceps', secondaires: ['fessiers'], materiel: 'barre' },
-  { id: 'e81', nom: 'Squat gobelet (goblet squat)', groupe: 'quadriceps', secondaires: ['fessiers'], materiel: 'haltere' },
-  { id: 'e82', nom: 'Presse à cuisses (leg press)', groupe: 'quadriceps', secondaires: ['fessiers'], materiel: 'machine' },
-  { id: 'e83', nom: 'Fentes barre', groupe: 'quadriceps', secondaires: ['fessiers'], materiel: 'barre' },
-  { id: 'e84', nom: 'Fentes haltères', groupe: 'quadriceps', secondaires: ['fessiers'], materiel: 'haltere' },
-  { id: 'e85', nom: 'Fentes marchées haltères', groupe: 'quadriceps', secondaires: ['fessiers'], materiel: 'haltere' },
-  { id: 'e86', nom: 'Fentes bulgares haltères', groupe: 'quadriceps', secondaires: ['fessiers'], materiel: 'haltere' },
-  { id: 'e87', nom: 'Leg extension (machine)', groupe: 'quadriceps', secondaires: [], materiel: 'machine' },
-  { id: 'e88', nom: 'Squat hack (machine)', groupe: 'quadriceps', secondaires: ['fessiers'], materiel: 'machine' },
-  { id: 'e89', nom: 'Squat sauté', groupe: 'quadriceps', secondaires: ['fessiers'], materiel: 'poids_corps' },
-  { id: 'e90', nom: 'Squat au poids du corps', groupe: 'quadriceps', secondaires: ['fessiers'], materiel: 'poids_corps' },
-  { id: 'e91', nom: 'Step-up haltères', groupe: 'quadriceps', secondaires: ['fessiers'], materiel: 'haltere' },
-  { id: 'e92', nom: 'Squat sissy', groupe: 'quadriceps', secondaires: [], materiel: 'poids_corps' },
+  { id: 'e79', nom: 'Squat barre', nomEn: 'Barbell Back Squat', groupe: 'quadriceps', secondaires: ['fessiers'], materiel: 'barre' },
+  { id: 'e80', nom: 'Front squat', nomEn: 'Front Squat', groupe: 'quadriceps', secondaires: ['fessiers'], materiel: 'barre' },
+  { id: 'e81', nom: 'Squat gobelet', nomEn: 'Goblet Squat', groupe: 'quadriceps', secondaires: ['fessiers'], materiel: 'haltere' },
+  { id: 'e82', nom: 'Presse à cuisses', nomEn: 'Leg Press', groupe: 'quadriceps', secondaires: ['fessiers'], materiel: 'machine' },
+  { id: 'e83', nom: 'Fentes barre', nomEn: 'Barbell Lunge', groupe: 'quadriceps', secondaires: ['fessiers'], materiel: 'barre' },
+  { id: 'e84', nom: 'Fentes haltères', nomEn: 'Dumbbell Lunge', groupe: 'quadriceps', secondaires: ['fessiers'], materiel: 'haltere' },
+  { id: 'e85', nom: 'Fentes marchées haltères', nomEn: 'Walking Lunge', groupe: 'quadriceps', secondaires: ['fessiers'], materiel: 'haltere' },
+  { id: 'e86', nom: 'Fentes bulgares haltères', nomEn: 'Bulgarian Split Squat', groupe: 'quadriceps', secondaires: ['fessiers'], materiel: 'haltere' },
+  { id: 'e87', nom: 'Leg extension', nomEn: 'Leg Extension', groupe: 'quadriceps', secondaires: [], materiel: 'machine' },
+  { id: 'e88', nom: 'Squat hack', nomEn: 'Hack Squat', groupe: 'quadriceps', secondaires: ['fessiers'], materiel: 'machine' },
+  { id: 'e89', nom: 'Squat sauté', nomEn: 'Jump Squat', groupe: 'quadriceps', secondaires: ['fessiers'], materiel: 'poids_corps' },
+  { id: 'e90', nom: 'Squat au poids du corps', nomEn: 'Bodyweight Squat', groupe: 'quadriceps', secondaires: ['fessiers'], materiel: 'poids_corps' },
+  { id: 'e91', nom: 'Step-up haltères', nomEn: 'Dumbbell Step-Up', groupe: 'quadriceps', secondaires: ['fessiers'], materiel: 'haltere' },
+  { id: 'e92', nom: 'Squat sissy', nomEn: 'Sissy Squat', groupe: 'quadriceps', secondaires: [], materiel: 'poids_corps' },
+  { id: 'e179', nom: 'Squat Smith machine', nomEn: 'Smith Machine Squat', groupe: 'quadriceps', secondaires: ['fessiers'], materiel: 'machine' },
+  { id: 'e180', nom: 'Squat Zercher', nomEn: 'Zercher Squat', groupe: 'quadriceps', secondaires: ['fessiers', 'lombaires'], materiel: 'barre' },
+  { id: 'e181', nom: 'Squat pause', nomEn: 'Pause Squat', groupe: 'quadriceps', secondaires: ['fessiers'], materiel: 'barre' },
+  { id: 'e182', nom: 'Presse à cuisses unilatérale', nomEn: 'Single-Leg Leg Press', groupe: 'quadriceps', secondaires: ['fessiers'], materiel: 'machine' },
+  { id: 'e183', nom: 'Fente arrière haltères', nomEn: 'Dumbbell Reverse Lunge', groupe: 'quadriceps', secondaires: ['fessiers'], materiel: 'haltere' },
+  { id: 'e184', nom: 'Fente latérale haltère', nomEn: 'Dumbbell Lateral Lunge', groupe: 'quadriceps', secondaires: ['fessiers'], materiel: 'haltere' },
+  { id: 'e185', nom: 'Squat pistol (une jambe)', nomEn: 'Pistol Squat', groupe: 'quadriceps', secondaires: ['fessiers'], materiel: 'poids_corps' },
+  { id: 'e186', nom: 'Box squat barre', nomEn: 'Barbell Box Squat', groupe: 'quadriceps', secondaires: ['fessiers'], materiel: 'barre' },
+  { id: 'e187', nom: 'Squat kettlebell', nomEn: 'Kettlebell Squat', groupe: 'quadriceps', secondaires: ['fessiers'], materiel: 'kettlebell' },
+  { id: 'e241', nom: 'Presse à cuisses inclinée 45°', nomEn: '45-Degree Leg Press', groupe: 'quadriceps', secondaires: ['fessiers'], materiel: 'machine' },
 
   // --- Ischio-jambiers ---
-  { id: 'e93', nom: 'Leg curl allongé (machine)', groupe: 'ischios', secondaires: [], materiel: 'machine' },
-  { id: 'e94', nom: 'Leg curl assis (machine)', groupe: 'ischios', secondaires: [], materiel: 'machine' },
-  { id: 'e95', nom: 'Soulevé de terre jambes tendues barre', groupe: 'ischios', secondaires: ['fessiers'], materiel: 'barre' },
-  { id: 'e96', nom: 'Soulevé de terre jambes tendues haltères', groupe: 'ischios', secondaires: ['fessiers'], materiel: 'haltere' },
-  { id: 'e97', nom: 'Nordic hamstring curl', groupe: 'ischios', secondaires: [], materiel: 'poids_corps' },
-  { id: 'e98', nom: 'Leg curl à la poulie (au sol)', groupe: 'ischios', secondaires: [], materiel: 'poulie' },
+  { id: 'e93', nom: 'Leg curl allongé', nomEn: 'Lying Leg Curl', groupe: 'ischios', secondaires: [], materiel: 'machine' },
+  { id: 'e94', nom: 'Leg curl assis', nomEn: 'Seated Leg Curl', groupe: 'ischios', secondaires: [], materiel: 'machine' },
+  { id: 'e95', nom: 'Soulevé de terre jambes tendues barre', nomEn: 'Stiff-Leg Deadlift', groupe: 'ischios', secondaires: ['fessiers'], materiel: 'barre' },
+  { id: 'e96', nom: 'Soulevé de terre jambes tendues haltères', nomEn: 'Dumbbell Stiff-Leg Deadlift', groupe: 'ischios', secondaires: ['fessiers'], materiel: 'haltere' },
+  { id: 'e97', nom: 'Nordic hamstring curl', nomEn: 'Nordic Hamstring Curl', groupe: 'ischios', secondaires: [], materiel: 'poids_corps' },
+  { id: 'e98', nom: 'Leg curl à la poulie (au sol)', nomEn: 'Cable Leg Curl', groupe: 'ischios', secondaires: [], materiel: 'poulie' },
+  { id: 'e188', nom: 'Leg curl debout unilatéral', nomEn: 'Standing Single-Leg Curl', groupe: 'ischios', secondaires: [], materiel: 'machine' },
+  { id: 'e189', nom: 'Glute-ham raise (GHR)', nomEn: 'Glute-Ham Raise', groupe: 'ischios', secondaires: ['fessiers'], materiel: 'autre' },
+  { id: 'e190', nom: 'Soulevé de terre roumain unilatéral haltère', nomEn: 'Single-Leg Romanian Deadlift', groupe: 'ischios', secondaires: ['fessiers'], materiel: 'haltere' },
+  { id: 'e191', nom: 'Leg curl swiss ball', nomEn: 'Stability Ball Hamstring Curl', groupe: 'ischios', secondaires: [], materiel: 'autre' },
 
   // --- Fessiers ---
-  { id: 'e99', nom: 'Hip thrust barre', groupe: 'fessiers', secondaires: [], materiel: 'barre' },
-  { id: 'e100', nom: 'Hip thrust haltère', groupe: 'fessiers', secondaires: [], materiel: 'haltere' },
-  { id: 'e101', nom: 'Pont fessier au sol', groupe: 'fessiers', secondaires: [], materiel: 'poids_corps' },
-  { id: 'e102', nom: 'Extension de hanche à la poulie (cable kickback)', groupe: 'fessiers', secondaires: [], materiel: 'poulie' },
-  { id: 'e103', nom: 'Abduction de hanche (machine)', groupe: 'fessiers', secondaires: [], materiel: 'machine' },
-  { id: 'e104', nom: 'Abduction de hanche élastique', groupe: 'fessiers', secondaires: [], materiel: 'elastique' },
-  { id: 'e105', nom: 'Squat sumo haltère', groupe: 'fessiers', secondaires: ['quadriceps'], materiel: 'haltere' },
+  { id: 'e99', nom: 'Hip thrust barre', nomEn: 'Barbell Hip Thrust', groupe: 'fessiers', secondaires: [], materiel: 'barre' },
+  { id: 'e100', nom: 'Hip thrust haltère', nomEn: 'Dumbbell Hip Thrust', groupe: 'fessiers', secondaires: [], materiel: 'haltere' },
+  { id: 'e101', nom: 'Pont fessier au sol', nomEn: 'Glute Bridge', groupe: 'fessiers', secondaires: [], materiel: 'poids_corps' },
+  { id: 'e102', nom: 'Extension de hanche à la poulie', nomEn: 'Cable Kickback', groupe: 'fessiers', secondaires: [], materiel: 'poulie' },
+  { id: 'e103', nom: 'Abduction de hanche', nomEn: 'Hip Abduction Machine', groupe: 'fessiers', secondaires: [], materiel: 'machine' },
+  { id: 'e104', nom: 'Abduction de hanche élastique', nomEn: 'Band Hip Abduction', groupe: 'fessiers', secondaires: [], materiel: 'elastique' },
+  { id: 'e105', nom: 'Squat sumo haltère', nomEn: 'Dumbbell Sumo Squat', groupe: 'fessiers', secondaires: ['quadriceps'], materiel: 'haltere' },
+  { id: 'e192', nom: 'Hip thrust machine', nomEn: 'Hip Thrust Machine', groupe: 'fessiers', secondaires: [], materiel: 'machine' },
+  { id: 'e193', nom: 'Frog pump', nomEn: 'Frog Pump', groupe: 'fessiers', secondaires: [], materiel: 'poids_corps' },
+  { id: 'e194', nom: 'Fente bulgare kettlebell', nomEn: 'Kettlebell Bulgarian Split Squat', groupe: 'fessiers', secondaires: ['quadriceps'], materiel: 'kettlebell' },
+  { id: 'e195', nom: 'Cable pull-through', nomEn: 'Cable Pull-Through', groupe: 'fessiers', secondaires: ['ischios'], materiel: 'poulie' },
+  { id: 'e196', nom: 'Step-up latéral', nomEn: 'Lateral Step-Up', groupe: 'fessiers', secondaires: ['quadriceps'], materiel: 'haltere' },
 
   // --- Mollets ---
-  { id: 'e106', nom: 'Extension mollets debout (machine)', groupe: 'mollets', secondaires: [], materiel: 'machine' },
-  { id: 'e107', nom: 'Extension mollets assis (machine)', groupe: 'mollets', secondaires: [], materiel: 'machine' },
-  { id: 'e108', nom: 'Extension mollets à la presse à cuisses', groupe: 'mollets', secondaires: [], materiel: 'machine' },
-  { id: 'e109', nom: 'Extension mollets haltères debout', groupe: 'mollets', secondaires: [], materiel: 'haltere' },
-  { id: 'e110', nom: 'Extension mollets au poids du corps', groupe: 'mollets', secondaires: [], materiel: 'poids_corps' },
+  { id: 'e106', nom: 'Extension mollets debout', nomEn: 'Standing Calf Raise', groupe: 'mollets', secondaires: [], materiel: 'machine' },
+  { id: 'e107', nom: 'Extension mollets assis', nomEn: 'Seated Calf Raise', groupe: 'mollets', secondaires: [], materiel: 'machine' },
+  { id: 'e108', nom: 'Extension mollets à la presse à cuisses', nomEn: 'Calf Press on Leg Press', groupe: 'mollets', secondaires: [], materiel: 'machine' },
+  { id: 'e109', nom: 'Extension mollets haltères debout', nomEn: 'Standing Dumbbell Calf Raise', groupe: 'mollets', secondaires: [], materiel: 'haltere' },
+  { id: 'e110', nom: 'Extension mollets au poids du corps', nomEn: 'Bodyweight Calf Raise', groupe: 'mollets', secondaires: [], materiel: 'poids_corps' },
+  { id: 'e197', nom: 'Extension mollets Smith machine', nomEn: 'Smith Machine Calf Raise', groupe: 'mollets', secondaires: [], materiel: 'machine' },
+  { id: 'e198', nom: 'Donkey calf raise', nomEn: 'Donkey Calf Raise', groupe: 'mollets', secondaires: [], materiel: 'machine' },
 
   // --- Abdominaux ---
-  { id: 'e111', nom: 'Crunch au sol', groupe: 'abdos', secondaires: [], materiel: 'poids_corps' },
-  { id: 'e112', nom: 'Crunch à la poulie haute', groupe: 'abdos', secondaires: [], materiel: 'poulie' },
-  { id: 'e113', nom: 'Relevé de jambes suspendu', groupe: 'abdos', secondaires: [], materiel: 'poids_corps' },
-  { id: 'e114', nom: 'Relevé de jambes au sol', groupe: 'abdos', secondaires: [], materiel: 'poids_corps' },
-  { id: 'e115', nom: 'Gainage (planche)', groupe: 'abdos', secondaires: [], materiel: 'poids_corps' },
-  { id: 'e116', nom: 'Gainage latéral', groupe: 'abdos', secondaires: [], materiel: 'poids_corps' },
-  { id: 'e117', nom: 'Russian twist', groupe: 'abdos', secondaires: [], materiel: 'poids_corps' },
-  { id: 'e118', nom: 'Crunch machine', groupe: 'abdos', secondaires: [], materiel: 'machine' },
-  { id: 'e119', nom: 'Roulette abdominale (ab wheel)', groupe: 'abdos', secondaires: [], materiel: 'autre' },
-  { id: 'e120', nom: 'Mountain climber', groupe: 'abdos', secondaires: [], materiel: 'poids_corps' },
-  { id: 'e121', nom: 'Rotation du tronc à la poulie (woodchopper)', groupe: 'abdos', secondaires: [], materiel: 'poulie' },
-  { id: 'e122', nom: 'V-up', groupe: 'abdos', secondaires: [], materiel: 'poids_corps' },
-  { id: 'e123', nom: 'Dragon flag', groupe: 'abdos', secondaires: [], materiel: 'poids_corps' },
+  { id: 'e111', nom: 'Crunch au sol', nomEn: 'Crunch', groupe: 'abdos', secondaires: [], materiel: 'poids_corps' },
+  { id: 'e112', nom: 'Crunch à la poulie haute', nomEn: 'Cable Crunch', groupe: 'abdos', secondaires: [], materiel: 'poulie' },
+  { id: 'e113', nom: 'Relevé de jambes suspendu', nomEn: 'Hanging Leg Raise', groupe: 'abdos', secondaires: [], materiel: 'poids_corps' },
+  { id: 'e114', nom: 'Relevé de jambes au sol', nomEn: 'Lying Leg Raise', groupe: 'abdos', secondaires: [], materiel: 'poids_corps' },
+  { id: 'e115', nom: 'Gainage (planche)', nomEn: 'Plank', groupe: 'abdos', secondaires: [], materiel: 'poids_corps' },
+  { id: 'e116', nom: 'Gainage latéral', nomEn: 'Side Plank', groupe: 'abdos', secondaires: [], materiel: 'poids_corps' },
+  { id: 'e117', nom: 'Russian twist', nomEn: 'Russian Twist', groupe: 'abdos', secondaires: [], materiel: 'poids_corps' },
+  { id: 'e118', nom: 'Crunch machine', nomEn: 'Ab Crunch Machine', groupe: 'abdos', secondaires: [], materiel: 'machine' },
+  { id: 'e119', nom: 'Roulette abdominale', nomEn: 'Ab Wheel Rollout', groupe: 'abdos', secondaires: [], materiel: 'autre' },
+  { id: 'e120', nom: 'Mountain climber', nomEn: 'Mountain Climber', groupe: 'abdos', secondaires: [], materiel: 'poids_corps' },
+  { id: 'e121', nom: 'Rotation du tronc à la poulie', nomEn: 'Cable Woodchopper', groupe: 'abdos', secondaires: [], materiel: 'poulie' },
+  { id: 'e122', nom: 'V-up', nomEn: 'V-Up', groupe: 'abdos', secondaires: [], materiel: 'poids_corps' },
+  { id: 'e123', nom: 'Dragon flag', nomEn: 'Dragon Flag', groupe: 'abdos', secondaires: [], materiel: 'poids_corps' },
+  { id: 'e199', nom: 'Crunch à genoux à la poulie haute', nomEn: 'Kneeling Cable Crunch', groupe: 'abdos', secondaires: [], materiel: 'poulie' },
+  { id: 'e200', nom: 'Hollow body hold', nomEn: 'Hollow Body Hold', groupe: 'abdos', secondaires: [], materiel: 'poids_corps' },
+  { id: 'e201', nom: 'Sit-up lesté', nomEn: 'Weighted Sit-Up', groupe: 'abdos', secondaires: [], materiel: 'poids_corps' },
+  { id: 'e202', nom: 'Toes to bar', nomEn: 'Toes to Bar', groupe: 'abdos', secondaires: [], materiel: 'poids_corps' },
+  { id: 'e203', nom: 'Pallof press', nomEn: 'Pallof Press', groupe: 'abdos', secondaires: [], materiel: 'poulie' },
+  { id: 'e204', nom: 'Relevé de jambes sur banc incliné', nomEn: 'Incline Bench Leg Raise', groupe: 'abdos', secondaires: [], materiel: 'poids_corps' },
+  { id: 'e205', nom: 'Sit-up', nomEn: 'Sit-Up', groupe: 'abdos', secondaires: [], materiel: 'poids_corps' },
+  { id: 'e226', nom: 'Dead bug', nomEn: 'Dead Bug', groupe: 'abdos', secondaires: [], materiel: 'poids_corps' },
 
   // --- Avant-bras ---
-  { id: 'e124', nom: 'Curl poignet barre (wrist curl)', groupe: 'avant_bras', secondaires: [], materiel: 'barre' },
-  { id: 'e125', nom: 'Curl poignet inversé barre', groupe: 'avant_bras', secondaires: [], materiel: 'barre' },
-  { id: 'e126', nom: "Marche du fermier (farmer's walk)", groupe: 'avant_bras', secondaires: ['trapezes'], materiel: 'haltere' },
-  { id: 'e127', nom: 'Suspension à la barre (dead hang)', groupe: 'avant_bras', secondaires: ['dos'], materiel: 'poids_corps' },
+  { id: 'e124', nom: 'Curl poignet barre', nomEn: 'Barbell Wrist Curl', groupe: 'avant_bras', secondaires: [], materiel: 'barre' },
+  { id: 'e125', nom: 'Curl poignet inversé barre', nomEn: 'Reverse Wrist Curl', groupe: 'avant_bras', secondaires: [], materiel: 'barre' },
+  { id: 'e126', nom: 'Marche du fermier', nomEn: 'Farmer\'s Walk', groupe: 'avant_bras', secondaires: ['trapezes'], materiel: 'haltere' },
+  { id: 'e127', nom: 'Suspension à la barre', nomEn: 'Dead Hang', groupe: 'avant_bras', secondaires: ['dos'], materiel: 'poids_corps' },
+  { id: 'e206', nom: 'Curl poignet inversé haltères', nomEn: 'Dumbbell Reverse Wrist Curl', groupe: 'avant_bras', secondaires: [], materiel: 'haltere' },
+  { id: 'e207', nom: 'Pince à disque', nomEn: 'Plate Pinch', groupe: 'avant_bras', secondaires: [], materiel: 'autre' },
+  { id: 'e208', nom: 'Torsion de poignet au disque', nomEn: 'Plate Wrist Twist', groupe: 'avant_bras', secondaires: [], materiel: 'autre' },
+  { id: 'e235', nom: 'Suitcase carry', nomEn: 'Suitcase Carry', groupe: 'avant_bras', secondaires: ['abdos'], materiel: 'haltere' },
 
   // --- Trapèzes ---
-  { id: 'e128', nom: "Shrug barre (haussement d'épaules)", groupe: 'trapezes', secondaires: [], materiel: 'barre' },
-  { id: 'e129', nom: 'Shrug haltères', groupe: 'trapezes', secondaires: [], materiel: 'haltere' },
-  { id: 'e130', nom: 'Shrug machine', groupe: 'trapezes', secondaires: [], materiel: 'machine' },
+  { id: 'e128', nom: 'Shrug barre (haussement d\'épaules)', nomEn: 'Barbell Shrug', groupe: 'trapezes', secondaires: [], materiel: 'barre' },
+  { id: 'e129', nom: 'Shrug haltères', nomEn: 'Dumbbell Shrug', groupe: 'trapezes', secondaires: [], materiel: 'haltere' },
+  { id: 'e130', nom: 'Shrug machine', nomEn: 'Machine Shrug', groupe: 'trapezes', secondaires: [], materiel: 'machine' },
+  { id: 'e209', nom: 'Shrug landmine', nomEn: 'Landmine Shrug', groupe: 'trapezes', secondaires: [], materiel: 'barre' },
+  { id: 'e210', nom: 'Shrug à la poulie basse', nomEn: 'Low-Cable Shrug', groupe: 'trapezes', secondaires: [], materiel: 'poulie' },
+  { id: 'e228', nom: 'Clean barre', nomEn: 'Barbell Clean', groupe: 'trapezes', secondaires: ['dos', 'quadriceps'], materiel: 'barre' },
+  { id: 'e229', nom: 'High pull barre', nomEn: 'Barbell High Pull', groupe: 'trapezes', secondaires: ['epaules'], materiel: 'barre' },
+
+  // --- Adducteurs ---
+  { id: 'e238', nom: 'Adduction de hanche', nomEn: 'Hip Adduction Machine', groupe: 'adducteurs', secondaires: [], materiel: 'machine' },
+  { id: 'e239', nom: 'Adduction de hanche à la poulie', nomEn: 'Cable Hip Adduction', groupe: 'adducteurs', secondaires: [], materiel: 'poulie' },
+  { id: 'e240', nom: 'Copenhagen plank', nomEn: 'Copenhagen Plank', groupe: 'adducteurs', secondaires: ['abdos'], materiel: 'poids_corps' },
+  { id: 'e243', nom: 'Adduction de hanche élastique', nomEn: 'Band Hip Adduction', groupe: 'adducteurs', secondaires: [], materiel: 'elastique' },
 
   // --- Cardio / full body ---
-  { id: 'e131', nom: 'Rameur', groupe: 'cardio', secondaires: ['dos'], materiel: 'machine' },
-  { id: 'e132', nom: 'Vélo elliptique', groupe: 'cardio', secondaires: [], materiel: 'machine' },
-  { id: 'e133', nom: 'Tapis de course', groupe: 'cardio', secondaires: [], materiel: 'machine' },
-  { id: 'e134', nom: 'Corde à sauter', groupe: 'cardio', secondaires: ['mollets'], materiel: 'autre' },
-  { id: 'e135', nom: 'Burpees', groupe: 'cardio', secondaires: ['abdos'], materiel: 'poids_corps' },
-  { id: 'e136', nom: 'Kettlebell swing', groupe: 'fessiers', secondaires: ['ischios'], materiel: 'kettlebell' },
-  { id: 'e137', nom: 'Thruster haltères', groupe: 'epaules', secondaires: ['quadriceps'], materiel: 'haltere' },
-  { id: 'e138', nom: 'Clean and press barre', groupe: 'epaules', secondaires: ['dos', 'quadriceps'], materiel: 'barre' },
-  { id: 'e139', nom: 'Snatch kettlebell', groupe: 'epaules', secondaires: ['dos'], materiel: 'kettlebell' },
-  { id: 'e140', nom: 'Turkish get-up kettlebell', groupe: 'abdos', secondaires: ['epaules'], materiel: 'kettlebell' }
+  { id: 'e131', nom: 'Rameur', nomEn: 'Rowing Machine', groupe: 'cardio', secondaires: ['dos'], materiel: 'machine' },
+  { id: 'e132', nom: 'Vélo elliptique', nomEn: 'Elliptical', groupe: 'cardio', secondaires: [], materiel: 'machine' },
+  { id: 'e133', nom: 'Tapis de course', nomEn: 'Treadmill', groupe: 'cardio', secondaires: [], materiel: 'machine' },
+  { id: 'e134', nom: 'Corde à sauter', nomEn: 'Jump Rope', groupe: 'cardio', secondaires: ['mollets'], materiel: 'autre' },
+  { id: 'e135', nom: 'Burpees', nomEn: 'Burpee', groupe: 'cardio', secondaires: ['abdos'], materiel: 'poids_corps' },
+  { id: 'e136', nom: 'Kettlebell swing', nomEn: 'Kettlebell Swing', groupe: 'fessiers', secondaires: ['ischios'], materiel: 'kettlebell' },
+  { id: 'e137', nom: 'Thruster haltères', nomEn: 'Dumbbell Thruster', groupe: 'epaules', secondaires: ['quadriceps'], materiel: 'haltere' },
+  { id: 'e138', nom: 'Clean and press barre', nomEn: 'Barbell Clean and Press', groupe: 'epaules', secondaires: ['dos', 'quadriceps'], materiel: 'barre' },
+  { id: 'e139', nom: 'Snatch kettlebell', nomEn: 'Kettlebell Snatch', groupe: 'epaules', secondaires: ['dos'], materiel: 'kettlebell' },
+  { id: 'e140', nom: 'Turkish get-up kettlebell', nomEn: 'Turkish Get-Up', groupe: 'abdos', secondaires: ['epaules'], materiel: 'kettlebell' },
+  { id: 'e211', nom: 'Vélo stationnaire', nomEn: 'Stationary Bike', groupe: 'cardio', secondaires: [], materiel: 'machine' },
+  { id: 'e212', nom: 'StairMaster (monte-escalier)', nomEn: 'Stair Climber', groupe: 'cardio', secondaires: [], materiel: 'machine' },
+  { id: 'e213', nom: 'Sled push (poussée de traîneau)', nomEn: 'Sled Push', groupe: 'cardio', secondaires: ['quadriceps'], materiel: 'autre' },
+  { id: 'e214', nom: 'Sled pull (traction de traîneau)', nomEn: 'Sled Pull', groupe: 'cardio', secondaires: ['dos'], materiel: 'autre' },
+  { id: 'e215', nom: 'Battle rope', nomEn: 'Battle Ropes', groupe: 'cardio', secondaires: ['epaules'], materiel: 'autre' },
+  { id: 'e216', nom: 'Box jump', nomEn: 'Box Jump', groupe: 'quadriceps', secondaires: ['fessiers'], materiel: 'poids_corps' },
+  { id: 'e217', nom: 'Wall ball', nomEn: 'Wall Ball', groupe: 'cardio', secondaires: ['quadriceps', 'epaules'], materiel: 'autre' },
+  { id: 'e218', nom: 'Devil press', nomEn: 'Devil Press', groupe: 'cardio', secondaires: ['epaules'], materiel: 'haltere' },
+  { id: 'e219', nom: 'Man maker', nomEn: 'Man Maker', groupe: 'cardio', secondaires: ['dos', 'epaules'], materiel: 'haltere' },
+  { id: 'e220', nom: 'Bear crawl', nomEn: 'Bear Crawl', groupe: 'abdos', secondaires: ['epaules'], materiel: 'poids_corps' },
+  { id: 'e221', nom: 'Assault bike', nomEn: 'Assault Bike', groupe: 'cardio', secondaires: [], materiel: 'machine' },
+  { id: 'e222', nom: 'Tire flip', nomEn: 'Tire Flip', groupe: 'cardio', secondaires: ['dos', 'quadriceps'], materiel: 'autre' },
+  { id: 'e223', nom: 'Ski erg', nomEn: 'Ski Erg', groupe: 'cardio', secondaires: ['dos'], materiel: 'machine' },
+  { id: 'e224', nom: 'Vélo assis', nomEn: 'Recumbent Bike', groupe: 'cardio', secondaires: [], materiel: 'machine' },
+  { id: 'e227', nom: 'Renegade row', nomEn: 'Renegade Row', groupe: 'dos', secondaires: ['abdos'], materiel: 'haltere' },
+  { id: 'e230', nom: 'Jerk barre (épaulé-jeté)', nomEn: 'Barbell Jerk', groupe: 'epaules', secondaires: ['quadriceps'], materiel: 'barre' },
+  { id: 'e231', nom: 'Arraché barre', nomEn: 'Barbell Snatch', groupe: 'epaules', secondaires: ['dos', 'quadriceps'], materiel: 'barre' },
+  { id: 'e234', nom: 'Marche overhead kettlebell', nomEn: 'Overhead Kettlebell Carry', groupe: 'epaules', secondaires: ['abdos'], materiel: 'kettlebell' },
+  { id: 'e242', nom: 'Extension du dos', nomEn: 'Back Extension Machine', groupe: 'lombaires', secondaires: [], materiel: 'machine' },
+
+  // --- Lombaires (complément) ---
+  { id: 'e225', nom: 'Bird dog', nomEn: 'Bird Dog', groupe: 'lombaires', secondaires: ['abdos'], materiel: 'poids_corps' },
+  { id: 'e232', nom: 'Good morning haltère', nomEn: 'Dumbbell Good Morning', groupe: 'lombaires', secondaires: ['ischios'], materiel: 'haltere' },
+  { id: 'e236', nom: 'Good morning à la poulie', nomEn: 'Cable Good Morning', groupe: 'lombaires', secondaires: ['ischios'], materiel: 'poulie' },
+  { id: 'e237', nom: 'Reverse hyperextension', nomEn: 'Reverse Hyperextension', groupe: 'lombaires', secondaires: ['fessiers'], materiel: 'machine' }
 ];
+
 
 let musculationProgrammes = [];
 let musculationHistorique = [];
@@ -7466,6 +7706,14 @@ function idUnique(prefixe) {
 }
 function toutesLesExercices() { return EXERCICES_BASE.concat(musculationExosPerso); }
 function trouverExercice(id) { return toutesLesExercices().find(e => e.id === id); }
+/* Beaucoup de salles n'affichent les machines qu'en anglais sur leur
+   étiquette : le nom anglais est donc affiché entre parenthèses à côté du
+   nom français partout où un exercice est listé, et les deux sont
+   cherchables. Les exercices personnalisés n'ont pas de traduction. */
+function libelleExercice(exo) {
+  if (!exo) return 'Exercice';
+  return exo.nomEn ? exo.nom + ' (' + exo.nomEn + ')' : exo.nom;
+}
 
 function chargerMuscu() {
   try { musculationProgrammes = JSON.parse(localStorage.getItem(MUSCU_PROGRAMMES_KEY)) || []; } catch (e) { musculationProgrammes = []; }
@@ -7474,21 +7722,111 @@ function chargerMuscu() {
   try { musculationSessionActive = JSON.parse(localStorage.getItem(MUSCU_SESSION_KEY)) || null; } catch (e) { musculationSessionActive = null; }
 }
 function sauvegarderProgrammes() {
-  try { localStorage.setItem(MUSCU_PROGRAMMES_KEY, JSON.stringify(musculationProgrammes)); }
+  try { localStorage.setItem(MUSCU_PROGRAMMES_KEY, JSON.stringify(musculationProgrammes)); planifierSync(); }
   catch (e) { alert("Impossible d'enregistrer le programme : espace de stockage plein ou navigation privée."); }
 }
 function sauvegarderHistorique() {
-  try { localStorage.setItem(MUSCU_HISTORIQUE_KEY, JSON.stringify(musculationHistorique)); }
+  try { localStorage.setItem(MUSCU_HISTORIQUE_KEY, JSON.stringify(musculationHistorique)); planifierSync(); }
   catch (e) { alert("Impossible d'enregistrer la séance : espace de stockage plein ou navigation privée."); }
 }
 function sauvegarderExosPerso() {
-  try { localStorage.setItem(MUSCU_EXOS_PERSO_KEY, JSON.stringify(musculationExosPerso)); } catch (e) {}
+  try { localStorage.setItem(MUSCU_EXOS_PERSO_KEY, JSON.stringify(musculationExosPerso)); planifierSync(); } catch (e) {}
 }
 function sauvegarderSessionActive() {
+  // La séance en cours reste volontairement locale : elle change à chaque
+  // coche, et la synchroniser en direct sur chaque case cochée coûterait
+  // une requête réseau par case sans réel bénéfice (elle n'est de toute
+  // façon envoyée à Supabase qu'une fois terminée, via sauvegarderHistorique).
   try {
     if (musculationSessionActive) localStorage.setItem(MUSCU_SESSION_KEY, JSON.stringify(musculationSessionActive));
     else localStorage.removeItem(MUSCU_SESSION_KEY);
   } catch (e) {}
+}
+
+/* =====================================================================
+   Synchronisation Supabase de la musculation
+   Même principe que "journees" : une ligne par programme / par séance /
+   par exercice personnalisé (jamais un blob unique par compte), le
+   conflit étant tranché ligne par ligne par l'horodatage `maj` le plus
+   récent. C'est ce qui permet à deux appareils d'ajouter chacun une
+   séance différente sans que l'un écrase la séance de l'autre.
+   ===================================================================== */
+const MUSCU_SUPPR_LS = 'elite_musculation_suppressions_v1';
+function fileSuppressionsMuscu() {
+  try { return JSON.parse(localStorage.getItem(MUSCU_SUPPR_LS)) || []; } catch (e) { return []; }
+}
+/* Une suppression locale (programme ou séance) doit aussi effacer la ligne
+   côté serveur — sans quoi le prochain pull la rapporterait telle quelle,
+   puisqu'elle n'existe simplement plus dans la collection locale à
+   comparer. Mise en file pour résister à une suppression hors ligne. */
+function ajouterSuppressionMuscu(table, id) {
+  const f = fileSuppressionsMuscu();
+  f.push({ table, id });
+  try { localStorage.setItem(MUSCU_SUPPR_LS, JSON.stringify(f.slice(-500))); } catch (e) {}
+  planifierSync();
+}
+async function viderSuppressionsMuscu(utilisateurId) {
+  const f = fileSuppressionsMuscu();
+  if (!f.length) return;
+  const restantes = [];
+  for (const s of f) {
+    try {
+      const { error } = await supa.from(s.table).delete().eq('utilisateur', utilisateurId).eq('id', s.id);
+      if (error) throw error;
+    } catch (e) { restantes.push(s); }
+  }
+  try { localStorage.setItem(MUSCU_SUPPR_LS, JSON.stringify(restantes)); } catch (e) {}
+}
+
+/* Synchronise une collection locale (tableau d'objets avec id + maj) avec
+   une table Supabase à la forme (utilisateur, id, donnees, maj). Retourne
+   true si des données distantes plus récentes ont modifié la collection. */
+async function syncCollectionMusculation(nomTable, utilisateurId, collectionLocale) {
+  const { data, error } = await supa.from(nomTable).select('id,donnees,maj').eq('utilisateur', utilisateurId);
+  if (error) throw error;
+  const distants = new Map();
+  let changement = false;
+  (data || []).forEach(r => {
+    const m = Number(r.maj) || 0;
+    distants.set(r.id, m);
+    const idxLocal = collectionLocale.findIndex(x => x.id === r.id);
+    const mLocal = idxLocal === -1 ? -1 : (Number(collectionLocale[idxLocal].maj) || 0);
+    if (r.donnees && m > mLocal) {
+      const fusionne = Object.assign({}, r.donnees, { id: r.id, maj: m });
+      if (idxLocal === -1) collectionLocale.push(fusionne); else collectionLocale[idxLocal] = fusionne;
+      changement = true;
+    }
+  });
+  const aPousser = collectionLocale
+    .filter(x => {
+      const m = Number(x.maj) || 0;
+      if (!distants.has(x.id)) return true;
+      return m > distants.get(x.id);
+    })
+    .map(x => ({ utilisateur: utilisateurId, id: x.id, donnees: x, maj: Number(x.maj) || 1 }));
+  for (let i = 0; i < aPousser.length; i += 200) {
+    const { error: e2 } = await supa.from(nomTable).upsert(aPousser.slice(i, i + 200), { onConflict: 'utilisateur,id' });
+    if (e2) throw e2;
+  }
+  return changement;
+}
+
+async function synchroniserMuscu(utilisateurId) {
+  await viderSuppressionsMuscu(utilisateurId);
+  const c1 = await syncCollectionMusculation('programmes_musculation', utilisateurId, musculationProgrammes);
+  const c2 = await syncCollectionMusculation('seances_musculation', utilisateurId, musculationHistorique);
+  const c3 = await syncCollectionMusculation('exercices_perso_musculation', utilisateurId, musculationExosPerso);
+  if (c1 || c2 || c3) {
+    // L'historique est retrié : le serveur peut avoir apporté une séance
+    // plus récente qu'aucune séance locale, qui doit repasser en tête.
+    musculationHistorique.sort((a, b) => (Number(b.maj) || 0) - (Number(a.maj) || 0));
+    try {
+      localStorage.setItem(MUSCU_PROGRAMMES_KEY, JSON.stringify(musculationProgrammes));
+      localStorage.setItem(MUSCU_HISTORIQUE_KEY, JSON.stringify(musculationHistorique));
+      localStorage.setItem(MUSCU_EXOS_PERSO_KEY, JSON.stringify(musculationExosPerso));
+    } catch (e) {}
+    if (ecranActif === 'seance') renderSeance();
+  }
 }
 
 /* Dernière fois que cet exercice a été pratiqué (au moins une série cochée
@@ -7545,7 +7883,7 @@ function renderSeance() {
   if (nb) nb.textContent = toutesLesExercices().length + ' exercices';
   renderBandeauSessionActive();
   renderListeProgrammes();
-  renderStatsMoisSeance();
+  renderStatsMuscu();
   renderHistoriqueSeances();
 }
 
@@ -7584,21 +7922,205 @@ function renderListeProgrammes() {
   }).join('');
 }
 
-function renderStatsMoisSeance() {
-  const c = document.getElementById('seance-stats-mois');
+/* =====================================================================
+   Statistiques — programmes, séances, matériel ("machines")
+   Toujours calculées sur les seules données de l'utilisateur connecté
+   (musculationHistorique local, ou celui chargé pour le compte consulté
+   dans le panneau Administration — voir renderStatsMuscuAdmin) : jamais
+   un mélange de plusieurs comptes.
+   ===================================================================== */
+function volumeSeance(h) {
+  return h.exercices.reduce((vv, e) =>
+    vv + e.series.reduce((s, set) => s + (Number(set.poids) || 0) * (Number(set.reps) || 0), 0), 0);
+}
+function graphiqueCouleursMuscu() {
+  const styles = getComputedStyle(document.documentElement);
+  const clair = document.documentElement.getAttribute('data-theme') === 'light'
+    || (document.documentElement.getAttribute('data-theme') !== 'dark'
+        && window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches);
+  return {
+    texte: (styles.getPropertyValue('--text-muted') || '#94a3b8').trim(),
+    grille: clair ? 'rgba(14,20,32,0.10)' : 'rgba(255,255,255,0.06)',
+    primaire: (styles.getPropertyValue('--primary') || '#14b566').trim(),
+    accent: (styles.getPropertyValue('--accent') || '#2979ff').trim()
+  };
+}
+
+function renderStatsMuscu() {
+  renderStatsTotauxMuscu(musculationHistorique, 'seance-stats-totaux');
+  renderChartSeancesParMois(musculationHistorique, 'seanceParMoisChart', 'seanceParMoisChartInstance');
+  renderChartMaterielMuscu(musculationHistorique, 'seanceMaterielChart', 'seanceMaterielChartInstance');
+  renderChartGroupeMuscu(musculationHistorique, 'seanceGroupeChart', 'seanceGroupeChartInstance');
+  renderStatsProgrammesMuscu(musculationHistorique, 'seance-stats-programmes');
+  renderStatsRecordsMuscu(musculationHistorique, 'seance-stats-records');
+}
+
+/* Chaque fonction ci-dessous prend en paramètre l'historique à utiliser et
+   les ids des éléments cibles : c'est ce qui permet de les réutiliser telles
+   quelles pour le compte consulté dans le panneau Administration (voir plus
+   bas), sans dupliquer la logique de calcul. */
+function renderStatsTotauxMuscu(historique, idCible) {
+  const c = document.getElementById(idCible);
   if (!c) return;
-  const moisEnCours = todayStr().slice(0, 7);
-  const seancesMois = musculationHistorique.filter(h => h.date.slice(0, 7) === moisEnCours);
-  const volumeTotal = seancesMois.reduce((v, h) => v + h.exercices.reduce((vv, e) =>
-    vv + e.series.reduce((s, set) => s + (Number(set.poids) || 0) * (Number(set.reps) || 0), 0), 0), 0);
-  const dureeTotale = seancesMois.reduce((d, h) => d + (h.dureeMin || 0), 0);
+  const nbSeances = historique.length;
+  const volumeTotal = historique.reduce((v, h) => v + volumeSeance(h), 0);
+  const dureeTotale = historique.reduce((d, h) => d + (h.dureeMin || 0), 0);
+  const seriesTotales = historique.reduce((n, h) => n + h.exercices.reduce((nn, e) => nn + e.series.length, 0), 0);
+  const ilYA28j = shiftDate(todayStr(), -28);
+  const seancesRecentes = historique.filter(h => h.date >= ilYA28j).length;
   const cellules = [
-    ['Séances', String(seancesMois.length)],
-    ['Volume soulevé', Math.round(volumeTotal).toLocaleString('fr-FR') + ' kg'],
+    ['Séances au total', String(nbSeances)],
+    ['Volume total soulevé', Math.round(volumeTotal).toLocaleString('fr-FR') + ' kg'],
     ['Temps total', dureeTotale >= 60 ? (Math.round(dureeTotale / 6) / 10) + ' h' : dureeTotale + ' min'],
-    ['Dernière séance', musculationHistorique[0] ? formatDateDisplay(musculationHistorique[0].date) : '—']
+    ['Séries au total', String(seriesTotales)],
+    ['4 dernières semaines', seancesRecentes + ' séance(s)'],
+    ['Dernière séance', historique[0] ? formatDateDisplay(historique[0].date) : '—']
   ];
   c.innerHTML = cellules.map(([l, v]) => `<div><small>${l}</small><div class="stats-valeur">${v}</div></div>`).join('');
+}
+
+/* Les instances de graphiques vivent dans des variables globales nommées
+   dynamiquement (window[nomInstance]) : nécessaire pour que les mêmes
+   fonctions de rendu servent à la fois aux graphiques de l'onglet Séance et
+   à ceux, distincts, du panneau Administration. */
+function renderChartSeancesParMois(historique, idCanvas, nomInstance) {
+  const canvas = document.getElementById(idCanvas);
+  if (!canvas || typeof Chart === 'undefined') return;
+  const NB_MOIS = 6;
+  const base = new Date(); base.setDate(1);
+  const mois = [];
+  for (let i = NB_MOIS - 1; i >= 0; i--) mois.push(new Date(base.getFullYear(), base.getMonth() - i, 1));
+  const labels = mois.map(m => m.toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' }));
+  const cles = mois.map(m => m.getFullYear() + '-' + String(m.getMonth() + 1).padStart(2, '0'));
+  const counts = cles.map(cle => historique.filter(h => h.date.slice(0, 7) === cle).length);
+  const c = graphiqueCouleursMuscu();
+  if (window[nomInstance]) window[nomInstance].destroy();
+  window[nomInstance] = new Chart(canvas, {
+    type: 'bar',
+    data: { labels, datasets: [{ label: 'Séances', data: counts, backgroundColor: c.primaire }] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: c.texte, font: { size: 9 } }, grid: { color: c.grille } },
+        y: { ticks: { color: c.texte, font: { size: 9 }, precision: 0 }, grid: { color: c.grille }, beginAtZero: true }
+      }
+    }
+  });
+}
+function renderChartMaterielMuscu(historique, idCanvas, nomInstance) {
+  const canvas = document.getElementById(idCanvas);
+  if (!canvas || typeof Chart === 'undefined') return;
+  const comptes = {};
+  ORDRE_MATERIELS.forEach(m => { comptes[m] = 0; });
+  historique.forEach(h => h.exercices.forEach(e => {
+    const exo = trouverExercice(e.exerciceId);
+    if (!exo) return;
+    comptes[exo.materiel] = (comptes[exo.materiel] || 0) + e.series.length;
+  }));
+  const c = graphiqueCouleursMuscu();
+  if (window[nomInstance]) window[nomInstance].destroy();
+  window[nomInstance] = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels: ORDRE_MATERIELS.map(m => MATERIELS[m].ic + ' ' + MATERIELS[m].label),
+      datasets: [{ label: 'Séries', data: ORDRE_MATERIELS.map(m => comptes[m]), backgroundColor: c.accent }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: c.texte, font: { size: 9 }, precision: 0 }, grid: { color: c.grille }, beginAtZero: true },
+        y: { ticks: { color: c.texte, font: { size: 9 } }, grid: { color: c.grille } }
+      }
+    }
+  });
+}
+function renderChartGroupeMuscu(historique, idCanvas, nomInstance) {
+  const canvas = document.getElementById(idCanvas);
+  if (!canvas || typeof Chart === 'undefined') return;
+  const volumes = {};
+  ORDRE_GROUPES.forEach(g => { volumes[g] = 0; });
+  historique.forEach(h => h.exercices.forEach(e => {
+    const exo = trouverExercice(e.exerciceId);
+    if (!exo) return;
+    volumes[exo.groupe] = (volumes[exo.groupe] || 0) +
+      e.series.reduce((s, set) => s + (Number(set.poids) || 0) * (Number(set.reps) || 0), 0);
+  }));
+  const groupesUtilises = ORDRE_GROUPES.filter(g => volumes[g] > 0);
+  if (window[nomInstance]) window[nomInstance].destroy();
+  if (!groupesUtilises.length) { window[nomInstance] = null; return; }
+  const c = graphiqueCouleursMuscu();
+  window[nomInstance] = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels: groupesUtilises.map(g => GROUPES_MUSCULAIRES[g]),
+      datasets: [{ label: 'Volume (kg)', data: groupesUtilises.map(g => Math.round(volumes[g])), backgroundColor: c.primaire }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: c.texte, font: { size: 9 } }, grid: { color: c.grille }, beginAtZero: true },
+        y: { ticks: { color: c.texte, font: { size: 9 } }, grid: { color: c.grille } }
+      }
+    }
+  });
+}
+function renderStatsProgrammesMuscu(historique, idCible) {
+  const c = document.getElementById(idCible);
+  if (!c) return;
+  if (!historique.length) { c.innerHTML = '<div class="vide">Pas encore de séance enregistrée.</div>'; return; }
+  const groupes = new Map();
+  historique.forEach(h => {
+    const cle = h.programmeId || ('libre:' + h.programmeNom);
+    if (!groupes.has(cle)) groupes.set(cle, { nom: h.programmeNom || 'Séance libre', seances: [] });
+    groupes.get(cle).seances.push(h);
+  });
+  c.innerHTML = Array.from(groupes.values())
+    .sort((a, b) => b.seances.length - a.seances.length)
+    .map(g => {
+      const n = g.seances.length;
+      const volMoyen = g.seances.reduce((s, h) => s + volumeSeance(h), 0) / n;
+      const dureeMoyenne = g.seances.reduce((s, h) => s + (h.dureeMin || 0), 0) / n;
+      return `<div class="historique-carte" style="cursor:default;">
+        <div class="historique-carte-entete">
+          <span class="historique-carte-nom">${escapeHtml(g.nom)}</span>
+          <span class="historique-carte-date">${n} fois</span>
+        </div>
+        <div class="historique-carte-meta">Dernière fois ${formatDateDisplay(g.seances[0].date)} · volume moyen ${Math.round(volMoyen).toLocaleString('fr-FR')} kg · durée moyenne ${Math.round(dureeMoyenne)} min</div>
+      </div>`;
+    }).join('');
+}
+function renderStatsRecordsMuscu(historique, idCible) {
+  const c = document.getElementById(idCible);
+  if (!c) return;
+  const parExercice = new Map();
+  historique.forEach(h => h.exercices.forEach(e => {
+    if (!parExercice.has(e.exerciceId)) parExercice.set(e.exerciceId, { record: null, frequence: 0 });
+    const entree = parExercice.get(e.exerciceId);
+    entree.frequence++;
+    e.series.forEach(s => {
+      if (!s.fait) return;
+      const poids = Number(s.poids) || 0;
+      if (!entree.record || poids > entree.record.poids) entree.record = { poids, reps: Number(s.reps) || 0 };
+    });
+  }));
+  const lignes = Array.from(parExercice.entries())
+    .filter(([, v]) => v.record)
+    .sort((a, b) => b[1].frequence - a[1].frequence)
+    .slice(0, 20)
+    .map(([id, v]) => {
+      const exo = trouverExercice(id);
+      const nom = exo ? libelleExercice(exo) : 'Exercice supprimé';
+      return `<div style="display:flex; justify-content:space-between; align-items:center; gap:10px; padding:9px 0; border-bottom:1px solid var(--verre-brd); font-size:0.85rem;">
+        <span>${escapeHtml(nom)}</span>
+        <strong style="color:var(--primary); white-space:nowrap;">${v.record.poids} kg × ${v.record.reps}</strong>
+      </div>`;
+    }).join('');
+  c.innerHTML = lignes || '<div class="vide">Pas encore de record enregistré.</div>';
 }
 
 function renderHistoriqueSeances() {
@@ -7635,7 +8157,9 @@ function voirDetailHistorique(id) {
     const series = e.series.map((s, i) => `<div style="display:flex; justify-content:space-between; font-size:0.82rem; padding:4px 0; border-bottom:1px solid var(--verre-brd);">
       <span>Série ${i + 1}</span><span>${s.poids ?? '—'} kg × ${s.reps ?? '—'} ${s.fait ? '✅' : ''}</span>
     </div>`).join('');
-    return `<div style="margin-bottom:14px;"><div style="font-weight:700; font-size:0.88rem; margin-bottom:6px;">${escapeHtml(e.nom)}</div>${series}</div>`;
+    const exoRef = trouverExercice(e.exerciceId);
+    const label = exoRef ? libelleExercice(exoRef) : e.nom;
+    return `<div style="margin-bottom:14px;"><div style="font-weight:700; font-size:0.88rem; margin-bottom:6px;">${escapeHtml(label)}</div>${series}</div>`;
   }).join('');
   document.getElementById('historique-detail-container').innerHTML =
     lignes + (h.notes ? `<p class="note">📝 ${escapeHtml(h.notes)}</p>` : '');
@@ -7646,6 +8170,7 @@ function supprimerSeanceHistorique() {
   if (!confirm('Supprimer définitivement cette séance de l’historique ?')) return;
   musculationHistorique = musculationHistorique.filter(h => h.id !== historiqueDetailCourant);
   sauvegarderHistorique();
+  ajouterSuppressionMuscu('seances_musculation', historiqueDetailCourant);
   fermerModal('historique-detail-modal');
   renderSeance();
 }
@@ -7682,7 +8207,7 @@ function renderProgrammeExercicesEnEdition() {
     return `<div class="exo-en-programme">
       <div class="exo-en-programme-entete">
         <div>
-          <div class="exo-en-programme-nom">${escapeHtml(exo ? exo.nom : 'Exercice supprimé')}</div>
+          <div class="exo-en-programme-nom">${escapeHtml(exo ? libelleExercice(exo) : 'Exercice supprimé')}</div>
           <div class="exo-en-programme-meta">${escapeHtml(meta)}</div>
         </div>
         <div style="display:flex; gap:6px; align-items:center;">
@@ -7727,9 +8252,9 @@ function validerProgramme() {
     const p = musculationProgrammes.find(x => x.id === programmeEnEdition.id);
     p.nom = nom;
     p.exercices = programmeEnEdition.exercices;
-    p.majLe = Date.now();
+    p.maj = Date.now();
   } else {
-    musculationProgrammes.push({ id: idUnique('prog'), nom, exercices: programmeEnEdition.exercices, creeLe: Date.now(), majLe: Date.now() });
+    musculationProgrammes.push({ id: idUnique('prog'), nom, exercices: programmeEnEdition.exercices, creeLe: Date.now(), maj: Date.now() });
   }
   sauvegarderProgrammes();
   fermerModal('programme-modal');
@@ -7740,6 +8265,7 @@ function supprimerProgrammeDepuisModal() {
   if (!confirm('Supprimer ce programme ? Son historique de séances est conservé.')) return;
   musculationProgrammes = musculationProgrammes.filter(p => p.id !== programmeEnEdition.id);
   sauvegarderProgrammes();
+  ajouterSuppressionMuscu('programmes_musculation', programmeEnEdition.id);
   fermerModal('programme-modal');
   renderSeance();
 }
@@ -7747,6 +8273,7 @@ function supprimerProgramme(id) {
   if (!confirm('Supprimer ce programme ? Son historique de séances est conservé.')) return;
   musculationProgrammes = musculationProgrammes.filter(p => p.id !== id);
   sauvegarderProgrammes();
+  ajouterSuppressionMuscu('programmes_musculation', id);
   renderSeance();
 }
 function dupliquerProgramme(id) {
@@ -7754,7 +8281,7 @@ function dupliquerProgramme(id) {
   if (!p) return;
   musculationProgrammes.push({
     id: idUnique('prog'), nom: p.nom + ' (copie)',
-    exercices: p.exercices.map(e => ({ ...e })), creeLe: Date.now(), majLe: Date.now()
+    exercices: p.exercices.map(e => ({ ...e })), creeLe: Date.now(), maj: Date.now()
   });
   sauvegarderProgrammes();
   renderSeance();
@@ -7812,7 +8339,7 @@ function rendrePickerExercices() {
   const liste = toutesLesExercices().filter(e => {
     if (pickerGroupesActifs.size && !pickerGroupesActifs.has(e.groupe)) return false;
     if (pickerMaterielsActifs.size && !pickerMaterielsActifs.has(e.materiel)) return false;
-    if (q && !normaliserRecherche(e.nom).includes(q)) return false;
+    if (q && !normaliserRecherche(e.nom).includes(q) && !(e.nomEn && normaliserRecherche(e.nomEn).includes(q))) return false;
     return true;
   });
   document.getElementById('picker-resultats-compte').textContent = liste.length + ' exercice(s)';
@@ -7825,7 +8352,7 @@ function rendrePickerExercices() {
     return `<button type="button" class="exo-ligne" onclick="choisirExercicePicker('${e.id}')">
       <span class="exo-ligne-mat" aria-hidden="true">${MATERIELS[e.materiel].ic}</span>
       <span style="flex:1; min-width:0;">
-        <span class="exo-ligne-nom">${escapeHtml(e.nom)}</span>
+        <span class="exo-ligne-nom">${escapeHtml(libelleExercice(e))}</span>
         <span class="exo-ligne-meta">${escapeHtml(sousTitre)}</span>
       </span>
     </button>`;
@@ -7846,7 +8373,7 @@ function choisirExercicePicker(id) {
 function afficherFicheExerciceBiblio(id) {
   const e = trouverExercice(id);
   if (!e) return;
-  document.getElementById('titre-fiche-exercice').textContent = e.nom;
+  document.getElementById('titre-fiche-exercice').textContent = libelleExercice(e);
   const pratique = musculationHistorique.filter(h => h.exercices.some(x => x.exerciceId === id));
   const derniere = dernierePerfExercice(id);
   const secondaires = (e.secondaires && e.secondaires.length) ? e.secondaires.map(g => GROUPES_MUSCULAIRES[g]).join(', ') : null;
@@ -7888,7 +8415,7 @@ function validerExercicePerso() {
     groupe: document.getElementById('perso-groupe').value,
     secondaires: [],
     materiel: document.getElementById('perso-materiel').value,
-    perso: true
+    perso: true, maj: Date.now()
   });
   sauvegarderExosPerso();
   fermerModal('exercice-perso-modal');
@@ -7976,7 +8503,7 @@ function renderSessionModal() {
         </tr>`).join('');
       return `<div class="session-exo-bloc">
         <div class="session-exo-titre">
-          <span class="session-exo-nom">${escapeHtml(exo.nom)}</span>
+          <span class="session-exo-nom">${escapeHtml(trouverExercice(exo.exerciceId) ? libelleExercice(trouverExercice(exo.exerciceId)) : exo.nom)}</span>
           <button class="btn-delete" onclick="retirerExerciceSession(${ei})" aria-label="Retirer l'exercice">&times;</button>
         </div>
         <div class="session-exo-derniere">${escapeHtml(infoDerniere)}</div>
@@ -8040,7 +8567,7 @@ function terminerSeance() {
   const dureeMin = Math.max(1, Math.round((fin - s.debut) / 60000));
   const entree = {
     id: idUnique('hist'), programmeId: s.programmeId, programmeNom: s.programmeNom || 'Séance libre',
-    date: todayStr(), debut: s.debut, fin, dureeMin, notes: s.notes || '',
+    date: todayStr(), debut: s.debut, fin, dureeMin, notes: s.notes || '', maj: fin,
     exercices: s.exercices.map(e => ({ exerciceId: e.exerciceId, nom: e.nom, series: e.series.filter(x => x.fait || x.poids || x.reps) }))
       .filter(e => e.series.length)
   };
