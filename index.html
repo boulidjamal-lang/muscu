@@ -45,8 +45,16 @@
        du <head> et appliquerTheme(), qui la tiennent synchronisées. -->
   <meta name="theme-color" id="meta-theme-color" content="#eaeef5">
   <meta name="apple-mobile-web-app-title" content="Mon Coach">
-  <meta name="apple-mobile-web-app-title" content="Mon Coach">
-  
+  <!-- apple-mobile-web-app-capable : lancée depuis l'écran d'accueil sur iOS,
+       l'appli s'ouvre en plein écran (sans barre Safari) plutôt que dans un
+       onglet. manifest.json fait l'équivalent pour Android/Chrome (installe
+       une vraie icône, "display": "standalone"). Voir estAppInstallee(). -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icons/favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+
   <!-- Importation d'une police haut de gamme (Outfit) -->
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&amp;display=swap" rel="stylesheet">
   
@@ -2597,6 +2605,16 @@
       </div>
     </div>
 
+    <div class="bloc-verre hidden" id="bloc-installer-app" style="padding:15px; margin-bottom:16px;">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+        <div style="min-width:0;">
+          <div style="font-weight:700; font-size:0.72rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.8px;">📲 Application</div>
+          <div style="font-weight:700; font-size:0.88rem; margin-top:4px;">Pas encore sur ton écran d'accueil</div>
+        </div>
+        <button class="btn btn-secondaire" style="width:auto; flex:none; white-space:nowrap;" onclick="ouvrirInstallation()">Installer</button>
+      </div>
+    </div>
+
     <div class="bloc-verre" style="padding:15px; margin-bottom:16px;">
       <p class="note" style="margin:0;">Le poids et l'objectif ne se règlent plus ici : renseigne le poids une fois par semaine et choisis ton objectif dans l'onglet <strong>Activité</strong> — un changement s'applique à partir d'aujourd'hui, sans jamais modifier tes journées passées.</p>
     </div>
@@ -2709,6 +2727,42 @@
     </div>
 
     <button class="btn btn-primary" onclick="fermerModal('settings-modal')">Fermer</button>
+  </div>
+</div>
+
+<!-- Modal Installation sur l'écran d'accueil (PWA) — voir estAppInstallee()
+     et ouvrirInstallation() : contenu adapté selon Android/Chrome (invite
+     native) ou iOS/Safari (pas d'invite possible, juste les étapes). -->
+<div id="install-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="titre-install">
+  <div class="modal-content">
+    <div class="modal-entete">
+      <h3 id="titre-install">📲 Installer Mon Coach</h3>
+      <button class="close-modal" onclick="fermerModal('install-modal')" aria-label="Fermer">&times;</button>
+    </div>
+
+    <div class="bloc-verre" style="padding:15px; margin-bottom:16px; text-align:center;">
+      <img src="icons/icon-192.png" alt="" width="72" height="72" style="border-radius:18px; margin-bottom:10px;">
+      <p class="note" style="margin:0;">Ajoute Mon Coach à ton écran d'accueil : elle s'ouvre en plein écran, comme une vraie application, et se lance plus vite.</p>
+    </div>
+
+    <div id="install-bloc-natif" class="hidden">
+      <button class="btn btn-primary" style="width:100%; margin-bottom:10px;" onclick="ouvrirInstallation()">📲 Installer maintenant</button>
+    </div>
+
+    <div id="install-bloc-ios" class="hidden bloc-verre" style="padding:15px; margin-bottom:16px;">
+      <p class="note" style="margin:0 0 8px;"><strong>Sur iPhone / iPad (Safari) :</strong></p>
+      <ol style="margin:0; padding-left:20px; font-size:0.85rem; color:var(--text-muted); line-height:1.6;">
+        <li>Appuie sur le bouton <strong>Partager</strong> (le carré avec la flèche vers le haut).</li>
+        <li>Choisis <strong>« Sur l'écran d'accueil »</strong>.</li>
+        <li>Confirme avec <strong>« Ajouter »</strong>.</li>
+      </ol>
+    </div>
+
+    <div id="install-bloc-generique" class="hidden bloc-verre" style="padding:15px; margin-bottom:16px;">
+      <p class="note" style="margin:0;">Depuis le menu de ton navigateur, cherche une option <strong>« Installer l'application »</strong> ou <strong>« Ajouter à l'écran d'accueil »</strong>.</p>
+    </div>
+
+    <button class="btn btn-secondaire" style="width:100%;" onclick="fermerModal('install-modal')">Plus tard</button>
   </div>
 </div>
 
@@ -3692,6 +3746,92 @@ function fermerModal(id) {
 function majCoucheOuverte() {
   const ouvert = !!document.querySelector('.modal.show, .feuille.show');
   document.body.classList.toggle('couche-ouverte', ouvert);
+}
+
+/* =====================================================================
+   INSTALLATION SUR L'ÉCRAN D'ACCUEIL (PWA)
+   estAppInstallee() distingue un onglet de navigateur normal d'un
+   lancement depuis l'écran d'accueil (sans barre d'adresse) : deux
+   signaux complémentaires, aucun des deux seul n'étant universel.
+   ===================================================================== */
+let deferredInstallPrompt = null; // capturé par 'beforeinstallprompt' — Android/Chrome uniquement, jamais iOS
+
+function estAppInstallee() {
+  const standard = window.matchMedia && window.matchMedia('(display-mode: standalone)').matches;
+  const ios = window.navigator.standalone === true; // API historique Safari iOS, hors standard
+  return !!(standard || ios);
+}
+
+function estIOS() {
+  return /iphone|ipad|ipod/i.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); // iPad en mode "bureau"
+}
+
+// Chrome/Android (et Chrome desktop) annoncent l'invite d'installation native
+// via cet événement, à condition que manifest.json + les critères d'installabilité
+// soient réunis. On la garde en réserve pour la déclencher au clic (ouvrirInstallation),
+// jamais toute seule : Chrome exige un geste utilisateur.
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  majUIInstallation();
+});
+window.addEventListener('appinstalled', () => {
+  deferredInstallPrompt = null;
+  majUIInstallation();
+});
+
+function majUIInstallation() {
+  const bloc = document.getElementById('bloc-installer-app');
+  if (bloc) bloc.classList.toggle('hidden', estAppInstallee());
+}
+
+function preparerModalInstallation() {
+  const natif = document.getElementById('install-bloc-natif');
+  const ios = document.getElementById('install-bloc-ios');
+  const generique = document.getElementById('install-bloc-generique');
+  if (!natif || !ios || !generique) return;
+  natif.classList.toggle('hidden', !deferredInstallPrompt);
+  ios.classList.toggle('hidden', !(estIOS() && !deferredInstallPrompt));
+  generique.classList.toggle('hidden', !(!deferredInstallPrompt && !estIOS()));
+}
+
+function ouvrirInstallation() {
+  if (deferredInstallPrompt) {
+    // Android / Chrome desktop : vraie invite d'installation native.
+    fermerModal('install-modal');
+    const evt = deferredInstallPrompt;
+    deferredInstallPrompt = null;
+    evt.prompt();
+    evt.userChoice.finally(majUIInstallation);
+  } else {
+    // iOS et navigateurs sans invite native : marche à suivre manuelle.
+    preparerModalInstallation();
+    ouvrirModal('install-modal');
+  }
+}
+
+// Propose spontanément l'installation quand l'appli tourne dans un onglet de
+// navigateur (pas déjà sur l'écran d'accueil) — au plus une fois toutes les
+// deux semaines pour ne pas harceler. Appelée seulement une fois la gate de
+// connexion passée (voir definirSessionUtilisateur / window load) : jamais
+// avant, pour ne pas empiler deux pop-up l'une sur l'autre.
+function proposerInstallationSiPertinent() {
+  if (estAppInstallee()) return;
+  let derniereFois = null;
+  try { derniereFois = localStorage.getItem('installPopupVu'); } catch (e) {}
+  const maintenant = Date.now();
+  if (derniereFois && (maintenant - Number(derniereFois)) < 14 * 24 * 3600 * 1000) return;
+  setTimeout(() => {
+    // Ne s'impose jamais par-dessus une fenêtre que la personne a ouverte
+    // elle-même entre-temps (ex. Réglages) : on retentera au prochain
+    // lancement plutôt que de s'incruster par-dessus. Le "vu" n'est marqué
+    // qu'au moment où le pop-up s'affiche réellement, jamais avant.
+    if (document.querySelector('.modal.show, .feuille.show')) return;
+    try { localStorage.setItem('installPopupVu', String(maintenant)); } catch (e) {}
+    preparerModalInstallation();
+    ouvrirModal('install-modal');
+  }, 1200);
 }
 
 function ouvrirManuel(mealId) {
@@ -5563,6 +5703,10 @@ function definirSessionUtilisateur(user) {
     connexionObligatoire = false;
     fermerModal('compte-modal');
     verifierStatutCompte();
+    // La gate de connexion vient de se refermer : c'est le bon moment pour
+    // éventuellement proposer l'installation, jamais avant (elle empilerait
+    // sa pop-up sur la modale de connexion, obligatoire tant qu'elle est ouverte).
+    proposerInstallationSiPertinent();
   } else {
     // Déconnexion (ou aucune session au tout premier chargement) : l'appli
     // se reverrouille immédiatement, sans exception.
@@ -9463,7 +9607,12 @@ window.addEventListener('load', () => {
     // échouerait sans explication.
     const note = document.getElementById('note-compte');
     if (note) note.textContent = "Pas de réseau pour l'instant : connecte-toi dès que tu as du signal.";
+    // Pas de client Supabase = pas de gate de connexion possible non plus :
+    // rien ne viendra fermer une pop-up de connexion, donc on peut proposer
+    // l'installation tout de suite (voir aussi definirSessionUtilisateur).
+    proposerInstallationSiPertinent();
   }
+  majUIInstallation();
 
   /* Le réseau revient : on rattrape aussitôt. Et au retour sur l'onglet, car
      un autre appareil a pu écrire pendant ce temps. */
