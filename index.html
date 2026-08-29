@@ -1729,7 +1729,7 @@
         <label style="font-weight: 700; font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.8px; margin: 0;">Séances de sport</label>
         <button class="btn-icone" style="font-size: 0.75rem; font-weight: 700;" onclick="ajouterLigneSportVide()">+ Ajouter</button>
       </div>
-      <p class="note" style="margin: -4px 0 12px;">Une séance terminée dans l'onglet 🏋️ Séance apparaît ici automatiquement (étiquette « Séance ») : inutile de l'ajouter à la main, ça la compterait deux fois.</p>
+      <p class="note" style="margin: -4px 0 12px;">Une séance terminée dans l'onglet 🏋️ Séance apparaît ici automatiquement (étiquette « Séance »). Ajoute ici les <em>autres</em> sports (course, natation, etc.).</p>
 
       <div id="workouts-list-container"></div>
     </div>
@@ -3203,7 +3203,6 @@ function renderWorkoutsList(day) {
         <label style="font-size: 0.65rem;">Sport</label>
         <select onchange="modifierSport(${index}, 'type', this.value)">
           <option value="">-- Choisir --</option>
-          <option value="musculation" ${w.type === 'musculation' ? 'selected' : ''}>Musculation (Intense)</option>
           <option value="course" ${w.type === 'course' ? 'selected' : ''}>Course à pied / Running</option>
           <option value="natation" ${w.type === 'natation' ? 'selected' : ''}>Natation</option>
           <option value="cyclisme" ${w.type === 'cyclisme' ? 'selected' : ''}>Cyclisme / Vélo</option>
@@ -3223,7 +3222,10 @@ function renderWorkoutsList(day) {
 
 function ajouterLigneSportVide() {
   const day = getDay(currentDate);
-  day.workouts.push({ type: 'musculation', time: 60 });
+  // Plus de type par défaut « musculation » : cette entrée-là s'ajoute
+  // maintenant toute seule en terminant une séance dans l'onglet Séance
+  // (voir terminerSeance), ce bouton sert aux AUTRES sports.
+  day.workouts.push({ type: '', time: 60 });
   saveData(currentDate);
   renderWorkoutsList(day);
   updateSummary(day);
@@ -4837,6 +4839,67 @@ function mettreAJourStats() {
   if (!ecran || !ecran.classList.contains('actif')) return;
   statsTimer = setTimeout(() => renderCharts(s, e), 120);
 }
+/* =====================================================================
+   STYLE COMMUN À TOUS LES GRAPHIQUES (nutrition + musculation, compte
+   personnel + panneau Administration) : une seule fabrique de palette et
+   d'options Chart.js, pour ne pas refaire cinq fois la même lecture de
+   variables CSS avec de petites variations, et pour que la légende et
+   l'info-bulle aient partout le même habillage soigné plutôt que le style
+   par défaut de Chart.js (rectangle blanc, ombre dure) qui jurait avec le
+   reste du verre. ===================================================== */
+function themeClairActif() {
+  return document.documentElement.getAttribute('data-theme') === 'light'
+    || (document.documentElement.getAttribute('data-theme') !== 'dark'
+        && window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches);
+}
+function paletteGraphique() {
+  const styles = getComputedStyle(document.documentElement);
+  const clair = themeClairActif();
+  const lire = (nom, repli) => (styles.getPropertyValue(nom) || repli).trim();
+  return {
+    clair,
+    texte: lire('--text-muted', '#94a3b8'),
+    texteFort: lire('--text', '#f4f7fb'),
+    grille: clair ? 'rgba(14,20,32,0.08)' : 'rgba(255,255,255,0.06)',
+    fond: clair ? 'rgba(255,255,255,0.97)' : 'rgba(24,28,38,0.97)',
+    bordure: clair ? 'rgba(14,20,32,0.10)' : 'rgba(255,255,255,0.12)',
+    primaire: lire('--primary', '#14b566'),
+    accent: lire('--accent', '#2979ff'),
+    protein: lire('--protein', '#ff5252'),
+    carbs: lire('--carbs', '#ffab40'),
+    fat: lire('--fat', '#7c4dff')
+  };
+}
+/* `avecLegende` affiche une légende en haut à puces rondes (utile dès que
+   plus d'une série se superpose) ; sinon masquée, pour ne pas doubler le
+   titre de section au-dessus d'un graphique à une seule série. L'info-
+   bulle, elle, reprend les couleurs du verre au lieu du blanc par défaut
+   de Chart.js — jusqu'ici la seule touche du graphique qui ne suivait
+   jamais le thème. */
+function optionsGraphiqueBase(p, opts) {
+  opts = opts || {};
+  return {
+    responsive: true, maintainAspectRatio: false,
+    interaction: { mode: 'index', intersect: false },
+    plugins: {
+      legend: {
+        display: !!opts.avecLegende, position: 'top', align: 'center',
+        labels: { color: p.texte, font: { size: 10.5, weight: '600' }, usePointStyle: true, pointStyle: 'circle', boxWidth: 7, boxHeight: 7, padding: 14 }
+      },
+      tooltip: {
+        backgroundColor: p.fond, titleColor: p.texteFort, bodyColor: p.texte,
+        borderColor: p.bordure, borderWidth: 1, cornerRadius: 10, padding: 10,
+        titleFont: { size: 11, weight: '700' }, bodyFont: { size: 11 },
+        boxPadding: 4, usePointStyle: true, displayColors: !!opts.avecLegende
+      }
+    },
+    scales: {
+      x: { ticks: { color: p.texte, maxTicksLimit: 8, font: { size: 9.5 } }, grid: { color: p.grille, drawTicks: false }, border: { display: false } },
+      y: { ticks: { color: p.texte, font: { size: 9.5 } }, grid: { color: p.grille, drawTicks: false }, border: { display: false }, beginAtZero: opts.beginAtZero !== false }
+    }
+  };
+}
+
 function renderCharts(s, e) {
   // Chart.js vient d'un CDN : hors ligne, l'onglet s'ouvrait vide et figé
   // sur un « ReferenceError: Chart is not defined » invisible.
@@ -4853,26 +4916,12 @@ function renderCharts(s, e) {
   const labels = globalMasterLabels.slice(s, e + 1);
 
   /* Les graphiques sont peints en pixels : en theme clair, des axes gris clair
-     sur fond clair devenaient illisibles. On lit les jetons CSS courants. */
-  const styles = getComputedStyle(document.documentElement);
-  const clair = document.documentElement.getAttribute('data-theme') === 'light'
-    || (document.documentElement.getAttribute('data-theme') !== 'dark'
-        && window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches);
-  const couleurTexte = (styles.getPropertyValue('--text-muted') || '#94a3b8').trim();
-  const gridColor = clair ? 'rgba(14,20,32,0.10)' : 'rgba(255,255,255,0.06)';
-  const cPrimaire = (styles.getPropertyValue('--primary') || '#14b566').trim();
-  const cAccent = (styles.getPropertyValue('--accent') || '#2979ff').trim();
-  const cProt = (styles.getPropertyValue('--protein') || '#ff5252').trim();
-  const cGluc = (styles.getPropertyValue('--carbs') || '#ffab40').trim();
-  const cLip = (styles.getPropertyValue('--fat') || '#7c4dff').trim();
-  const baseOpts = {
-    responsive: true, maintainAspectRatio: false,
-    plugins: { legend: { labels: { color: couleurTexte, font: { size: 10 } } } },
-    scales: {
-      x: { ticks: { color: couleurTexte, maxTicksLimit: 8, font: { size: 9 } }, grid: { color: gridColor } },
-      y: { ticks: { color: couleurTexte, font: { size: 9 } }, grid: { color: gridColor } }
-    }
-  };
+     sur fond clair devenaient illisibles. On lit les jetons CSS courants via
+     la fabrique commune (voir plus haut), plutôt que de refaire cette
+     lecture à la main pour chaque graphique. */
+  const p = paletteGraphique();
+  const cPrimaire = p.primaire, cAccent = p.accent, cProt = p.protein, cGluc = p.carbs, cLip = p.fat;
+  const baseOpts = optionsGraphiqueBase(p, { avecLegende: false });
   /* --- POIDS : les pesées brutes en points, la tendance en ligne pleine ---
      `spanGaps` relie la tendance par-dessus les jours sans pesée : sans cela,
      un jour manqué coupait la courbe en tronçons illisibles. */
@@ -4890,12 +4939,7 @@ function renderCharts(s, e) {
           pointRadius: 3, pointHoverRadius: 5, showLine: false, spanGaps: true }
       ]
     },
-    options: Object.assign({}, baseOpts, {
-      scales: Object.assign({}, baseOpts.scales, {
-        // Une échelle partant de zéro écrase 3 kg de variation en une ligne plate.
-        y: Object.assign({}, baseOpts.scales.y, { beginAtZero: false })
-      })
-    })
+    options: Object.assign({}, optionsGraphiqueBase(p, { avecLegende: true, beginAtZero: false }))
   });
 
   if (caloriesChartInstance) caloriesChartInstance.destroy();
@@ -4906,38 +4950,43 @@ function renderCharts(s, e) {
       // que de tracer un trait droit qui laisserait croire à une saisie.
       { label: 'Consommées', data: globalMasterConsumed.slice(s, e + 1), borderColor: cPrimaire, backgroundColor: 'rgba(0,200,120,0.14)', tension: 0.35, fill: true, pointRadius: 0, borderWidth: 2, spanGaps: false },
       { label: 'Objectif', data: globalMasterTarget.slice(s, e + 1), borderColor: cAccent, borderDash: [5, 5], tension: 0.35, pointRadius: 0, fill: false, borderWidth: 2, spanGaps: false }
-    ] }, options: baseOpts
+    ] }, options: optionsGraphiqueBase(p, { avecLegende: true })
   });
   if (macrosChartInstance) macrosChartInstance.destroy();
   macrosChartInstance = new Chart(document.getElementById('macrosChart'), {
     type: 'bar',
     data: { labels, datasets: [
-      { label: 'Prot.', data: globalMasterProtein.slice(s, e + 1), backgroundColor: cProt },
-      { label: 'Gluc.', data: globalMasterCarbs.slice(s, e + 1), backgroundColor: cGluc },
-      { label: 'Lip.', data: globalMasterFat.slice(s, e + 1), backgroundColor: cLip }
-    ] }, options: Object.assign({}, baseOpts, { scales: Object.assign({}, baseOpts.scales, { x: Object.assign({ stacked: true }, baseOpts.scales.x), y: Object.assign({ stacked: true }, baseOpts.scales.y) }) })
+      { label: 'Prot.', data: globalMasterProtein.slice(s, e + 1), backgroundColor: cProt, borderRadius: 5, borderSkipped: false },
+      { label: 'Gluc.', data: globalMasterCarbs.slice(s, e + 1), backgroundColor: cGluc, borderRadius: 5, borderSkipped: false },
+      { label: 'Lip.', data: globalMasterFat.slice(s, e + 1), backgroundColor: cLip, borderRadius: 5, borderSkipped: false }
+    ] }, options: Object.assign({}, optionsGraphiqueBase(p, { avecLegende: true }), { scales: Object.assign({}, baseOpts.scales, { x: Object.assign({ stacked: true }, baseOpts.scales.x), y: Object.assign({ stacked: true }, baseOpts.scales.y) }) })
   });
+  // Même traitement visuel que le graphique Calories juste au-dessus : une
+  // ligne lissée avec aire remplie, plutôt que des barres plates — pour une
+  // lecture de tendance cohérente entre les deux courbes de la page.
   if (stepsChartInstance) stepsChartInstance.destroy();
   stepsChartInstance = new Chart(document.getElementById('stepsChart'), {
-    type: 'bar',
-    data: { labels, datasets: [{ label: 'Pas', data: globalMasterSteps.slice(s, e + 1), backgroundColor: cPrimaire }] },
-    options: baseOpts
+    type: 'line',
+    data: { labels, datasets: [
+      { label: 'Pas', data: globalMasterSteps.slice(s, e + 1), borderColor: cPrimaire, backgroundColor: 'rgba(0,200,120,0.14)', tension: 0.35, fill: true, pointRadius: 0, borderWidth: 2, spanGaps: false }
+    ] }, options: baseOpts
   });
 
   if (workoutChartInstance) workoutChartInstance.destroy();
-  
+
   const workoutDatasets = Object.keys(SPORT_LABELS).map(sportKey => {
     return {
       label: SPORT_LABELS[sportKey],
       data: globalMasterWorkoutData[sportKey].slice(s, e + 1),
-      backgroundColor: SPORT_COLORS[sportKey] || '#ffffff'
+      backgroundColor: SPORT_COLORS[sportKey] || '#ffffff',
+      borderRadius: 5, borderSkipped: false
     };
   });
 
   workoutChartInstance = new Chart(document.getElementById('workoutChart'), {
     type: 'bar',
     data: { labels, datasets: workoutDatasets },
-    options: Object.assign({}, baseOpts, {
+    options: Object.assign({}, optionsGraphiqueBase(p, { avecLegende: true }), {
       scales: Object.assign({}, baseOpts.scales, {
         x: Object.assign({ stacked: true }, baseOpts.scales.x),
         y: Object.assign({ stacked: true }, baseOpts.scales.y)
@@ -4959,11 +5008,7 @@ function renderCharts(s, e) {
         { label: 'Masse musculaire', data: globalMasterMuscle.slice(s, e + 1), borderColor: cPrimaire, backgroundColor: 'transparent', tension: 0.35, pointRadius: 3, pointHoverRadius: 5, borderWidth: 2.5, spanGaps: true }
       ]
     },
-    options: Object.assign({}, baseOpts, {
-      scales: Object.assign({}, baseOpts.scales, {
-        y: Object.assign({}, baseOpts.scales.y, { beginAtZero: false })
-      })
-    })
+    options: optionsGraphiqueBase(p, { avecLegende: true, beginAtZero: false })
   });
   majNoteCompo(s, e);
 
@@ -4973,16 +5018,16 @@ function renderCharts(s, e) {
      à impédancemétrie sur son propre écran. */
   if (segmentsChartInstance) segmentsChartInstance.destroy();
   const derniere = derniereMesure();
-  const segLabels = PARTIES_CORPS.map(p => p.label);
-  const segGrasse = PARTIES_CORPS.map(p => derniere && derniere.parties && derniere.parties[p.id] ? Number(derniere.parties[p.id].grasse) || 0 : 0);
-  const segMuscle = PARTIES_CORPS.map(p => derniere && derniere.parties && derniere.parties[p.id] ? Number(derniere.parties[p.id].musculaire) || 0 : 0);
+  const segLabels = PARTIES_CORPS.map(pc => pc.label);
+  const segGrasse = PARTIES_CORPS.map(pc => derniere && derniere.parties && derniere.parties[pc.id] ? Number(derniere.parties[pc.id].grasse) || 0 : 0);
+  const segMuscle = PARTIES_CORPS.map(pc => derniere && derniere.parties && derniere.parties[pc.id] ? Number(derniere.parties[pc.id].musculaire) || 0 : 0);
   segmentsChartInstance = new Chart(document.getElementById('segmentsChart'), {
     type: 'bar',
     data: { labels: segLabels, datasets: [
-      { label: 'Masse grasse', data: segGrasse, backgroundColor: cLip },
-      { label: 'Masse musculaire', data: segMuscle, backgroundColor: cPrimaire }
+      { label: 'Masse grasse', data: segGrasse, backgroundColor: cLip, borderRadius: 5, borderSkipped: false },
+      { label: 'Masse musculaire', data: segMuscle, backgroundColor: cPrimaire, borderRadius: 5, borderSkipped: false }
     ] },
-    options: baseOpts
+    options: optionsGraphiqueBase(p, { avecLegende: true })
   });
 }
 
@@ -5135,18 +5180,40 @@ function themeActuel() {
 
 /* Le bouton du haut et le segment des réglages appellent tous les deux
    appliquerTheme() — le bug n'était donc pas dans la logique, mais dans le
-   repeint : certains WebKit mobiles mettent en cache la couche composee de
-   chaque élément à `backdrop-filter` et ne la reconstruisent pas quand seule
-   une variable CSS change. Une simple lecture d'offsetHeight ne force que la
-   mise en page, pas la recomposition GPU de CES couches précises. Un aller-
-   retour d'opacité, lui, force chaque calque à se repeindre sans clignoter
-   (0.999 est visuellement indiscernable de 1). C'est pour ça que le thème
-   « prenait » depuis la feuille de réglages (dont l'ouverture/fermeture force
-   déjà un repaint global) mais pas depuis le bouton seul. */
+   repeint : certains navigateurs mobiles (WebKit iOS, et Chrome Android
+   dans une moindre mesure) mettent en cache la couche composée de chaque
+   élément à `backdrop-filter` et ne la reconstruisent pas quand seule une
+   variable CSS change. Une simple lecture d'offsetHeight ne force que la
+   mise en page, pas la recomposition GPU de CES couches précises.
+   Un premier correctif ne retouchait que <html> : ça suffit à recomposer
+   SA propre couche, mais pas forcément celle de chaque carte/graphique qui
+   a sa propre couche indépendante plus bas dans l'arbre — d'où des
+   captures montrant une partie de l'écran déjà dans le nouveau thème et le
+   reste encore dans l'ancien. On retouche donc désormais, un par un, tous
+   les éléments qui utilisent réellement le flou (et pas seulement la
+   racine), en excluant ceux déjà pilotés par une opacité inline ailleurs
+   (l'écran de démarrage, notamment) pour ne rien faire clignoter. Un aller-
+   retour d'opacité imperceptible (0.999) force chaque calque à se repeindre
+   sans flash visible. */
 function forcerRepeintureVerre() {
-  const r = document.documentElement;
-  r.style.opacity = '0.999';
-  requestAnimationFrame(() => { r.style.opacity = ''; });
+  const cibles = [document.documentElement];
+  document.querySelectorAll('*').forEach(el => {
+    if (el.style.opacity) return; // déjà piloté ailleurs : ne pas interférer
+    const cs = getComputedStyle(el);
+    if ((cs.backdropFilter && cs.backdropFilter !== 'none') || (cs.webkitBackdropFilter && cs.webkitBackdropFilter !== 'none')) {
+      cibles.push(el);
+    }
+  });
+  const repeindre = () => {
+    cibles.forEach(el => { el.style.opacity = '0.999'; });
+    requestAnimationFrame(() => { cibles.forEach(el => { el.style.opacity = ''; }); });
+  };
+  repeindre();
+  // Filet de sécurité : sur certains Chrome Android, le tout premier passage
+  // juste après un tap peut être absorbé par le navigateur avant qu'il ait
+  // fini d'appliquer le nouveau data-theme à tout l'arbre. Un second passage
+  // un instant plus tard rattrape ce cas sans qu'aucun des deux ne clignote.
+  setTimeout(repeindre, 80);
 }
 
 function appliquerTheme(t) {
@@ -6362,49 +6429,40 @@ function filtrerStatsCompte() {
     <p class="note" style="margin:6px 0 0;">Moyenne : ${moyKcal} kcal/jour consommées pour un objectif moyen de ${moyCible} kcal (${pctDansObjectif}% des jours à ±10%)</p>
     <p class="note" style="margin:6px 0 0;">${moyProt} g de protéines/jour en moyenne · ${totalMinutesSport} min de sport au total</p>`;
 
-  const styles = getComputedStyle(document.documentElement);
-  const couleurTexte = (styles.getPropertyValue('--text-muted') || '#94a3b8').trim();
-  const gridColor = (document.documentElement.getAttribute('data-theme') === 'light') ? 'rgba(14,20,32,0.10)' : 'rgba(255,255,255,0.06)';
-  const cPrimaire = (styles.getPropertyValue('--primary') || '#14b566').trim();
-  const cAccent = (styles.getPropertyValue('--accent') || '#2979ff').trim();
-  const baseOpts = {
-    responsive: true, maintainAspectRatio: false,
-    plugins: { legend: { display: false } },
-    scales: {
-      x: { ticks: { color: couleurTexte, maxTicksLimit: 8 }, grid: { color: gridColor } },
-      y: { ticks: { color: couleurTexte }, grid: { color: gridColor } }
-    }
-  };
+  const p = paletteGraphique();
+  const cPrimaire = p.primaire, cAccent = p.accent;
+  const baseOpts = optionsGraphiqueBase(p, { avecLegende: false });
 
   if (adminCaloriesChartInstance) adminCaloriesChartInstance.destroy();
   adminCaloriesChartInstance = new Chart(document.getElementById('adminCaloriesChart'), {
     type: 'line',
     data: { labels, datasets: [
-      { label: 'Consommées', data: cal, borderColor: cPrimaire, backgroundColor: 'transparent', tension: 0.3, pointRadius: 2, spanGaps: true },
-      { label: 'Objectif', data: cible, borderColor: couleurTexte, borderDash: [5, 5], backgroundColor: 'transparent', tension: 0.1, pointRadius: 0 }
+      { label: 'Consommées', data: cal, borderColor: cPrimaire, backgroundColor: 'rgba(0,200,120,0.14)', tension: 0.35, fill: true, pointRadius: 0, borderWidth: 2, spanGaps: true },
+      { label: 'Objectif', data: cible, borderColor: cAccent, borderDash: [5, 5], backgroundColor: 'transparent', tension: 0.1, pointRadius: 0, borderWidth: 2 }
     ] },
-    options: Object.assign({}, baseOpts, { plugins: { legend: { display: true, labels: { color: couleurTexte } } } })
+    options: optionsGraphiqueBase(p, { avecLegende: true })
   });
 
   if (adminPoidsChartInstance) adminPoidsChartInstance.destroy();
   adminPoidsChartInstance = new Chart(document.getElementById('adminPoidsChart'), {
     type: 'line',
     data: { labels, datasets: [{ data: poids, borderColor: cAccent, backgroundColor: 'transparent', tension: 0.3, pointRadius: 2, spanGaps: true }] },
-    options: Object.assign({}, baseOpts, { scales: Object.assign({}, baseOpts.scales, { y: Object.assign({}, baseOpts.scales.y, { beginAtZero: false }) }) })
+    options: optionsGraphiqueBase(p, { avecLegende: false, beginAtZero: false })
   });
 
+  // Même traitement que le graphique Pas quotidiens du compte personnel :
+  // une ligne lissée avec aire remplie, pour une lecture cohérente entre les
+  // deux vues (compte personnel et panneau Administration).
   if (adminPasChartInstance) adminPasChartInstance.destroy();
   adminPasChartInstance = new Chart(document.getElementById('adminPasChart'), {
-    type: 'bar',
-    data: { labels, datasets: [{ data: pas, backgroundColor: cAccent }] },
+    type: 'line',
+    data: { labels, datasets: [{ label: 'Pas', data: pas, borderColor: cAccent, backgroundColor: 'rgba(38,111,255,0.14)', tension: 0.35, fill: true, pointRadius: 0, borderWidth: 2, spanGaps: true }] },
     options: baseOpts
   });
 
   /* Macros empilees : on lit d'un coup l'equilibre du regime, ce que trois
      courbes separees ne montrent pas aussi bien. */
-  const cGluc = (styles.getPropertyValue('--carbs') || '#f59e0b').trim();
-  const cLip  = (styles.getPropertyValue('--fat')   || '#ef4444').trim();
-  const cProt = (styles.getPropertyValue('--protein') || cPrimaire).trim();
+  const cGluc = p.carbs, cLip = p.fat, cProt = p.protein;
   const gluc = jours.map(j => sumMeals(j.day).c || null);
   const lip  = jours.map(j => sumMeals(j.day).f || null);
 
@@ -6412,12 +6470,11 @@ function filtrerStatsCompte() {
   adminMacrosChartInstance = new Chart(document.getElementById('adminMacrosChart'), {
     type: 'bar',
     data: { labels, datasets: [
-      { label: 'Protéines', data: prot, backgroundColor: cProt },
-      { label: 'Glucides',  data: gluc, backgroundColor: cGluc },
-      { label: 'Lipides',   data: lip,  backgroundColor: cLip }
+      { label: 'Protéines', data: prot, backgroundColor: cProt, borderRadius: 5, borderSkipped: false },
+      { label: 'Glucides',  data: gluc, backgroundColor: cGluc, borderRadius: 5, borderSkipped: false },
+      { label: 'Lipides',   data: lip,  backgroundColor: cLip, borderRadius: 5, borderSkipped: false }
     ] },
-    options: Object.assign({}, baseOpts, {
-      plugins: { legend: { display: true, labels: { color: couleurTexte } } },
+    options: Object.assign({}, optionsGraphiqueBase(p, { avecLegende: true }), {
       scales: {
         x: Object.assign({ stacked: true }, baseOpts.scales.x),
         y: Object.assign({ stacked: true }, baseOpts.scales.y)
@@ -6431,7 +6488,7 @@ function filtrerStatsCompte() {
   if (adminSportChartInstance) adminSportChartInstance.destroy();
   adminSportChartInstance = new Chart(document.getElementById('adminSportChart'), {
     type: 'bar',
-    data: { labels, datasets: [{ data: sportParJour, backgroundColor: cPrimaire }] },
+    data: { labels, datasets: [{ data: sportParJour, backgroundColor: cPrimaire, borderRadius: 5, borderSkipped: false }] },
     options: baseOpts
   });
 }
@@ -8176,16 +8233,24 @@ function volumeSeance(h) {
   return h.exercices.reduce((vv, e) =>
     vv + e.series.reduce((s, set) => s + (Number(set.poids) || 0) * (Number(set.reps) || 0), 0), 0);
 }
+/* Repose sur la même fabrique que les graphiques de nutrition (voir plus
+   haut) : mêmes couleurs, même grille, même info-bulle habillée — pour que
+   l'onglet Séance/Statistiques et le panneau Administration aient un rendu
+   de graphique identique partout dans l'appli. Les noms de champs sont
+   conservés (texte/grille/primaire/accent) pour ne pas retoucher chaque
+   appelant. */
 function graphiqueCouleursMuscu() {
-  const styles = getComputedStyle(document.documentElement);
-  const clair = document.documentElement.getAttribute('data-theme') === 'light'
-    || (document.documentElement.getAttribute('data-theme') !== 'dark'
-        && window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches);
+  const p = paletteGraphique();
+  return { texte: p.texte, grille: p.grille, primaire: p.primaire, accent: p.accent, fond: p.fond, bordure: p.bordure, texteFort: p.texteFort };
+}
+/* Info-bulle habillée aux couleurs du verre, partagée par les trois
+   graphiques musculation ci-dessous (tous à légende masquée : une seule
+   série chacun, le titre de section suffit). */
+function tooltipMuscu(c) {
   return {
-    texte: (styles.getPropertyValue('--text-muted') || '#94a3b8').trim(),
-    grille: clair ? 'rgba(14,20,32,0.10)' : 'rgba(255,255,255,0.06)',
-    primaire: (styles.getPropertyValue('--primary') || '#14b566').trim(),
-    accent: (styles.getPropertyValue('--accent') || '#2979ff').trim()
+    backgroundColor: c.fond, titleColor: c.texteFort, bodyColor: c.texte,
+    borderColor: c.bordure, borderWidth: 1, cornerRadius: 10, padding: 10,
+    titleFont: { size: 11, weight: '700' }, bodyFont: { size: 11 }, boxPadding: 4, displayColors: false
   };
 }
 
@@ -8242,13 +8307,13 @@ function renderChartSeancesParMois(historique, idCanvas, nomInstance) {
   if (window[nomInstance]) window[nomInstance].destroy();
   window[nomInstance] = new Chart(canvas, {
     type: 'bar',
-    data: { labels, datasets: [{ label: 'Séances', data: counts, backgroundColor: c.primaire }] },
+    data: { labels, datasets: [{ label: 'Séances', data: counts, backgroundColor: c.primaire, borderRadius: 5, borderSkipped: false }] },
     options: {
       responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
+      plugins: { legend: { display: false }, tooltip: tooltipMuscu(c) },
       scales: {
-        x: { ticks: { color: c.texte, font: { size: 9 } }, grid: { color: c.grille } },
-        y: { ticks: { color: c.texte, font: { size: 9 }, precision: 0 }, grid: { color: c.grille }, beginAtZero: true }
+        x: { ticks: { color: c.texte, font: { size: 9 } }, grid: { color: c.grille, drawTicks: false }, border: { display: false } },
+        y: { ticks: { color: c.texte, font: { size: 9 }, precision: 0 }, grid: { color: c.grille, drawTicks: false }, border: { display: false }, beginAtZero: true }
       }
     }
   });
@@ -8278,15 +8343,15 @@ function renderChartSeancesParGroupeMuscu(historique, idCanvas, nomInstance) {
     type: 'bar',
     data: {
       labels: groupesUtilises.map(g => GROUPES_MUSCULAIRES[g]),
-      datasets: [{ label: 'Séances', data: groupesUtilises.map(g => comptes[g]), backgroundColor: c.primaire }]
+      datasets: [{ label: 'Séances', data: groupesUtilises.map(g => comptes[g]), backgroundColor: c.primaire, borderRadius: 5, borderSkipped: false }]
     },
     options: {
       indexAxis: 'y',
       responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
+      plugins: { legend: { display: false }, tooltip: tooltipMuscu(c) },
       scales: {
-        x: { ticks: { color: c.texte, font: { size: 9 }, precision: 0 }, grid: { color: c.grille }, beginAtZero: true },
-        y: { ticks: { color: c.texte, font: { size: 9 } }, grid: { color: c.grille } }
+        x: { ticks: { color: c.texte, font: { size: 9 }, precision: 0 }, grid: { color: c.grille, drawTicks: false }, border: { display: false }, beginAtZero: true },
+        y: { ticks: { color: c.texte, font: { size: 9 } }, grid: { color: c.grille, drawTicks: false }, border: { display: false } }
       }
     }
   });
@@ -8373,15 +8438,16 @@ function renderChartProgressionExercice(historique, exerciceId, idCanvas, nomIns
       labels: points.map(p => formatDateDisplay(p.date)),
       datasets: [{
         label: 'Meilleure série (kg)', data: points.map(p => p.poids),
-        borderColor: c.primaire, backgroundColor: c.primaire, tension: 0.25, pointRadius: 3
+        borderColor: c.primaire, backgroundColor: 'rgba(0,200,120,0.14)', fill: true,
+        tension: 0.3, pointRadius: 3, pointHoverRadius: 5, pointBackgroundColor: c.primaire, borderWidth: 2
       }]
     },
     options: {
       responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
+      plugins: { legend: { display: false }, tooltip: tooltipMuscu(c) },
       scales: {
-        x: { ticks: { color: c.texte, font: { size: 9 }, maxTicksLimit: 8 }, grid: { color: c.grille } },
-        y: { ticks: { color: c.texte, font: { size: 9 } }, grid: { color: c.grille } }
+        x: { ticks: { color: c.texte, font: { size: 9 }, maxTicksLimit: 8 }, grid: { color: c.grille, drawTicks: false }, border: { display: false } },
+        y: { ticks: { color: c.texte, font: { size: 9 } }, grid: { color: c.grille, drawTicks: false }, border: { display: false } }
       }
     }
   });
