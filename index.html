@@ -790,6 +790,17 @@
       box-shadow: var(--ombre-haute), inset 0 1px 0 var(--verre-hi), inset 0 -1px 0 var(--verre-lo);
       animation: modalIn 0.35s cubic-bezier(0.16, 1, 0.3, 1);
     }
+    /* backdrop-filter sur un élément qui défile lui-même (overflow-y:auto)
+       ne s'étend pas au contenu révélé par le scroll dans certains moteurs :
+       le flou reste calé sur la zone visible au premier rendu, et tout ce
+       qui apparaît en scrollant plus bas se retrouve sans fond, laissant la
+       page du dessous transparaître. Le dégradé de fond (background,
+       ci-dessus) n'est pas concerné et couvre tout normalement ; seul le
+       flou "live" du contenu derrière posait problème — on le retire ici
+       pour cet élément précis. Le flou du fond de la modale (.modal)
+       suffit déjà à flouter la page derrière, y compris derrière la
+       partie de la carte qui défile. */
+    .modal-content { -webkit-backdrop-filter: none; backdrop-filter: none; }
     @keyframes modalIn { from { opacity: 0; transform: translateY(16px) scale(0.98); } to { opacity: 1; transform: none; } }
     .modal-entete { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
     .modal-entete h3 { margin: 0; font-weight: 800; letter-spacing: 0.3px; font-size: 1.08rem; }
@@ -834,6 +845,11 @@
       overscroll-behavior: contain;
       touch-action: pan-y;
     }
+    /* Même correctif que .modal-content ci-dessus : backdrop-filter sur un
+       élément qui défile lui-même ne s'étend pas au contenu revélé par le
+       scroll. Le flou de fond de la .feuille (le conteneur parent) reste
+       actif et suffit à flouter la page derrière. */
+    .feuille-contenu { -webkit-backdrop-filter: none; backdrop-filter: none; }
     @keyframes feuilleIn { from { transform: translateY(100%); } to { transform: none; } }
     .feuille-poignee { width: 40px; height: 4px; border-radius: 99px; background: var(--verre-brd-vive); margin: 0 auto 14px; }
     .feuille-titre { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); font-weight: 700; margin-bottom: 12px; text-align: center; }
@@ -1335,6 +1351,14 @@
       mask-clip: content-box, border-box;
       mask-composite: exclude;
     }
+    /* Même correctif que .modal-content/.feuille-contenu plus haut : cet
+       anneau décoratif est positionné à l'intérieur d'un élément qui défile
+       (overflow-y:auto) et son propre backdrop-filter ne s'étendait pas au
+       contenu révélé par le scroll. Le liseré (box-shadow) et la bordure
+       restent ; seul le flou en direct du bord est retiré ici. */
+    .modal-content::before, .feuille-contenu::before {
+      -webkit-backdrop-filter: none; backdrop-filter: none;
+    }
     /* Sans mask-composite, l'anneau couvrirait toute la carte : on n'en garde
        alors que le liseré, qui est déjà l'essentiel de l'effet. */
     @supports not ((mask-composite: exclude) or (-webkit-mask-composite: xor)) {
@@ -1397,6 +1421,29 @@
     }
     .bandeau-seance-titre { font-weight: 800; font-size: 0.9rem; }
     .bandeau-seance-sous { font-size: 0.75rem; color: var(--text-muted); margin-top: 2px; }
+
+    /* Rappel flottant : une séance reste "en cours" tant qu'elle n'est pas
+       terminée ou abandonnée, même en quittant l'onglet Séance (changer
+       d'onglet ne l'interrompt pas). Sans rappel visible ailleurs, il est
+       facile d'oublier qu'elle tourne encore. Posé juste au-dessus du bouton
+       flottant, avec la même logique de disparition que lui pendant qu'une
+       modale est ouverte (body.couche-ouverte) pour ne jamais se superposer
+       à un contenu. */
+    .bandeau-seance-flottant {
+      position: fixed; left: 16px; right: 16px; margin: 0 auto; max-width: 480px;
+      bottom: calc(18px + 60px + 10px + env(safe-area-inset-bottom, 0px)); z-index: 79;
+      display: flex; align-items: center; gap: 10px;
+      background: color-mix(in srgb, var(--danger) 16%, var(--verre-fort));
+      border: 1px solid color-mix(in srgb, var(--danger) 40%, var(--verre-brd));
+      border-radius: var(--rayon); padding: 10px 14px;
+      box-shadow: var(--ombre);
+      font: inherit; text-align: left; color: inherit; cursor: pointer;
+      transition: opacity 0.25s ease, transform 0.25s ease;
+    }
+    body.couche-ouverte .bandeau-seance-flottant { opacity: 0; pointer-events: none; transform: translateY(14px) scale(0.9); }
+    .bandeau-seance-flottant-pastille { font-size: 1rem; animation: pulseBandeauFlottant 1.6s ease-in-out infinite; }
+    @keyframes pulseBandeauFlottant { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+    .bandeau-seance-flottant-texte { font-weight: 700; font-size: 0.8rem; flex: 1; }
 
     .programme-carte {
       background: var(--verre-sheen), var(--verre);
@@ -1645,7 +1692,7 @@
 
     <div class="titre-section">🤖 Bilan de la journée</div>
     <div class="analysis-card">
-      <p class="note">Un bilan de ta nutrition et de ton activité (pas, séances) pour la date affichée en haut.</p>
+      <p class="note">Un bilan de ta nutrition et de ton activité (pas, séances, et le détail de ta séance de musculation si tu en as fait une) pour la date affichée en haut.</p>
       <button class="btn btn-analysis" onclick="lancerAnalyseJour()">✨ Analyser ma journée</button>
       <span class="puce-ia"></span>
       <div id="analysis-loader" class="loader hidden">🧠 Analyse en cours…</div>
@@ -1682,6 +1729,7 @@
         <label style="font-weight: 700; font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.8px; margin: 0;">Séances de sport</label>
         <button class="btn-icone" style="font-size: 0.75rem; font-weight: 700;" onclick="ajouterLigneSportVide()">+ Ajouter</button>
       </div>
+      <p class="note" style="margin: -4px 0 12px;">Une séance terminée dans l'onglet 🏋️ Séance apparaît ici automatiquement (étiquette « Séance ») : inutile de l'ajouter à la main, ça la compterait deux fois.</p>
 
       <div id="workouts-list-container"></div>
     </div>
@@ -1947,6 +1995,14 @@
 </main>
 
 <div class="scrim" id="scrim" onclick="fermerFab()"></div>
+
+<!-- Rappel qu'une séance de musculation est en cours, visible sur n'importe
+     quel onglet (masqué seulement sur l'onglet Séance lui-même, qui a déjà
+     son propre bandeau, et pendant qu'une modale est ouverte). -->
+<button type="button" class="bandeau-seance-flottant hidden" id="bandeau-seance-flottant" onclick="ouvrirSessionModal()">
+  <span class="bandeau-seance-flottant-pastille" aria-hidden="true">🔴</span>
+  <span class="bandeau-seance-flottant-texte" id="bandeau-seance-flottant-texte"></span>
+</button>
 
 <!-- ============ NAVIGATION : tout passe par le bouton flottant ============ -->
 <nav class="fab-zone" id="fab-zone" aria-label="Navigation principale">
@@ -3121,7 +3177,27 @@ function renderWorkoutsList(day) {
     return;
   }
 
-  container.innerHTML = day.workouts.map((w, index) => `
+  container.innerHTML = day.workouts.map((w, index) => {
+    // Une séance terminée depuis l'onglet Séance atterrit ici automatiquement
+    // (voir terminerSeance) : affichée à part, sans le sélecteur de sport
+    // (qu'il n'y a pas de raison de changer), pour que ce soit visuellement
+    // évident que c'est déjà comptée et qu'il ne faut pas en resaisir une.
+    if (w.source === 'seance') {
+      return `
+    <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 10px; background: var(--verre-creux); padding: 10px; border-radius: 14px; border: 1px solid var(--verre-brd);">
+      <div style="flex: 2;">
+        <div style="font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">Sport</div>
+        <div style="font-weight: 700; font-size: 0.85rem; margin-top: 2px;">🏋️ Musculation <span class="badge-technique">Séance</span></div>
+        <div style="font-size: 0.68rem; color: var(--text-muted); margin-top: 2px;">${escapeHtml(w.nom || 'Séance libre')} · ajoutée automatiquement</div>
+      </div>
+      <div class="input-group" style="flex: 1; margin-bottom: 0;">
+        <label style="font-size: 0.65rem;">Durée (min)</label>
+        <input type="number" value="${w.time || ''}" placeholder="60" step="5" onchange="modifierSport(${index}, 'time', this.value)">
+      </div>
+      <button class="btn-delete" onclick="supprimerSport(${index})" aria-label="Supprimer cette séance">&times;</button>
+    </div>`;
+    }
+    return `
     <div style="display: flex; gap: 10px; align-items: flex-end; margin-bottom: 10px; background: var(--verre-creux); padding: 10px; border-radius: 14px; border: 1px solid var(--verre-brd);">
       <div class="input-group" style="flex: 2; margin-bottom: 0;">
         <label style="font-size: 0.65rem;">Sport</label>
@@ -3141,8 +3217,8 @@ function renderWorkoutsList(day) {
         <input type="number" value="${w.time || ''}" placeholder="60" step="5" onchange="modifierSport(${index}, 'time', this.value)">
       </div>
       <button class="btn-delete" onclick="supprimerSport(${index})" aria-label="Supprimer cette séance">&times;</button>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 }
 
 function ajouterLigneSportVide() {
@@ -4252,6 +4328,25 @@ function showAiError(msg) {
 }
 
 // --- COACHING ET ANALYSE GEMINI ---
+/* Résumé texte de la ou des séances de musculation faites un jour donné,
+   pour enrichir l'analyse IA au-delà du simple "Musculation (45 min)" déjà
+   présent dans Sports : exercices travaillés et meilleure série de chacun,
+   pour que l'analyse puisse vraiment commenter la séance (charge, volume,
+   équilibre entre groupes musculaires), pas juste sa durée. */
+function resumeSeanceMuscuJour(dateStr) {
+  const seances = (musculationHistorique || []).filter(h => h.date === dateStr);
+  if (!seances.length) return '';
+  return seances.map(s => {
+    const exos = (s.exercices || []).map(e => {
+      const faites = (e.series || []).filter(x => x.fait);
+      if (!faites.length) return null;
+      const meilleure = faites.reduce((a, b) => (Number(b.poids) || 0) > (Number(a.poids) || 0) ? b : a);
+      return `${e.nom} (${faites.length} série(s), meilleure ${meilleure.poids || '?'}kg×${meilleure.reps || '?'})`;
+    }).filter(Boolean);
+    return `${s.programmeNom || 'Séance libre'} — ${exos.join(', ') || 'aucun détail'}`;
+  }).join(' / ');
+}
+
 async function lancerAnalyseJour() {
   if (!geminiKey) { alert('Ajoute ta clé API Gemini dans ⚙️ Profil.'); return; }
   const loader = document.getElementById('analysis-loader');
@@ -4264,9 +4359,11 @@ async function lancerAnalyseJour() {
   if (day.workouts && day.workouts.length > 0) {
     workoutsDesc = day.workouts.map(w => `${SPORT_LABELS[w.type] || w.type} (${w.time} min)`).join(', ');
   }
+  const seanceMuscuDesc = resumeSeanceMuscuJour(currentDate);
 
   const prompt = `Tu es un coach nutrition & sport haut de gamme. Analyse cette journée et donne un clair, motivant et actionnable en français (max 180 mots, sans markdown).
-Objectif: ${t.goal}. Poids: ${t.poids} kg. Pas: ${day.steps}. Sports: ${workoutsDesc}.
+Objectif: ${t.goal}. Poids: ${t.poids} kg. Pas: ${day.steps}. Sports: ${workoutsDesc}.${seanceMuscuDesc ? `
+Détail de la séance de musculation du jour: ${seanceMuscuDesc}.` : ''}
 Calories consommées: ${totals.kcal} / objectif ${t.target} kcal. Protéines ${totals.p}/${t.protein}g, Glucides ${totals.c}/${t.carbs}g, Lipides ${totals.f}/${t.fat}g.`;
   try {
     const res = await geminiGenerate([{ text: prompt }]);
@@ -5016,6 +5113,9 @@ function allerA(nom) {
   // Les aliments ne sont chargés qu'à l'ouverture de leur feuille :
   // inutile d'interroger Supabase tant que personne ne les regarde.
   if (nom === 'admin') chargerAdmin();
+  // Le bandeau flottant se masque sur l'onglet Séance (qui a déjà le sien)
+  // et doit réapparaître dès qu'on le quitte avec une séance toujours active.
+  majBandeauSeanceFlottant();
 }
 
 function majNoteCleIA() {
@@ -8008,11 +8108,25 @@ function renderSeance() {
 
 function renderBandeauSessionActive() {
   const b = document.getElementById('bandeau-seance-active');
+  majBandeauSeanceFlottant();
   if (!b) return;
   if (!musculationSessionActive) { b.classList.add('hidden'); return; }
   b.classList.remove('hidden');
   const nbFaites = musculationSessionActive.exercices.reduce((n, e) => n + e.series.filter(s => s.fait).length, 0);
   document.getElementById('bandeau-seance-sous').textContent =
+    (musculationSessionActive.programmeNom || 'Séance libre') + ' · ' + nbFaites + ' série(s) cochée(s)';
+}
+
+/* Rappel flottant visible sur tous les onglets : ne double pas le bandeau
+   de l'onglet Séance (masqué là où il ferait doublon), et se met à jour à
+   chaque changement d'onglet ou d'état de séance. */
+function majBandeauSeanceFlottant() {
+  const el = document.getElementById('bandeau-seance-flottant');
+  if (!el) return;
+  if (!musculationSessionActive || ecranActif === 'seance') { el.classList.add('hidden'); return; }
+  el.classList.remove('hidden');
+  const nbFaites = musculationSessionActive.exercices.reduce((n, e) => n + e.series.filter(s => s.fait).length, 0);
+  document.getElementById('bandeau-seance-flottant-texte').textContent =
     (musculationSessionActive.programmeNom || 'Séance libre') + ' · ' + nbFaites + ' série(s) cochée(s)';
 }
 
@@ -8858,9 +8972,11 @@ function terminerSeance() {
   sauvegarderHistorique();
 
   // Comptabilise la séance dans la dépense calorique du jour, exactement
-  // comme une séance de sport saisie depuis l'onglet Activité.
+  // comme une séance de sport saisie depuis l'onglet Activité — avec un
+  // marqueur `source: 'seance'` pour que l'onglet Activité l'affiche
+  // distinctement et que personne ne la ressaisisse à la main en double.
   const day = getDay(entree.date);
-  day.workouts.push({ type: 'musculation', time: dureeMin });
+  day.workouts.push({ type: 'musculation', time: dureeMin, source: 'seance', nom: entree.programmeNom });
   saveData(entree.date);
 
   const etaitLibre = !s.programmeId && entree.exercices.length > 0;
@@ -8893,20 +9009,44 @@ function abandonnerSeance() {
   renderSeance();
 }
 
-window.addEventListener('click', (e) => {
-  if (e.target.classList && e.target.classList.contains('modal')) {
-    if (e.target.id === 'compte-modal' && connexionObligatoire) return;
-    if (e.target.id === 'modal-bienvenue' && bilanForce) return;
-    if (e.target.id === 'barcode-modal') stopperScanner();
-    e.target.classList.remove('show');
+/* Un tap (ou clic) qui atterrit directement sur le fond flouté d'une
+   modale/feuille — pas sur sa carte — la referme. Partagé entre le clic
+   (souris/trackpad) et le tactile (voir le filet de sécurité touchend plus
+   bas) : sur certains navigateurs mobiles, le tap seul ne déclenche pas
+   toujours un vrai "click" de façon fiable. Renvoie true si quelque chose
+   a effectivement été fermé. */
+function fermerBackdropSiCible(target) {
+  if (!target || !target.classList) return false;
+  if (target.classList.contains('modal')) {
+    if (target.id === 'compte-modal' && connexionObligatoire) return false;
+    if (target.id === 'modal-bienvenue' && bilanForce) return false;
+    if (target.id === 'barcode-modal') stopperScanner();
+    target.classList.remove('show');
     majCoucheOuverte();
+    return true;
   }
-  if (e.target.classList && e.target.classList.contains('feuille')) fermerFeuilleRepas();
+  if (target.classList.contains('feuille')) { fermerFeuilleRepas(); return true; }
+  return false;
+}
+
+window.addEventListener('click', (e) => {
+  fermerBackdropSiCible(e.target);
   // Un clic hors de la liste de suggestions doit la refermer.
   if (!e.target.closest || (!e.target.closest('#off-suggestions-list') && e.target.id !== 'man-name')) {
     cacherSuggestionsOFF();
   }
 });
+/* Filet de sécurité tactile : le tap seul (avant même la synthèse d'un
+   "click", pas toujours fiable pour un simple <div> sur certains
+   navigateurs mobiles) referme déjà la modale/feuille visée. On empêche
+   ensuite le click de synthèse qui suivrait, pour ne pas taper "à travers"
+   sur ce qu'il y a derrière une fois la modale masquée. */
+window.addEventListener('touchend', (e) => {
+  const t = e.changedTouches && e.changedTouches[0];
+  if (!t) return;
+  const cible = document.elementFromPoint(t.clientX, t.clientY);
+  if (fermerBackdropSiCible(cible)) e.preventDefault();
+}, { passive: false });
 
 /* Echap fermait... rien du tout : sur ordinateur il fallait viser la croix.
    Plusieurs modales/feuilles peuvent être empilées (un sélecteur d'exercice
@@ -9641,6 +9781,29 @@ function fermerFeuilles() {
     if (capteur || e.pointerType === 'touch') return;
     poser((e.clientX / innerWidth) * 100, (e.clientY / innerHeight) * 60 - 10);
   }, { passive: true });
+
+  /* Sur iPhone (iOS 13+), l'inclinaison ne se déclenche qu'après une
+     autorisation explicite — jamais accordée au chargement, elle doit être
+     demandée depuis un geste de l'utilisateur. Sans ça, "deviceorientation"
+     ne se déclenche tout simplement jamais et le reflet reste immobile ; sur
+     téléphone, "pointermove" ne prend pas non plus le relais (pointerType
+     "touch" y est ignoré ci-dessus, pour ne pas faire sauter le reflet à
+     chaque tap). On la demande donc au tout premier effleurement de l'écran,
+     sans bouton dédié : l'effet est cosmétique, inutile d'interrompre
+     l'ouverture de l'appli avec une demande d'autorisation visible avant
+     même le premier geste. Sans effet sur Android, qui n'a pas cette API. */
+  if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+    var demandeFaite = false;
+    var demanderInclinaison = function () {
+      if (demandeFaite) return;
+      demandeFaite = true;
+      DeviceOrientationEvent.requestPermission().catch(function () {});
+      document.removeEventListener('touchend', demanderInclinaison);
+      document.removeEventListener('click', demanderInclinaison);
+    };
+    document.addEventListener('touchend', demanderInclinaison, { passive: true });
+    document.addEventListener('click', demanderInclinaison, { passive: true });
+  }
 })();
 </script>
 </body>
