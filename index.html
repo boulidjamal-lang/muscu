@@ -202,6 +202,16 @@
       backdrop-filter: none !important;
       -webkit-backdrop-filter: none !important;
     }
+    /* Filet de repeint pour un changement de thème (voir forcerRepeintureVerre
+       plus bas) : réutilise exactement le même mécanisme que .sans-verre
+       ci-dessus, mais pendant une seule frame — retirer puis remettre
+       backdrop-filter force chaque calque composé à se reconstruire avec les
+       nouvelles couleurs, ce qu'un simple aller-retour d'opacité ne
+       garantissait pas sur certains mobiles. */
+    html.theme-repaint *, html.theme-repaint *::before, html.theme-repaint *::after {
+      backdrop-filter: none !important;
+      -webkit-backdrop-filter: none !important;
+    }
 
     * { box-sizing: border-box; -webkit-font-smoothing: antialiased; }
 
@@ -4934,13 +4944,18 @@ function renderCharts(s, e) {
       { label: 'Objectif', data: globalMasterTarget.slice(s, e + 1), borderColor: cAccent, borderDash: [5, 5], tension: 0.35, pointRadius: 0, fill: false, borderWidth: 2, spanGaps: false }
     ] }, options: optionsGraphiqueBase(p, { avecLegende: true })
   });
+  // Pas de borderRadius ici (contrairement aux autres graphiques en barres) :
+  // sur des barres EMPILÉES, arrondir chaque segment individuellement casse
+  // visuellement les segments du bas/milieu de la pile (coins arrondis qui
+  // "mangent" un morceau de la couleur pile à la jointure avec le segment
+  // suivant) — seul le segment tout en haut de la pile s'en sortait bien.
   if (macrosChartInstance) macrosChartInstance.destroy();
   macrosChartInstance = new Chart(document.getElementById('macrosChart'), {
     type: 'bar',
     data: { labels, datasets: [
-      { label: 'Prot.', data: globalMasterProtein.slice(s, e + 1), backgroundColor: cProt, borderRadius: 5, borderSkipped: false },
-      { label: 'Gluc.', data: globalMasterCarbs.slice(s, e + 1), backgroundColor: cGluc, borderRadius: 5, borderSkipped: false },
-      { label: 'Lip.', data: globalMasterFat.slice(s, e + 1), backgroundColor: cLip, borderRadius: 5, borderSkipped: false }
+      { label: 'Prot.', data: globalMasterProtein.slice(s, e + 1), backgroundColor: cProt },
+      { label: 'Gluc.', data: globalMasterCarbs.slice(s, e + 1), backgroundColor: cGluc },
+      { label: 'Lip.', data: globalMasterFat.slice(s, e + 1), backgroundColor: cLip }
     ] }, options: Object.assign({}, optionsGraphiqueBase(p, { avecLegende: true }), { scales: Object.assign({}, baseOpts.scales, { x: Object.assign({ stacked: true }, baseOpts.scales.x), y: Object.assign({ stacked: true }, baseOpts.scales.y) }) })
   });
   // Même traitement visuel que le graphique Calories juste au-dessus : une
@@ -4956,12 +4971,12 @@ function renderCharts(s, e) {
 
   if (workoutChartInstance) workoutChartInstance.destroy();
 
+  // Pas de borderRadius : barres empilées, même raison que macrosChart plus haut.
   const workoutDatasets = Object.keys(SPORT_LABELS).map(sportKey => {
     return {
       label: SPORT_LABELS[sportKey],
       data: globalMasterWorkoutData[sportKey].slice(s, e + 1),
-      backgroundColor: SPORT_COLORS[sportKey] || '#ffffff',
-      borderRadius: 5, borderSkipped: false
+      backgroundColor: SPORT_COLORS[sportKey] || '#ffffff'
     };
   });
 
@@ -5165,39 +5180,38 @@ function themeActuel() {
 
 /* Le bouton du haut et le segment des réglages appellent tous les deux
    appliquerTheme() — le bug n'était donc pas dans la logique, mais dans le
-   repeint : certains navigateurs mobiles (WebKit iOS, et Chrome Android
-   dans une moindre mesure) mettent en cache la couche composée de chaque
-   élément à `backdrop-filter` et ne la reconstruisent pas quand seule une
-   variable CSS change. Une simple lecture d'offsetHeight ne force que la
-   mise en page, pas la recomposition GPU de CES couches précises.
-   Un premier correctif ne retouchait que <html> : ça suffit à recomposer
-   SA propre couche, mais pas forcément celle de chaque carte/graphique qui
-   a sa propre couche indépendante plus bas dans l'arbre — d'où des
-   captures montrant une partie de l'écran déjà dans le nouveau thème et le
-   reste encore dans l'ancien. On retouche donc désormais, un par un, tous
-   les éléments qui utilisent réellement le flou (et pas seulement la
-   racine), en excluant ceux déjà pilotés par une opacité inline ailleurs
-   (l'écran de démarrage, notamment) pour ne rien faire clignoter. Un aller-
-   retour d'opacité imperceptible (0.999) force chaque calque à se repeindre
-   sans flash visible. */
+   repeint : certains navigateurs mobiles mettent en cache la couche
+   composée de chaque élément à `backdrop-filter` et ne la reconstruisent
+   pas quand seule une variable CSS change. C'est pour ça que le thème
+   « prenait » depuis la feuille de réglages (dont l'ouverture/fermeture
+   force déjà, à elle seule, un repaint global en retirant/remettant un
+   calque plein écran) mais pas depuis le bouton seul, où rien d'autre ne
+   force ce repaint.
+   Deux correctifs plus légers (opacité sur <html> seul, puis sur chaque
+   élément à backdrop-filter individuellement) n'ont pas suffi sur certains
+   Chrome Android : soit le signal n'était pas assez fort pour que le
+   compositeur invalide vraiment la couche, soit il ne considérait pas un
+   passage d'opacité à 0.999 comme un changement visuel méritant un vrai
+   repaint. On réutilise donc désormais EXACTEMENT le mécanisme qui déclenche
+   ce repaint global depuis la feuille de réglages : retirer purement et
+   simplement backdrop-filter partout (comme le fait .sans-verre en continu)
+   puis le remettre une frame plus tard. Contrairement à un aller-retour
+   d'opacité, la propriété backdrop-filter elle-même change bel et bien de
+   valeur : aucune optimisation ne peut esquiver la reconstruction de la
+   couche. Le blanc/flou disparaît une frame (~16 ms, imperceptible — le même
+   principe que .sans-verre, déjà utilisé en continu sans se voir). */
 function forcerRepeintureVerre() {
-  const cibles = [document.documentElement];
-  document.querySelectorAll('*').forEach(el => {
-    if (el.style.opacity) return; // déjà piloté ailleurs : ne pas interférer
-    const cs = getComputedStyle(el);
-    if ((cs.backdropFilter && cs.backdropFilter !== 'none') || (cs.webkitBackdropFilter && cs.webkitBackdropFilter !== 'none')) {
-      cibles.push(el);
-    }
-  });
+  const html = document.documentElement;
   const repeindre = () => {
-    cibles.forEach(el => { el.style.opacity = '0.999'; });
-    requestAnimationFrame(() => { cibles.forEach(el => { el.style.opacity = ''; }); });
+    html.classList.add('theme-repaint');
+    void html.offsetHeight; // force le retrait du flou à s'appliquer avant de le remettre
+    requestAnimationFrame(() => { html.classList.remove('theme-repaint'); });
   };
   repeindre();
   // Filet de sécurité : sur certains Chrome Android, le tout premier passage
   // juste après un tap peut être absorbé par le navigateur avant qu'il ait
   // fini d'appliquer le nouveau data-theme à tout l'arbre. Un second passage
-  // un instant plus tard rattrape ce cas sans qu'aucun des deux ne clignote.
+  // un instant plus tard rattrape ce cas.
   setTimeout(repeindre, 80);
 }
 
@@ -6444,13 +6458,15 @@ function filtrerStatsCompte() {
   const gluc = jours.map(j => sumMeals(j.day).c || null);
   const lip  = jours.map(j => sumMeals(j.day).f || null);
 
+  // Pas de borderRadius : barres empilées, même raison que le graphique
+  // Macronutriments du compte personnel (voir son commentaire plus haut).
   if (adminMacrosChartInstance) adminMacrosChartInstance.destroy();
   adminMacrosChartInstance = new Chart(document.getElementById('adminMacrosChart'), {
     type: 'bar',
     data: { labels, datasets: [
-      { label: 'Protéines', data: prot, backgroundColor: cProt, borderRadius: 5, borderSkipped: false },
-      { label: 'Glucides',  data: gluc, backgroundColor: cGluc, borderRadius: 5, borderSkipped: false },
-      { label: 'Lipides',   data: lip,  backgroundColor: cLip, borderRadius: 5, borderSkipped: false }
+      { label: 'Protéines', data: prot, backgroundColor: cProt },
+      { label: 'Glucides',  data: gluc, backgroundColor: cGluc },
+      { label: 'Lipides',   data: lip,  backgroundColor: cLip }
     ] },
     options: Object.assign({}, optionsGraphiqueBase(p, { avecLegende: true }), {
       scales: {
