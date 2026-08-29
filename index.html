@@ -3820,11 +3820,15 @@ async function verifierNouvelleVersion() {
     const reference = resp.headers.get('etag') || resp.headers.get('last-modified');
     if (!reference) return; // hébergement qui ne fournit ni l'un ni l'autre : rien à comparer
     const precedente = sessionStorage.getItem('appVersionRef');
+    // La référence est mise à jour AVANT le reload (pas seulement dans la
+    // branche "rien n'a changé") : sinon la page rechargée repart avec
+    // l'ANCIENNE référence en mémoire, détecte à nouveau un "changement"
+    // face à la nouvelle version tout juste chargée, et recharge encore —
+    // boucle de rechargement infinie à chaque déploiement. Bug réel, vécu.
+    sessionStorage.setItem('appVersionRef', reference);
     if (precedente && precedente !== reference) {
       location.reload();
-      return;
     }
-    sessionStorage.setItem('appVersionRef', reference);
   } catch (e) {
     // Hors ligne, ou requête bloquée : sans nouvelles, on ne touche à rien —
     // on retentera au prochain réveil de l'appli.
