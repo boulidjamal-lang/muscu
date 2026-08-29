@@ -1707,25 +1707,7 @@
       <button class="btn btn-secondaire" style="width:100%;" onclick="ouvrirBibliotheque()">🔍 Parcourir les exercices</button>
     </div>
 
-    <div class="titre-section">📊 Statistiques</div>
-    <div class="stats-grille" id="seance-stats-totaux"></div>
-
-    <div class="chart-container"><canvas id="seanceParMoisChart"></canvas></div>
-
-    <div class="titre-section">🏷️ Répartition par matériel</div>
-    <div class="chart-container"><canvas id="seanceMaterielChart"></canvas></div>
-
-    <div class="titre-section">💪 Volume par groupe musculaire</div>
-    <div class="chart-container"><canvas id="seanceGroupeChart"></canvas></div>
-
-    <div class="titre-section">📋 Statistiques par programme</div>
-    <div id="seance-stats-programmes"></div>
-
-    <div class="titre-section">🏆 Records personnels</div>
-    <div id="seance-stats-records"></div>
-
-    <div class="titre-section">🗓️ Historique des séances</div>
-    <div id="historique-seances-container"></div>
+    <p class="note" style="margin:4px 2px 0;">📊 Les statistiques de musculation (progression, records, historique…) sont dans l'onglet <a href="#" onclick="event.preventDefault(); allerA('stats');" style="color:var(--accent);">Statistiques</a>.</p>
   </section>
 
   <!-- ================= ÉCRAN 3 : STATISTIQUES ================= -->
@@ -1778,6 +1760,32 @@
       <div id="analysis-loader-stats" class="loader hidden">🧠 Analyse de la période…</div>
       <div id="analysis-box-stats" class="analysis-output hidden"></div>
     </div>
+
+    <!-- ========== MUSCULATION ========== -->
+    <div class="titre-section">🏋️ Musculation</div>
+    <div class="stats-grille" id="muscu-stats-totaux"></div>
+
+    <div class="chart-container"><canvas id="muscuParMoisChart"></canvas></div>
+
+    <div class="titre-section">📈 Progression par exercice</div>
+    <div class="input-group" style="margin-bottom:12px;">
+      <label for="muscu-exo-select">Exercice (tous ceux déjà pratiqués, ne serait-ce qu'une fois)</label>
+      <select id="muscu-exo-select" onchange="afficherProgressionExercice(this.value)"></select>
+    </div>
+    <p class="note" id="muscu-progression-vide" style="margin:0 0 12px; display:none;">Aucun exercice pratiqué pour l'instant.</p>
+    <div class="chart-container" id="muscu-progression-conteneur"><canvas id="muscuProgressionChart"></canvas></div>
+
+    <div class="titre-section">🏆 Records personnels</div>
+    <div id="muscu-stats-records"></div>
+
+    <div class="titre-section">💪 Séances par groupe musculaire</div>
+    <div class="chart-container"><canvas id="muscuGroupeChart"></canvas></div>
+
+    <div class="titre-section">📋 Statistiques par programme</div>
+    <div id="muscu-stats-programmes"></div>
+
+    <div class="titre-section">🗓️ Historique des séances (30 derniers jours)</div>
+    <div id="muscu-historique-container"></div>
   </section>
 
   <!-- ================= ÉCRAN ADMIN (visible uniquement pour ADMIN_EMAIL) ================= -->
@@ -1881,14 +1889,26 @@
       <div class="titre-section">🏋️ Musculation — <span id="admin-muscu-nom"></span></div>
       <div class="stats-grille" id="admin-muscu-totaux"></div>
       <div class="chart-container"><canvas id="adminMuscuMoisChart"></canvas></div>
-      <div class="titre-section">🏷️ Répartition par matériel</div>
-      <div class="chart-container"><canvas id="adminMuscuMaterielChart"></canvas></div>
-      <div class="titre-section">💪 Volume par groupe musculaire</div>
-      <div class="chart-container"><canvas id="adminMuscuGroupeChart"></canvas></div>
-      <div class="titre-section">📋 Programmes</div>
-      <div id="admin-muscu-programmes"></div>
+
+      <div class="titre-section">📈 Progression par exercice</div>
+      <div class="input-group" style="margin-bottom:12px;">
+        <label for="admin-muscu-exo-select">Exercice</label>
+        <select id="admin-muscu-exo-select" onchange="afficherProgressionExercice(this.value)"></select>
+      </div>
+      <p class="note" id="admin-muscu-progression-vide" style="margin:0 0 12px; display:none;">Aucun exercice pratiqué pour l'instant.</p>
+      <div class="chart-container"><canvas id="adminMuscuProgressionChart"></canvas></div>
+
       <div class="titre-section">🏆 Records personnels</div>
       <div id="admin-muscu-records"></div>
+
+      <div class="titre-section">💪 Séances par groupe musculaire</div>
+      <div class="chart-container"><canvas id="adminMuscuGroupeChart"></canvas></div>
+
+      <div class="titre-section">📋 Programmes</div>
+      <div id="admin-muscu-programmes"></div>
+
+      <div class="titre-section">🗓️ Historique des séances (30 derniers jours)</div>
+      <div id="admin-muscu-historique"></div>
     </div>
   </section>
 
@@ -2626,7 +2646,20 @@
       <button class="close-modal" onclick="fermerModal('historique-detail-modal')" aria-label="Fermer">&times;</button>
     </div>
     <div id="historique-detail-container"></div>
-    <button class="btn btn-secondaire" style="margin-top:14px;" onclick="supprimerSeanceHistorique()">🗑️ Supprimer cette séance de l'historique</button>
+    <button class="btn btn-secondaire" id="btn-suppr-seance-historique" style="margin-top:14px;" onclick="supprimerSeanceHistorique()">🗑️ Supprimer cette séance de l'historique</button>
+  </div>
+</div>
+
+<!-- ================= STATISTIQUES — Détail d'un programme (issu des stats) ================= -->
+<div id="programme-detail-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="titre-programme-detail">
+  <div class="modal-content" style="max-width:520px;">
+    <div class="modal-entete">
+      <h3 id="titre-programme-detail">📋 Programme</h3>
+      <button class="close-modal" onclick="fermerModal('programme-detail-modal')" aria-label="Fermer">&times;</button>
+    </div>
+    <div id="programme-detail-resume" class="stats-grille" style="margin-bottom:16px;"></div>
+    <p class="note" id="programme-detail-note" style="margin:0 0 10px;">Exercices de la dernière séance effectuée sous ce programme :</p>
+    <div id="programme-detail-container"></div>
   </div>
 </div>
 
@@ -4615,6 +4648,7 @@ function prepareStats() {
     end.value = globalMasterLabels.length - 1;
   }
   mettreAJourStats();
+  renderStatsMuscu();
 }
 /* Les curseurs émettent « input » à chaque pixel. Sans temporisation, glisser
    le doigt détruisait et recréait les 4 graphiques des centaines de fois :
@@ -4987,8 +5021,7 @@ function appliquerTheme(t) {
   majSegment('segment-theme', ['auto', 'light', 'dark'], t);
   // Les graphiques sont dessines en pixels : leurs couleurs ne suivent pas le
   // theme toutes seules, il faut les redessiner.
-  if (ecranActif === 'stats') mettreAJourStats();
-  if (ecranActif === 'seance') renderStatsMuscu();
+  if (ecranActif === 'stats') { mettreAJourStats(); renderStatsMuscu(); }
 }
 function choisirTheme(t) { appliquerTheme(t); }
 
@@ -6075,11 +6108,15 @@ function remplirFicheCompteAdmin(user) {
 let adminMacrosChartInstance = null, adminSportChartInstance = null;
 
 /* Musculation d'un compte, vue depuis le panneau Administration : les
-   mêmes fonctions de rendu que l'onglet Séance (renderStatsTotauxMuscu,
-   renderChart*Muscu, renderStatsProgrammesMuscu, renderStatsRecordsMuscu),
-   appliquées à l'historique de CE compte plutôt qu'à musculationHistorique.
-   Aucune donnée n'est jamais écrite dans les variables locales de
-   l'administrateur : uniquement lues depuis Supabase, affichées, oubliées. */
+   mêmes fonctions de rendu que l'onglet Statistiques (renderStatsTotauxMuscu,
+   renderChart*Muscu, renderStatsProgrammesMuscu, renderStatsRecordsMuscu,
+   renderHistoriqueSeances), appliquées à l'historique de CE compte plutôt
+   qu'à musculationHistorique. Aucune donnée n'est jamais écrite dans les
+   variables locales de l'administrateur : uniquement lues depuis Supabase,
+   affichées, oubliées. muscuContexteActuel bascule sur cet historique le
+   temps que ce panneau est affiché, pour que le sélecteur de progression
+   et le clic sur une séance/un programme restent cohérents avec ce qui
+   est réellement montré à l'écran. */
 async function chargerStatsMuscuAdmin(utilisateur, nomAffiche) {
   const cible = document.getElementById('admin-muscu-nom');
   if (cible) cible.textContent = nomAffiche;
@@ -6087,12 +6124,14 @@ async function chargerStatsMuscuAdmin(utilisateur, nomAffiche) {
     const { data, error } = await supa.from('seances_musculation').select('donnees').eq('utilisateur', utilisateur);
     if (error) throw error;
     const historique = (data || []).map(r => r.donnees).sort((a, b) => (Number(b.maj) || 0) - (Number(a.maj) || 0));
+    muscuContexteActuel = { historique, admin: true, utilisateur };
     renderStatsTotauxMuscu(historique, 'admin-muscu-totaux');
     renderChartSeancesParMois(historique, 'adminMuscuMoisChart', 'adminMuscuMoisChartInstance');
-    renderChartMaterielMuscu(historique, 'adminMuscuMaterielChart', 'adminMuscuMaterielChartInstance');
-    renderChartGroupeMuscu(historique, 'adminMuscuGroupeChart', 'adminMuscuGroupeChartInstance');
-    renderStatsProgrammesMuscu(historique, 'admin-muscu-programmes');
+    initialiserSelectProgression(historique, 'admin-muscu-exo-select', 'admin-muscu-progression-vide');
     renderStatsRecordsMuscu(historique, 'admin-muscu-records');
+    renderChartSeancesParGroupeMuscu(historique, 'adminMuscuGroupeChart', 'adminMuscuGroupeChartInstance');
+    renderStatsProgrammesMuscu(historique, 'admin-muscu-programmes');
+    renderHistoriqueSeances(historique, 'admin-muscu-historique', 30);
   } catch (e) {
     const p = document.getElementById('admin-muscu-programmes');
     if (p) p.innerHTML = '<p class="note">Erreur de chargement de la musculation : ' + escapeHtml(e.message) + '</p>';
@@ -7836,6 +7875,7 @@ async function synchroniserMuscu(utilisateurId) {
       localStorage.setItem(MUSCU_EXOS_PERSO_KEY, JSON.stringify(musculationExosPerso));
     } catch (e) {}
     if (ecranActif === 'seance') renderSeance();
+    if (ecranActif === 'stats') renderStatsMuscu();
   }
 }
 
@@ -7893,8 +7933,6 @@ function renderSeance() {
   if (nb) nb.textContent = toutesLesExercices().length + ' exercices';
   renderBandeauSessionActive();
   renderListeProgrammes();
-  renderStatsMuscu();
-  renderHistoriqueSeances();
 }
 
 function renderBandeauSessionActive() {
@@ -7933,12 +7971,22 @@ function renderListeProgrammes() {
 }
 
 /* =====================================================================
-   Statistiques — programmes, séances, matériel ("machines")
-   Toujours calculées sur les seules données de l'utilisateur connecté
-   (musculationHistorique local, ou celui chargé pour le compte consulté
-   dans le panneau Administration — voir renderStatsMuscuAdmin) : jamais
-   un mélange de plusieurs comptes.
+   Statistiques — musculation, dans l'onglet Statistiques (pas Séance,
+   qui reste dédié à la gestion des programmes et au lancement d'une
+   séance). Toujours calculées sur les seules données de l'utilisateur
+   consulté : musculationHistorique en local, ou l'historique chargé
+   pour le compte consulté dans le panneau Administration — jamais un
+   mélange de plusieurs comptes.
+
+   muscuContexteActuel retient quel historique est actuellement affiché
+   (le sien, ou celui d'un compte admin) : c'est ce que lisent les
+   éléments interactifs (sélecteur de progression, détail d'une séance,
+   détail d'un programme) pour rester cohérents avec ce qui est affiché
+   à l'écran, sans avoir à re-préciser la source à chaque clic.
    ===================================================================== */
+let muscuContexteActuel = { historique: musculationHistorique, admin: false };
+let muscuGroupesProgrammesCourant = new Map();
+
 function volumeSeance(h) {
   return h.exercices.reduce((vv, e) =>
     vv + e.series.reduce((s, set) => s + (Number(set.poids) || 0) * (Number(set.reps) || 0), 0), 0);
@@ -7957,12 +8005,14 @@ function graphiqueCouleursMuscu() {
 }
 
 function renderStatsMuscu() {
-  renderStatsTotauxMuscu(musculationHistorique, 'seance-stats-totaux');
-  renderChartSeancesParMois(musculationHistorique, 'seanceParMoisChart', 'seanceParMoisChartInstance');
-  renderChartMaterielMuscu(musculationHistorique, 'seanceMaterielChart', 'seanceMaterielChartInstance');
-  renderChartGroupeMuscu(musculationHistorique, 'seanceGroupeChart', 'seanceGroupeChartInstance');
-  renderStatsProgrammesMuscu(musculationHistorique, 'seance-stats-programmes');
-  renderStatsRecordsMuscu(musculationHistorique, 'seance-stats-records');
+  muscuContexteActuel = { historique: musculationHistorique, admin: false };
+  renderStatsTotauxMuscu(musculationHistorique, 'muscu-stats-totaux');
+  renderChartSeancesParMois(musculationHistorique, 'muscuParMoisChart', 'muscuParMoisChartInstance');
+  initialiserSelectProgression(musculationHistorique, 'muscu-exo-select', 'muscu-progression-vide');
+  renderStatsRecordsMuscu(musculationHistorique, 'muscu-stats-records');
+  renderChartSeancesParGroupeMuscu(musculationHistorique, 'muscuGroupeChart', 'muscuGroupeChartInstance');
+  renderStatsProgrammesMuscu(musculationHistorique, 'muscu-stats-programmes');
+  renderHistoriqueSeances(musculationHistorique, 'muscu-historique-container', 30);
 }
 
 /* Chaque fonction ci-dessous prend en paramètre l'historique à utiliser et
@@ -7991,8 +8041,8 @@ function renderStatsTotauxMuscu(historique, idCible) {
 
 /* Les instances de graphiques vivent dans des variables globales nommées
    dynamiquement (window[nomInstance]) : nécessaire pour que les mêmes
-   fonctions de rendu servent à la fois aux graphiques de l'onglet Séance et
-   à ceux, distincts, du panneau Administration. */
+   fonctions de rendu servent à la fois aux graphiques de l'onglet
+   Statistiques et à ceux, distincts, du panneau Administration. */
 function renderChartSeancesParMois(historique, idCanvas, nomInstance) {
   const canvas = document.getElementById(idCanvas);
   if (!canvas || typeof Chart === 'undefined') return;
@@ -8018,23 +8068,32 @@ function renderChartSeancesParMois(historique, idCanvas, nomInstance) {
     }
   });
 }
-function renderChartMaterielMuscu(historique, idCanvas, nomInstance) {
+
+/* Combien de SÉANCES ont travaillé chaque groupe musculaire (pas le
+   volume soulevé) : une séance qui touche les pectoraux avec 3 exercices
+   différents ne compte qu'une fois pour "pectoraux", pas trois. */
+function renderChartSeancesParGroupeMuscu(historique, idCanvas, nomInstance) {
   const canvas = document.getElementById(idCanvas);
   if (!canvas || typeof Chart === 'undefined') return;
   const comptes = {};
-  ORDRE_MATERIELS.forEach(m => { comptes[m] = 0; });
-  historique.forEach(h => h.exercices.forEach(e => {
-    const exo = trouverExercice(e.exerciceId);
-    if (!exo) return;
-    comptes[exo.materiel] = (comptes[exo.materiel] || 0) + e.series.length;
-  }));
-  const c = graphiqueCouleursMuscu();
+  ORDRE_GROUPES.forEach(g => { comptes[g] = 0; });
+  historique.forEach(h => {
+    const groupesSeance = new Set();
+    h.exercices.forEach(e => {
+      const exo = trouverExercice(e.exerciceId);
+      if (exo) groupesSeance.add(exo.groupe);
+    });
+    groupesSeance.forEach(g => { comptes[g] = (comptes[g] || 0) + 1; });
+  });
+  const groupesUtilises = ORDRE_GROUPES.filter(g => comptes[g] > 0);
   if (window[nomInstance]) window[nomInstance].destroy();
+  if (!groupesUtilises.length) { window[nomInstance] = null; return; }
+  const c = graphiqueCouleursMuscu();
   window[nomInstance] = new Chart(canvas, {
     type: 'bar',
     data: {
-      labels: ORDRE_MATERIELS.map(m => MATERIELS[m].ic + ' ' + MATERIELS[m].label),
-      datasets: [{ label: 'Séries', data: ORDRE_MATERIELS.map(m => comptes[m]), backgroundColor: c.accent }]
+      labels: groupesUtilises.map(g => GROUPES_MUSCULAIRES[g]),
+      datasets: [{ label: 'Séances', data: groupesUtilises.map(g => comptes[g]), backgroundColor: c.primaire }]
     },
     options: {
       indexAxis: 'y',
@@ -8047,63 +8106,161 @@ function renderChartMaterielMuscu(historique, idCanvas, nomInstance) {
     }
   });
 }
-function renderChartGroupeMuscu(historique, idCanvas, nomInstance) {
+
+/* --- Progression par exercice : liste déroulante + graphique --------- */
+/* Nom d'un exercice pratiqué : cherche d'abord dans la base (avec sa
+   traduction anglaise), et si l'exercice a depuis été supprimé, retombe
+   sur le nom tel qu'il avait été enregistré dans la séance à l'époque. */
+function nomExerciceHistorique(historique, exerciceId) {
+  const exo = trouverExercice(exerciceId);
+  if (exo) return libelleExercice(exo);
+  for (const h of historique) {
+    const e = h.exercices.find(x => x.exerciceId === exerciceId);
+    if (e) return e.nom;
+  }
+  return 'Exercice';
+}
+/* Tous les exercices déjà pratiqués au moins une fois, triés par nom. */
+function populerSelectExercices(historique, idSelect) {
+  const sel = document.getElementById(idSelect);
+  if (!sel) return [];
+  const ids = new Set();
+  historique.forEach(h => h.exercices.forEach(e => ids.add(e.exerciceId)));
+  const liste = Array.from(ids)
+    .map(id => ({ id, nom: nomExerciceHistorique(historique, id) }))
+    .sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
+  sel.innerHTML = liste.map(e => `<option value="${e.id}">${escapeHtml(e.nom)}</option>`).join('');
+  return liste;
+}
+/* Réaffiche la liste déroulante en gardant la sélection en cours si elle
+   est toujours valide (utile quand renderStatsMuscu() est rappelée après
+   un changement de thème ou une synchro), sinon retombe sur le premier
+   exercice de la liste. */
+function initialiserSelectProgression(historique, idSelect, idVide) {
+  const sel = document.getElementById(idSelect);
+  if (!sel) return;
+  const valeurPrecedente = sel.value;
+  const liste = populerSelectExercices(historique, idSelect);
+  const valeurChoisie = (valeurPrecedente && liste.some(e => e.id === valeurPrecedente))
+    ? valeurPrecedente
+    : ((liste[0] && liste[0].id) || '');
+  sel.value = valeurChoisie;
+  afficherProgressionExercice(valeurChoisie || null);
+}
+/* Point d'entrée commun aux deux sélecteurs (onglet Statistiques et
+   panneau Administration) : muscuContexteActuel décide quel historique
+   et quels éléments cibler, pour ne pas avoir à dupliquer ce handler. */
+function afficherProgressionExercice(exerciceId) {
+  const ctx = muscuContexteActuel;
+  if (ctx.admin) {
+    renderChartProgressionExercice(ctx.historique, exerciceId, 'adminMuscuProgressionChart', 'adminMuscuProgressionChartInstance', 'admin-muscu-progression-vide');
+  } else {
+    renderChartProgressionExercice(ctx.historique, exerciceId, 'muscuProgressionChart', 'muscuProgressionChartInstance', 'muscu-progression-vide');
+  }
+}
+/* Un point par séance où l'exercice apparaît : le poids de sa meilleure
+   série cochée comme faite ce jour-là. C'est la mesure de progression la
+   plus lisible d'un coup d'œil — la même que "meilleure série" dans les
+   grandes applis de suivi de musculation. */
+function renderChartProgressionExercice(historique, exerciceId, idCanvas, nomInstance, idVide) {
   const canvas = document.getElementById(idCanvas);
-  if (!canvas || typeof Chart === 'undefined') return;
-  const volumes = {};
-  ORDRE_GROUPES.forEach(g => { volumes[g] = 0; });
-  historique.forEach(h => h.exercices.forEach(e => {
-    const exo = trouverExercice(e.exerciceId);
-    if (!exo) return;
-    volumes[exo.groupe] = (volumes[exo.groupe] || 0) +
-      e.series.reduce((s, set) => s + (Number(set.poids) || 0) * (Number(set.reps) || 0), 0);
-  }));
-  const groupesUtilises = ORDRE_GROUPES.filter(g => volumes[g] > 0);
-  if (window[nomInstance]) window[nomInstance].destroy();
-  if (!groupesUtilises.length) { window[nomInstance] = null; return; }
+  if (!canvas) return;
+  const videEl = document.getElementById(idVide);
+  if (window[nomInstance]) { window[nomInstance].destroy(); window[nomInstance] = null; }
+  if (!exerciceId) { if (videEl) videEl.style.display = 'block'; return; }
+  const points = [];
+  historique.forEach(h => {
+    const e = h.exercices.find(x => x.exerciceId === exerciceId);
+    if (!e) return;
+    const poidsMax = e.series.reduce((max, s) => {
+      const p = Number(s.poids);
+      return (s.fait && p > 0) ? Math.max(max, p) : max;
+    }, 0);
+    if (poidsMax > 0) points.push({ date: h.date, poids: poidsMax });
+  });
+  points.sort((a, b) => a.date.localeCompare(b.date));
+  if (videEl) videEl.style.display = points.length ? 'none' : 'block';
+  if (!points.length || typeof Chart === 'undefined') return;
   const c = graphiqueCouleursMuscu();
   window[nomInstance] = new Chart(canvas, {
-    type: 'bar',
+    type: 'line',
     data: {
-      labels: groupesUtilises.map(g => GROUPES_MUSCULAIRES[g]),
-      datasets: [{ label: 'Volume (kg)', data: groupesUtilises.map(g => Math.round(volumes[g])), backgroundColor: c.primaire }]
+      labels: points.map(p => formatDateDisplay(p.date)),
+      datasets: [{
+        label: 'Meilleure série (kg)', data: points.map(p => p.poids),
+        borderColor: c.primaire, backgroundColor: c.primaire, tension: 0.25, pointRadius: 3
+      }]
     },
     options: {
-      indexAxis: 'y',
       responsive: true, maintainAspectRatio: false,
       plugins: { legend: { display: false } },
       scales: {
-        x: { ticks: { color: c.texte, font: { size: 9 } }, grid: { color: c.grille }, beginAtZero: true },
+        x: { ticks: { color: c.texte, font: { size: 9 }, maxTicksLimit: 8 }, grid: { color: c.grille } },
         y: { ticks: { color: c.texte, font: { size: 9 } }, grid: { color: c.grille } }
       }
     }
   });
 }
+
+/* --- Statistiques par programme, avec détail au clic ------------------ */
 function renderStatsProgrammesMuscu(historique, idCible) {
   const c = document.getElementById(idCible);
   if (!c) return;
-  if (!historique.length) { c.innerHTML = '<div class="vide">Pas encore de séance enregistrée.</div>'; return; }
+  if (!historique.length) { c.innerHTML = '<div class="vide">Pas encore de séance enregistrée.</div>'; muscuGroupesProgrammesCourant = new Map(); return; }
   const groupes = new Map();
   historique.forEach(h => {
     const cle = h.programmeId || ('libre:' + h.programmeNom);
     if (!groupes.has(cle)) groupes.set(cle, { nom: h.programmeNom || 'Séance libre', seances: [] });
     groupes.get(cle).seances.push(h);
   });
-  c.innerHTML = Array.from(groupes.values())
-    .sort((a, b) => b.seances.length - a.seances.length)
-    .map(g => {
+  muscuGroupesProgrammesCourant = groupes;
+  c.innerHTML = Array.from(groupes.entries())
+    .sort((a, b) => b[1].seances.length - a[1].seances.length)
+    .map(([cle, g]) => {
       const n = g.seances.length;
       const volMoyen = g.seances.reduce((s, h) => s + volumeSeance(h), 0) / n;
       const dureeMoyenne = g.seances.reduce((s, h) => s + (h.dureeMin || 0), 0) / n;
-      return `<div class="historique-carte" style="cursor:default;">
+      const cleJs = cle.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+      return `<button type="button" class="historique-carte" onclick="voirDetailProgramme('${cleJs}')">
         <div class="historique-carte-entete">
           <span class="historique-carte-nom">${escapeHtml(g.nom)}</span>
           <span class="historique-carte-date">${n} fois</span>
         </div>
         <div class="historique-carte-meta">Dernière fois ${formatDateDisplay(g.seances[0].date)} · volume moyen ${Math.round(volMoyen).toLocaleString('fr-FR')} kg · durée moyenne ${Math.round(dureeMoyenne)} min</div>
-      </div>`;
+      </button>`;
     }).join('');
 }
+/* Affiche le détail d'un programme : comme l'appli ne conserve pas
+   d'historique de version d'un programme, "le programme" montré ici est
+   la composition réelle de la dernière séance faite sous ce nom — ce qui
+   a été vraiment pratiqué, avec les poids réels, plutôt qu'une cible
+   abstraite qui peut avoir changé depuis. */
+function voirDetailProgramme(cle) {
+  const g = muscuGroupesProgrammesCourant.get(cle);
+  if (!g) return;
+  const derniere = g.seances[0];
+  const n = g.seances.length;
+  const volMoyen = g.seances.reduce((s, h) => s + volumeSeance(h), 0) / n;
+  const dureeMoyenne = g.seances.reduce((s, h) => s + (h.dureeMin || 0), 0) / n;
+  document.getElementById('titre-programme-detail').textContent = '📋 ' + g.nom;
+  document.getElementById('programme-detail-resume').innerHTML = [
+    ['Fois effectué', String(n)],
+    ['Dernière fois', formatDateDisplay(derniere.date)],
+    ['Volume moyen', Math.round(volMoyen).toLocaleString('fr-FR') + ' kg'],
+    ['Durée moyenne', Math.round(dureeMoyenne) + ' min']
+  ].map(([l, v]) => `<div><small>${l}</small><div class="stats-valeur">${v}</div></div>`).join('');
+  document.getElementById('programme-detail-note').textContent =
+    'Exercices de la dernière séance effectuée sous ce programme (' + formatDateDisplay(derniere.date) + ') :';
+  document.getElementById('programme-detail-container').innerHTML = derniere.exercices.map(e => {
+    const exoRef = trouverExercice(e.exerciceId);
+    const label = exoRef ? libelleExercice(exoRef) : e.nom;
+    const series = e.series.map((s, i) => `<div style="display:flex; justify-content:space-between; font-size:0.82rem; padding:4px 0; border-bottom:1px solid var(--verre-brd);">
+      <span>Série ${i + 1}</span><span>${s.poids ?? '—'} kg × ${s.reps ?? '—'}</span></div>`).join('');
+    return `<div style="margin-bottom:14px;"><div style="font-weight:700; font-size:0.88rem; margin-bottom:6px;">${escapeHtml(label)}</div>${series}</div>`;
+  }).join('');
+  ouvrirModal('programme-detail-modal');
+}
+
 function renderStatsRecordsMuscu(historique, idCible) {
   const c = document.getElementById(idCible);
   if (!c) return;
@@ -8133,15 +8290,18 @@ function renderStatsRecordsMuscu(historique, idCible) {
   c.innerHTML = lignes || '<div class="vide">Pas encore de record enregistré.</div>';
 }
 
-function renderHistoriqueSeances() {
-  const c = document.getElementById('historique-seances-container');
+/* --- Historique des séances, limité à une fenêtre glissante ----------- */
+function renderHistoriqueSeances(historique, idCible, jours) {
+  const c = document.getElementById(idCible);
   if (!c) return;
-  if (!musculationHistorique.length) {
-    c.innerHTML = '<div class="vide">Aucune séance enregistrée pour l’instant.</div>';
+  const fenetre = jours || 30;
+  const seuil = shiftDate(todayStr(), -fenetre);
+  const items = historique.filter(h => h.date >= seuil);
+  if (!items.length) {
+    c.innerHTML = `<div class="vide">Aucune séance sur les ${fenetre} derniers jours.</div>`;
     return;
   }
-  const items = musculationHistorique.slice(0, 15);
-  let html = items.map(h => {
+  c.innerHTML = items.map(h => {
     const nbSeries = h.exercices.reduce((n, e) => n + e.series.length, 0);
     return `<button type="button" class="historique-carte" onclick="voirDetailHistorique('${h.id}')">
       <div class="historique-carte-entete">
@@ -8151,14 +8311,10 @@ function renderHistoriqueSeances() {
       <div class="historique-carte-meta">${h.exercices.length} exercice(s) · ${nbSeries} série(s) · ${h.dureeMin} min</div>
     </button>`;
   }).join('');
-  if (musculationHistorique.length > 15) {
-    html += `<p class="note" style="text-align:center;">${musculationHistorique.length - 15} séance(s) plus ancienne(s) non affichée(s).</p>`;
-  }
-  c.innerHTML = html;
 }
 
 function voirDetailHistorique(id) {
-  const h = musculationHistorique.find(x => x.id === id);
+  const h = muscuContexteActuel.historique.find(x => x.id === id);
   if (!h) return;
   historiqueDetailCourant = id;
   document.getElementById('titre-historique-detail').textContent =
@@ -8173,16 +8329,20 @@ function voirDetailHistorique(id) {
   }).join('');
   document.getElementById('historique-detail-container').innerHTML =
     lignes + (h.notes ? `<p class="note">📝 ${escapeHtml(h.notes)}</p>` : '');
+  // Depuis le panneau Administration, cette fenêtre reste consultative :
+  // l'admin ne supprime pas les données d'un compte depuis cette vue.
+  const btnSuppr = document.getElementById('btn-suppr-seance-historique');
+  if (btnSuppr) btnSuppr.style.display = muscuContexteActuel.admin ? 'none' : 'block';
   ouvrirModal('historique-detail-modal');
 }
 function supprimerSeanceHistorique() {
-  if (!historiqueDetailCourant) return;
+  if (!historiqueDetailCourant || muscuContexteActuel.admin) return;
   if (!confirm('Supprimer définitivement cette séance de l’historique ?')) return;
   musculationHistorique = musculationHistorique.filter(h => h.id !== historiqueDetailCourant);
   sauvegarderHistorique();
   ajouterSuppressionMuscu('seances_musculation', historiqueDetailCourant);
   fermerModal('historique-detail-modal');
-  renderSeance();
+  renderStatsMuscu();
 }
 
 /* =====================================================================
