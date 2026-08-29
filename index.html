@@ -2514,7 +2514,8 @@
       <hr class="sep">
       <p class="note" style="margin:0 0 10px;">⚖️ <strong>Balance connectée</strong> — lie automatiquement les pesées de ta balance Withings au poids enregistré ici, sans ressaisie manuelle.</p>
       <div id="withings-deconnecte-compte">
-        <button class="btn btn-secondaire" style="width:100%;" onclick="connexionWithings()">Connecter ma balance Withings</button>
+        <a href="#" class="btn btn-secondaire lien-connexion-withings" style="width:100%; display:inline-block; box-sizing:border-box; text-align:center; text-decoration:none;" target="_blank" rel="noopener" onclick="return connexionWithings(event)">Connecter ma balance Withings</a>
+        <p class="note" style="margin:6px 0 0;">Bloqué dans l'appli Withings au lieu de revenir ici ? Reste appuyé sur ce bouton pour choisir « Ouvrir dans Safari ».</p>
       </div>
       <div id="withings-connecte-compte" class="hidden">
         <button class="btn btn-secondaire" style="width:100%;" onclick="deconnexionWithings()">Déconnecter ma balance Withings</button>
@@ -2564,7 +2565,8 @@
     </div>
 
     <div id="withings-deconnecte">
-      <button class="btn btn-secondaire" style="margin:-6px 0 14px;" onclick="connexionWithings()">⚖️ Connecter ma balance Withings</button>
+      <a href="#" class="btn btn-secondaire lien-connexion-withings" style="margin:-6px 0 6px; display:inline-block; box-sizing:border-box; text-align:center; text-decoration:none;" target="_blank" rel="noopener" onclick="return connexionWithings(event)">⚖️ Connecter ma balance Withings</a>
+      <p class="note" style="margin:0 0 14px;">Bloqué dans l'appli Withings au lieu de revenir ici ? Reste appuyé sur ce bouton pour choisir « Ouvrir dans Safari ».</p>
     </div>
     <div id="withings-connecte" class="hidden">
       <button class="btn btn-secondaire" id="btn-import-withings" style="margin:-6px 0 6px;" onclick="importerPoidsWithings()">⚖️ Importer ma dernière pesée Withings</button>
@@ -6795,27 +6797,22 @@ function majUIWithings() {
   });
 }
 
-/* Étape 1 : redirige vers la page de connexion Withings. L'utilisateur revient
+/* Étape 1 : lien vers la page de connexion Withings. L'utilisateur revient
    ensuite sur cette même URL avec un ?code=... dans l'adresse (voir plus bas,
    au chargement de la page).
-   Naviguer directement (location.href) vers account.withings.com se fait
-   parfois intercepter par le système (liens universels iOS/Android) : le
-   téléphone ouvre l'appli Withings installée à la place du navigateur, et
-   une fois dedans il n'y a plus de chemin de retour vers Mon Coach — surtout
-   quand Mon Coach tourne en appli installée (écran d'accueil), un contexte
-   à part que l'appli Withings ne sait pas rouvrir après coup.
-   window.open dans un nouvel onglet évite l'interception dans certains cas
-   (pas garanti à 100%, c'est un comportement du système, pas du navigateur) ;
-   si le popup est bloqué (fenêtre ouverte hors d'un vrai clic), on retombe
-   sur l'ancien comportement plutôt que de ne rien faire du tout. */
-function connexionWithings() {
-  /* Sans proxy, le retour ne pourra pas être échangé contre un jeton :
-     autant le dire ici plutôt que de renvoyer l'utilisateur chez Withings
-     pour rien. */
-  if (!WITHINGS_PROXY) {
-    alert("La connexion Withings est momentanément indisponible : elle attend le déploiement de l'Edge Function côté serveur.");
-    return;
-  }
+   Un tap normal sur ce lien se fait parfois intercepter par le système
+   (liens universels iOS/Android) : le téléphone ouvre l'appli Withings
+   installée à la place du navigateur, et une fois dedans il n'y a plus de
+   chemin de retour vers Mon Coach — surtout quand Mon Coach tourne en appli
+   installée (écran d'accueil), un contexte à part que l'appli Withings ne
+   sait pas rouvrir après coup. Rien côté web ne force le système à ne PAS
+   intercepter un tap normal — mais un VRAI lien <a href> (contrairement à un
+   bouton qui ne fait qu'appeler du JS) permet à la personne de rester
+   appuyée dessus pour choisir « Ouvrir dans Safari » depuis le menu iOS, ce
+   qui contourne l'interception à coup sûr. D'où l'URL posée directement en
+   href (voir brancherLiensWithings) plutôt qu'une navigation déclenchée en
+   JS. */
+function urlAutorisationWithings() {
   const params = new URLSearchParams({
     response_type: 'code',
     client_id: WITHINGS_CLIENT_ID,
@@ -6823,9 +6820,29 @@ function connexionWithings() {
     scope: 'user.metrics',
     redirect_uri: WITHINGS_REDIRECT_URI
   });
-  const url = 'https://account.withings.com/oauth2_user/authorize2?' + params.toString();
-  const nouvelOnglet = window.open(url, '_blank');
-  if (!nouvelOnglet) window.location.href = url;
+  return 'https://account.withings.com/oauth2_user/authorize2?' + params.toString();
+}
+
+/* Pose la vraie URL d'autorisation sur chaque lien "Connecter ma balance" au
+   chargement (pas directement dans le HTML : WITHINGS_CLIENT_ID/REDIRECT_URI
+   sont des constantes JS). */
+function brancherLiensWithings() {
+  document.querySelectorAll('a.lien-connexion-withings').forEach(a => {
+    a.href = urlAutorisationWithings();
+  });
+}
+
+/* Appelée au clic sur le lien (voir onclick dans le HTML) : uniquement pour
+   bloquer la navigation quand la connexion n'est pas configurée côté
+   serveur — sinon on laisse le navigateur suivre le href normalement
+   (return true), target="_blank" ouvre déjà un nouvel onglet tout seul. */
+function connexionWithings(e) {
+  if (!WITHINGS_PROXY) {
+    if (e) e.preventDefault();
+    alert("La connexion Withings est momentanément indisponible : elle attend le déploiement de l'Edge Function côté serveur.");
+    return false;
+  }
+  return true;
 }
 
 /* Étape 2 : appelée automatiquement au chargement si l'URL contient un code
@@ -9692,6 +9709,7 @@ window.addEventListener('load', () => {
   renderApp();
   majNoteCleIA();
   majUIWithings();
+  brancherLiensWithings();
   traiterRetourWithings();
   let ecran = 'repas';
   try { ecran = localStorage.getItem('elite_ecran') || 'repas'; } catch (e) {}
