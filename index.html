@@ -1784,6 +1784,8 @@
       <p class="note" style="margin:0 0 12px;">Déjà des séances enregistrées dans Strong ? Importe-les ici (Strong → Réglages → Exporter les données → CSV) : les exercices reconnus rejoignent la base existante, les autres deviennent des exercices personnalisés.</p>
       <input type="file" id="import-strong-input" accept=".csv,text/csv" class="hidden" onchange="importerStrongCSV(this.files[0])">
       <button class="btn btn-secondaire" style="width:100%;" onclick="document.getElementById('import-strong-input').click()">📥 Importer depuis Strong (CSV)</button>
+      <p class="note" style="margin:12px 0 8px;">Le CSV ne contient que le journal des séances déjà faites, jamais les "Routines" (programmes en cours) de Strong — reconstruis-les ici à partir de ta séance la plus récente sous chaque nom.</p>
+      <button class="btn btn-secondaire" style="width:100%;" onclick="genererProgrammesDepuisHistorique()">🗂️ Créer les programmes depuis l'historique</button>
     </div>
 
     <p class="note" style="margin:4px 2px 0;">📊 Les statistiques de musculation (progression, records, historique…) sont dans l'onglet <a href="#" onclick="event.preventDefault(); allerA('stats');" style="color:var(--accent);">Statistiques</a>.</p>
@@ -8253,6 +8255,57 @@ async function importerStrongCSV(file) {
   if (ecranActif === 'seance') renderSeance();
   if (ecranActif === 'stats') renderStatsMuscu();
   alert(`${nouvellesEntrees.length} séance(s) importée(s) avec succès.`);
+  // Strong distingue son journal de séances (ce que ce CSV exporte) de ses
+  // "Routines" (les programmes en cours, jamais inclus dans cet export) :
+  // sans ça, l'historique arrive bien mais "Mes programmes" reste vide.
+  // On propose donc, juste après, de reconstruire un programme par nom de
+  // séance à partir de la plus récente de chaque nom — l'approximation la
+  // plus proche du programme "actuel" que l'historique seul permette.
+  genererProgrammesDepuisHistorique();
+}
+
+/* Reconstruit un programme par nom de séance distinct dans l'historique
+   (à partir de la séance la PLUS RÉCENTE de ce nom), pour les noms qui
+   n'ont pas déjà de programme correspondant. Utile après un import CSV
+   (voir importerStrongCSV, qui l'appelle automatiquement) ou simplement
+   pour reconstituer un programme après coup à partir de séances libres
+   répétées sous le même nom. N'écrase jamais un programme existant. */
+function genererProgrammesDepuisHistorique() {
+  const parNom = new Map();
+  musculationHistorique.forEach(h => {
+    const nom = (h.programmeNom || '').trim();
+    if (!nom || !h.exercices.length) return;
+    const existant = parNom.get(nom);
+    if (!existant || h.debut > existant.debut) parNom.set(nom, h);
+  });
+  const nomsExistants = new Set(musculationProgrammes.map(p => p.nom.trim().toLowerCase()));
+  const aCreer = Array.from(parNom.entries()).filter(([nom]) => !nomsExistants.has(nom.toLowerCase()));
+  if (!aCreer.length) {
+    alert(musculationHistorique.length
+      ? "Rien à créer : chaque nom de séance de ton historique a déjà un programme correspondant."
+      : "Aucun historique de séance pour l'instant : importe ou enregistre d'abord des séances.");
+    return;
+  }
+  const resume = `Créer ${aCreer.length} programme(s) à partir de ta séance la plus récente sous chaque nom ?\n\n`
+    + aCreer.map(([nom, h]) => `• ${nom} (${h.exercices.length} exercice(s), ${formatDateDisplay(h.date)})`).join('\n')
+    + `\n\nSéries, répétitions et repos par défaut (90 s) sont repris de cette séance-là ; modifiable ensuite comme n'importe quel programme.`;
+  if (!confirm(resume)) return;
+  aCreer.forEach(([nom, h]) => {
+    musculationProgrammes.push({
+      id: idUnique('prog'), nom, creeLe: Date.now(), maj: Date.now(),
+      exercices: h.exercices.map(e => {
+        const derniereSerie = e.series[e.series.length - 1];
+        return {
+          exerciceId: e.exerciceId, series: e.series.length || 3,
+          reps: String((derniereSerie && derniereSerie.reps) || 10), repos: 90,
+          technique: e.technique || 'normale', supersetSuivant: !!e.supersetSuivant
+        };
+      })
+    });
+  });
+  sauvegarderProgrammes();
+  if (ecranActif === 'seance') renderSeance();
+  alert(`${aCreer.length} programme(s) créé(s) à partir de ton historique.`);
 }
 
 function chargerMuscu() {
