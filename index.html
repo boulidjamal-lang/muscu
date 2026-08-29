@@ -1630,10 +1630,9 @@
       <button class="puce-sync hidden" id="puce-sync" data-etat="attente" onclick="ouvrirModal('sync-info-modal')" title="État de la synchronisation">
         <span class="pastille" aria-hidden="true"></span><span id="puce-sync-txt">—</span>
       </button>
-      <!-- Le bouton « Mon compte » vivait ici. Il est desormais dans les
-           Reglages : l'en-tete etait charge de quatre boutons sur un ecran
-           etroit, et le compte ne se consulte pas plusieurs fois par jour. -->
-      <button class="btn-icone" id="btn-theme" onclick="basculerTheme()" aria-label="Changer de thème" title="Thème">🌗</button>
+      <!-- Le bouton « Mon compte » vivait ici, puis un bouton de bascule de
+           thème (🌗) : tous deux retirés, direction Réglages pour ce
+           qu'on ne touche pas plusieurs fois par jour. -->
       <button class="btn-icone" onclick="ouvrirModal('settings-modal')" aria-label="Profil et réglages" title="Profil">⚙️</button>
     </div>
   </div>
@@ -1778,6 +1777,13 @@
     <div class="fitness-card">
       <p class="note" style="margin:0 0 12px;">Parcours la base d'exercices (<span id="nb-exercices-total">—</span>), filtrée par groupe musculaire et par matériel.</p>
       <button class="btn btn-secondaire" style="width:100%;" onclick="ouvrirBibliotheque()">🔍 Parcourir les exercices</button>
+    </div>
+
+    <div class="titre-section">📥 Importer un historique</div>
+    <div class="fitness-card">
+      <p class="note" style="margin:0 0 12px;">Déjà des séances enregistrées dans Strong ? Importe-les ici (Strong → Réglages → Exporter les données → CSV) : les exercices reconnus rejoignent la base existante, les autres deviennent des exercices personnalisés.</p>
+      <input type="file" id="import-strong-input" accept=".csv,text/csv" class="hidden" onchange="importerStrongCSV(this.files[0])">
+      <button class="btn btn-secondaire" style="width:100%;" onclick="document.getElementById('import-strong-input').click()">📥 Importer depuis Strong (CSV)</button>
     </div>
 
     <p class="note" style="margin:4px 2px 0;">📊 Les statistiques de musculation (progression, records, historique…) sont dans l'onglet <a href="#" onclick="event.preventDefault(); allerA('stats');" style="color:var(--accent);">Statistiques</a>.</p>
@@ -5221,13 +5227,6 @@ function appliquerTheme(t) {
   try { localStorage.setItem('elite_theme', t); } catch (e) {}
   forcerRepeintureVerre();
 
-  const b = document.getElementById('btn-theme');
-  if (b) {
-    // L'icone annonce ce que fera l'appui, pas l'etat courant.
-    b.textContent = t === 'dark' ? '☀️' : '🌙';
-    b.title = t === 'dark' ? 'Passer en clair' : 'Passer en sombre';
-    b.setAttribute('aria-label', b.title);
-  }
   // La couleur de la barre du navigateur suivait le systeme via une media
   // query CSS sur la balise <meta> ; elle suit maintenant ce même choix
   // explicite, pour ne plus jamais désynchroniser barre et contenu.
@@ -5238,11 +5237,10 @@ function appliquerTheme(t) {
   // theme toutes seules, il faut les redessiner.
   if (ecranActif === 'stats') { mettreAJourStats(); renderStatsMuscu(); }
 }
+// Plus de bouton dans l'en-tete (retiré) : seul le choix explicite dans les
+// réglages (choisirTheme, via le segment Clair/Sombre) appelle encore
+// appliquerTheme().
 function choisirTheme(t) { appliquerTheme(t); }
-
-function basculerTheme() {
-  appliquerTheme(themeActuel() === 'dark' ? 'light' : 'dark');
-}
 function choisirDensite(d) {
   document.documentElement.setAttribute('data-densite', d);
   try { localStorage.setItem('elite_densite', d); } catch (e) {}
@@ -7634,10 +7632,15 @@ const MUSCU_SESSION_KEY = 'elite_musculation_session_active_v1';
 const GROUPES_MUSCULAIRES = {
   pectoraux: 'Pectoraux', dos: 'Dos', epaules: 'Épaules', biceps: 'Biceps', triceps: 'Triceps',
   quadriceps: 'Quadriceps', ischios: 'Ischio-jambiers', fessiers: 'Fessiers', adducteurs: 'Adducteurs', mollets: 'Mollets',
-  abdos: 'Abdominaux', lombaires: 'Lombaires', avant_bras: 'Avant-bras', trapezes: 'Trapèzes', cardio: 'Cardio'
+  abdos: 'Abdominaux', lombaires: 'Lombaires', avant_bras: 'Avant-bras', trapezes: 'Trapèzes', cardio: 'Cardio',
+  // Filet de sécurité pour un exercice personnalisé dont le groupe n'a pas
+  // été deviné avec assez de certitude (import CSV, notamment) : mieux
+  // vaut l'admettre franchement que de forcer un classement probablement
+  // faux. Modifiable ensuite comme n'importe quel exercice personnalisé.
+  autres: 'Autres'
 };
 const ORDRE_GROUPES = ['pectoraux', 'dos', 'epaules', 'biceps', 'triceps', 'quadriceps', 'ischios',
-  'fessiers', 'adducteurs', 'mollets', 'abdos', 'lombaires', 'avant_bras', 'trapezes', 'cardio'];
+  'fessiers', 'adducteurs', 'mollets', 'abdos', 'lombaires', 'avant_bras', 'trapezes', 'cardio', 'autres'];
 
 const MATERIELS = {
   barre: { label: 'Barre', ic: '🏋️' },
@@ -7957,6 +7960,299 @@ function trouverExercice(id) { return toutesLesExercices().find(e => e.id === id
 function libelleExercice(exo) {
   if (!exo) return 'Exercice';
   return exo.nomEn ? exo.nom + ' (' + exo.nomEn + ')' : exo.nom;
+}
+
+/* =====================================================================
+   IMPORT D'HISTORIQUE DEPUIS STRONG (CSV)
+   Reconstruit des séances complètes (avec leurs séries) à partir d'un
+   export CSV de l'appli Strong (Strong → Réglages → Exporter les
+   données). Les exercices sont rapprochés au mieux de la base existante
+   (nom + matériel) ; ceux qui restent inconnus deviennent des exercices
+   personnalisés plutôt que d'être perdus ou mal classés en silence.
+   ===================================================================== */
+
+// Analyse CSV minimaliste mais correcte : gère les champs entre guillemets
+// (avec virgules et guillemets échappés "" à l'intérieur), qu'un simple
+// split(',') casserait sur un nom d'entraînement comme "Push, Pull".
+function parserLigneCSV(ligne) {
+  const champs = [];
+  let cur = '', dansGuillemets = false;
+  for (let i = 0; i < ligne.length; i++) {
+    const c = ligne[i];
+    if (dansGuillemets) {
+      if (c === '"') { if (ligne[i + 1] === '"') { cur += '"'; i++; } else dansGuillemets = false; }
+      else cur += c;
+    } else {
+      if (c === '"') dansGuillemets = true;
+      else if (c === ',') { champs.push(cur); cur = ''; }
+      else cur += c;
+    }
+  }
+  champs.push(cur);
+  return champs;
+}
+function parserCSV(texte) {
+  const lignes = texte.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').filter(l => l.length);
+  if (!lignes.length) return [];
+  const entetes = parserLigneCSV(lignes[0]).map(h => h.trim());
+  return lignes.slice(1).map(l => {
+    const vals = parserLigneCSV(l);
+    const obj = {};
+    entetes.forEach((h, i) => { obj[h] = (vals[i] || '').trim(); });
+    return obj;
+  });
+}
+
+// Colonnes attendues, en français (export natif de l'appli) ou en anglais
+// (téléphone réglé en anglais) : on prend la première correspondance trouvée.
+const COLONNES_STRONG = {
+  date: ['Date'],
+  seance: ["Nom de l'entraînement", 'Workout Name'],
+  duree: ['Durée', 'Duration'],
+  exercice: ["Nom de l'exercice", 'Exercise Name'],
+  poids: ['Poids', 'Weight'],
+  reps: ['Réps', 'Reps'],
+  notesEntrainement: ["Notes d'entraînement", 'Workout Notes']
+};
+function colonneStrong(ligne, cle) {
+  for (const nom of COLONNES_STRONG[cle]) { if (nom in ligne) return ligne[nom]; }
+  return '';
+}
+function parserDureeStrong(txt) {
+  const h = /(\d+)\s*h/.exec(txt || '');
+  const m = /(\d+)\s*min/.exec(txt || '');
+  return (h ? parseInt(h[1], 10) * 60 : 0) + (m ? parseInt(m[1], 10) : 0);
+}
+
+/* Regroupe les lignes CSV (une ligne = une série) en séances, puis en
+   blocs d'exercices. Volontairement PAS de regroupement global par nom
+   d'exercice : si le même exercice réapparaît plus tard, non-consécutif,
+   dans la même séance (constaté dans de vrais exports Strong), c'est
+   qu'il a été refait comme un bloc à part — on le garde en deux entrées
+   plutôt que de mélanger leurs séries dans le désordre. */
+function regrouperStrongEnSeances(lignes) {
+  const sessionsParDate = new Map();
+  const ordre = [];
+  lignes.forEach(ligne => {
+    const dateBrute = colonneStrong(ligne, 'date');
+    if (!dateBrute) return;
+    let session = sessionsParDate.get(dateBrute);
+    if (!session) {
+      session = { dateBrute, nom: colonneStrong(ligne, 'seance') || 'Séance importée', dureeTexte: colonneStrong(ligne, 'duree'), notes: '', blocs: [] };
+      sessionsParDate.set(dateBrute, session);
+      ordre.push(session);
+    }
+    if (!session.notes) session.notes = colonneStrong(ligne, 'notesEntrainement');
+    const nomExercice = colonneStrong(ligne, 'exercice');
+    if (!nomExercice) return;
+    const dernierBloc = session.blocs[session.blocs.length - 1];
+    const bloc = (dernierBloc && dernierBloc.nomExercice === nomExercice)
+      ? dernierBloc
+      : (session.blocs.push({ nomExercice, sets: [] }), session.blocs[session.blocs.length - 1]);
+    bloc.sets.push({ poids: parseFloat(colonneStrong(ligne, 'poids')) || 0, reps: parseFloat(colonneStrong(ligne, 'reps')) || 0 });
+  });
+  return ordre;
+}
+
+/* --- Rapprochement d'un nom d'exercice Strong avec la base existante ---
+   Les deux applis ne partagent pas exactement le même vocabulaire
+   ("Bench Press (Dumbbell)" côté Strong vs nomEn "Dumbbell Bench Press"
+   ici, équipement en préfixe plutôt qu'en suffixe) : on compare donc par
+   recoupement de mots significatifs plutôt que par égalité stricte, et le
+   matériel entre parenthèses (ou détecté dans le nom) prime pour ne pas
+   confondre par exemple un curl à la poulie avec un curl à la barre juste
+   parce que le mot "curl" seul suffit à dépasser le seuil de score. */
+function normaliserTexteExercice(s) { return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase(); }
+const SEPARATION_MOTS_COLLES_STRONG = { skullcrusher: 'skull crusher' };
+function decouperMotsStrong(s) {
+  let t = normaliserTexteExercice(s);
+  Object.keys(SEPARATION_MOTS_COLLES_STRONG).forEach(k => { t = t.split(k).join(SEPARATION_MOTS_COLLES_STRONG[k]); });
+  return t.replace(/[^a-z0-9]+/g, ' ').trim().split(/\s+/).filter(Boolean);
+}
+const MOTS_MATERIEL_STRONG = new Set(['barbell', 'dumbbell', 'cable', 'machine', 'smith', 'bodyweight', 'kettlebell', 'band', 'banded', 'plate', 'assisted', 'weighted', 'ez', 'bar']);
+const MOTS_FILLER_STRONG = new Set(['bicep', 'biceps', 'tricep', 'triceps']); // jamais discriminants dans notre base
+const SYNONYMES_MOTS_STRONG = { flye: 'fly' };
+function motsSignificatifsStrong(s) {
+  return decouperMotsStrong(s).map(w => SYNONYMES_MOTS_STRONG[w] || w).filter(w => !MOTS_MATERIEL_STRONG.has(w) && !MOTS_FILLER_STRONG.has(w));
+}
+function scoreChevauchementMots(a, b) {
+  const A = new Set(a), B = new Set(b);
+  let inter = 0; A.forEach(w => { if (B.has(w)) inter++; });
+  const union = new Set([...A, ...B]).size;
+  return union ? inter / union : 0;
+}
+const EQUIP_STRONG_VERS_MATERIEL = {
+  barbell: 'barre', dumbbell: 'haltere', cable: 'poulie', machine: 'machine',
+  'smith machine': 'machine', bodyweight: 'poids_corps', kettlebell: 'kettlebell',
+  band: 'elastique', plate: 'autre', assisted: 'autre', weighted: 'poids_corps'
+};
+function devinerMaterielDepuisNomStrong(nomComplet) {
+  const t = decouperMotsStrong(nomComplet);
+  if (t.includes('barbell')) return 'barre';
+  if (t.includes('dumbbell')) return 'haltere';
+  if (t.includes('cable') || t.includes('pulldown') || t.includes('pulley')) return 'poulie';
+  if (t.includes('machine') || t.includes('smith')) return 'machine';
+  if (t.includes('kettlebell')) return 'kettlebell';
+  if (t.includes('band') || t.includes('banded')) return 'elastique';
+  return null;
+}
+function construireIndexExercicesBase() {
+  return EXERCICES_BASE.map(exo => ({ exo, mots: motsSignificatifsStrong(exo.nomEn) }));
+}
+function matcherExerciceStrong(nomStrong, indexBase) {
+  const m = /^(.*?)(?:\s*\(([^)]+)\))?\s*$/.exec(nomStrong);
+  const nomBase = (m[1] || nomStrong).trim();
+  const tagEquip = (m[2] || '').trim().toLowerCase();
+  const materielAttendu = EQUIP_STRONG_VERS_MATERIEL[tagEquip] || devinerMaterielDepuisNomStrong(nomStrong);
+  const motsCherches = motsSignificatifsStrong(nomBase);
+  function meilleur(liste) {
+    let meilleurExo = null, meilleurScore = 0, meilleurNbMots = Infinity;
+    liste.forEach(entree => {
+      const sc = scoreChevauchementMots(motsCherches, entree.mots);
+      if (sc > meilleurScore || (sc === meilleurScore && entree.mots.length < meilleurNbMots)) {
+        meilleurScore = sc; meilleurExo = entree.exo; meilleurNbMots = entree.mots.length;
+      }
+    });
+    return { exo: meilleurExo, score: meilleurScore };
+  }
+  if (materielAttendu) {
+    const r = meilleur(indexBase.filter(e => e.exo.materiel === materielAttendu));
+    if (r.score >= 0.5) return { exo: r.exo, materielAttendu };
+  }
+  const r2 = meilleur(indexBase);
+  if (r2.score >= 0.6) return { exo: r2.exo, materielAttendu };
+  return { exo: null, materielAttendu };
+}
+/* Devine un groupe musculaire plausible pour un exercice non reconnu, à
+   partir de mots-clés courants (français et anglais) — loin d'être
+   infaillible, mais nettement mieux qu'un classement au hasard ; le
+   groupe reste modifiable ensuite comme pour tout exercice personnalisé. */
+function devinerGroupeDepuisNom(nom) {
+  const t = ' ' + normaliserTexteExercice(nom) + ' ';
+  const test = (mots) => mots.some(m => t.includes(' ' + m) || t.includes(m + ' '));
+  if (test(['pec', 'peck', 'chest', 'pectoraux', 'bench', 'fly', 'flye', 'crossover', 'ecarte'])) return 'pectoraux';
+  if (test(['lat', 'pulldown', 'row', 'rowing', 'pull', 'dos', 'back', 'retropul', 'tirage'])) return 'dos';
+  if (test(['shoulder', 'delt', 'epaule', 'raise', 'militaire', 'overhead'])) return 'epaules';
+  if (test(['trap', 'shrug', 'haussement'])) return 'trapezes';
+  if (test(['curl']) && !test(['leg', 'jambe', 'hamstring', 'ischio'])) return 'biceps';
+  if (test(['tricep', 'pushdown', 'skull', 'crusher', 'kickback', 'dip'])) return 'triceps';
+  if (test(['squat', 'quad', 'leg extension', 'fente', 'lunge'])) return 'quadriceps';
+  if (test(['leg curl', 'hamstring', 'ischio', 'rdl'])) return 'ischios';
+  if (test(['glute', 'fessier', 'hip thrust'])) return 'fessiers';
+  if (test(['adduct'])) return 'adducteurs';
+  if (test(['calf', 'mollet'])) return 'mollets';
+  if (test(['crunch', 'abdo', 'abs', 'plank', 'gainage'])) return 'abdos';
+  if (test(['hyperextension', 'lombaire', 'good morning'])) return 'lombaires';
+  if (test(['forearm', 'wrist', 'avant bras', 'poignet'])) return 'avant_bras';
+  if (test(['course', 'velo', 'rameur', 'run', 'bike', 'cardio', 'elliptique'])) return 'cardio';
+  return 'autres';
+}
+
+function lireFichierTexte(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.onerror = () => reject(r.error);
+    r.readAsText(file, 'utf-8');
+  });
+}
+/* Point d'entrée, appelé au choix d'un fichier dans le sélecteur de
+   l'onglet Séance. Tout se joue en local (aucun envoi réseau du fichier) ;
+   seul le résultat final (séances + exercices personnalisés créés) est
+   ensuite enregistré et synchronisé comme n'importe quelle séance. */
+async function importerStrongCSV(file) {
+  const inputEl = document.getElementById('import-strong-input');
+  if (!file) return;
+  let texte;
+  try { texte = await lireFichierTexte(file); }
+  catch (e) { alert("Impossible de lire ce fichier."); if (inputEl) inputEl.value = ''; return; }
+
+  const lignes = parserCSV(texte);
+  if (inputEl) inputEl.value = '';
+  if (!lignes.length) { alert("Fichier vide ou illisible : vérifie qu'il s'agit bien d'un export CSV de Strong."); return; }
+
+  const sessions = regrouperStrongEnSeances(lignes);
+  if (!sessions.length) { alert("Aucune séance reconnue dans ce fichier."); return; }
+
+  const indexBase = construireIndexExercicesBase();
+  // Un seul rapprochement par nom Strong, même s'il apparaît dans 50 séances.
+  const cacheExercices = new Map();
+  let nbCrees = 0;
+  function resoudreExercice(nomStrong) {
+    if (cacheExercices.has(nomStrong)) return cacheExercices.get(nomStrong);
+    const dejaPerso = musculationExosPerso.find(e => e.nom.trim().toLowerCase() === nomStrong.trim().toLowerCase());
+    if (dejaPerso) { cacheExercices.set(nomStrong, dejaPerso); return dejaPerso; }
+    const { exo, materielAttendu } = matcherExerciceStrong(nomStrong, indexBase);
+    if (exo) { cacheExercices.set(nomStrong, exo); return exo; }
+    const nouveau = {
+      id: idUnique('perso'), nom: nomStrong.trim(),
+      groupe: devinerGroupeDepuisNom(nomStrong),
+      secondaires: [], materiel: materielAttendu || 'autre',
+      perso: true, maj: Date.now()
+    };
+    musculationExosPerso.push(nouveau);
+    cacheExercices.set(nomStrong, nouveau);
+    nbCrees++;
+    return nouveau;
+  }
+
+  const debutsExistants = new Set(musculationHistorique.map(h => h.debut));
+  const nouvellesEntrees = [];
+  let ignorees = 0;
+  sessions.forEach(s => {
+    const debut = Date.parse(s.dateBrute.replace(' ', 'T'));
+    if (!debut || isNaN(debut)) return;
+    if (debutsExistants.has(debut)) { ignorees++; return; }
+    const exercices = s.blocs.map(b => {
+      const exo = resoudreExercice(b.nomExercice);
+      return {
+        exerciceId: exo.id, nom: exo.nom,
+        series: b.sets.map(st => ({ poids: st.poids, reps: st.reps, fait: true })),
+        technique: 'normale', supersetSuivant: false
+      };
+    });
+    if (!exercices.length) return;
+    // Durées aberrantes (séance jamais "terminée" dans Strong, parfois
+    // close plusieurs jours plus tard) : constaté dans de vrais exports —
+    // on retombe alors sur une estimation à partir du nombre de séries
+    // plutôt que d'importer une séance de 190 heures.
+    let dureeMin = parserDureeStrong(s.dureeTexte);
+    const nbSeries = exercices.reduce((n, e) => n + e.series.length, 0);
+    if (!dureeMin || dureeMin > 300) dureeMin = Math.max(20, Math.min(180, Math.round(nbSeries * 2.5)));
+    const fin = debut + dureeMin * 60000;
+    nouvellesEntrees.push({
+      id: idUnique('hist'), programmeId: null, programmeNom: s.nom || 'Séance importée',
+      date: dateEnChaine(new Date(debut)),
+      debut, fin, dureeMin, notes: s.notes || '', maj: Date.now(),
+      exercices
+    });
+  });
+
+  if (!nouvellesEntrees.length) {
+    alert(ignorees
+      ? `Rien à importer : les ${ignorees} séance(s) de ce fichier sont déjà dans ton historique.`
+      : 'Aucune séance exploitable dans ce fichier.');
+    if (nbCrees) musculationExosPerso.length -= nbCrees; // annule les perso créés en pure perte
+    return;
+  }
+
+  const dates = nouvellesEntrees.map(e => e.date).sort();
+  const resume = `Importer ${nouvellesEntrees.length} séance(s) (${formatDateDisplay(dates[0])} → ${formatDateDisplay(dates[dates.length - 1])}) ?\n\n`
+    + `${nbCrees} exercice(s) non reconnu(s) seront créés comme exercices personnalisés (groupe musculaire deviné automatiquement — vérifie-le ensuite, notamment pour ceux classés en « Autres »).\n`
+    + (ignorees ? `${ignorees} séance(s) déjà présentes dans ton historique seront ignorées.\n` : '')
+    + `\nLes poids sont importés tels quels, en kilogrammes : vérifie que c'était bien l'unité utilisée dans Strong avant de confirmer.`;
+  if (!confirm(resume)) {
+    if (nbCrees) musculationExosPerso.length -= nbCrees;
+    return;
+  }
+
+  musculationHistorique.push(...nouvellesEntrees);
+  musculationHistorique.sort((a, b) => b.debut - a.debut);
+  sauvegarderHistorique();
+  sauvegarderExosPerso();
+  if (ecranActif === 'seance') renderSeance();
+  if (ecranActif === 'stats') renderStatsMuscu();
+  alert(`${nouvellesEntrees.length} séance(s) importée(s) avec succès.`);
 }
 
 function chargerMuscu() {
