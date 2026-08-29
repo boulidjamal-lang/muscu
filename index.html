@@ -6797,7 +6797,17 @@ function majUIWithings() {
 
 /* Étape 1 : redirige vers la page de connexion Withings. L'utilisateur revient
    ensuite sur cette même URL avec un ?code=... dans l'adresse (voir plus bas,
-   au chargement de la page). */
+   au chargement de la page).
+   Naviguer directement (location.href) vers account.withings.com se fait
+   parfois intercepter par le système (liens universels iOS/Android) : le
+   téléphone ouvre l'appli Withings installée à la place du navigateur, et
+   une fois dedans il n'y a plus de chemin de retour vers Mon Coach — surtout
+   quand Mon Coach tourne en appli installée (écran d'accueil), un contexte
+   à part que l'appli Withings ne sait pas rouvrir après coup.
+   window.open dans un nouvel onglet évite l'interception dans certains cas
+   (pas garanti à 100%, c'est un comportement du système, pas du navigateur) ;
+   si le popup est bloqué (fenêtre ouverte hors d'un vrai clic), on retombe
+   sur l'ancien comportement plutôt que de ne rien faire du tout. */
 function connexionWithings() {
   /* Sans proxy, le retour ne pourra pas être échangé contre un jeton :
      autant le dire ici plutôt que de renvoyer l'utilisateur chez Withings
@@ -6813,7 +6823,9 @@ function connexionWithings() {
     scope: 'user.metrics',
     redirect_uri: WITHINGS_REDIRECT_URI
   });
-  window.location.href = 'https://account.withings.com/oauth2_user/authorize2?' + params.toString();
+  const url = 'https://account.withings.com/oauth2_user/authorize2?' + params.toString();
+  const nouvelOnglet = window.open(url, '_blank');
+  if (!nouvelOnglet) window.location.href = url;
 }
 
 /* Étape 2 : appelée automatiquement au chargement si l'URL contient un code
