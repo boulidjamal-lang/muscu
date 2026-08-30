@@ -7849,40 +7849,54 @@ returns text language sql security definer set search_path = public as $$
 $$;
 grant execute on function public.mon_statut_compte() to authenticated;
 
+-- Un jeton de connexion déjà émis avant un "Effacer définitivement" reste
+-- valable jusqu'à son expiration naturelle (Supabase ne peut pas révoquer
+-- un jeton déjà distribué) : sans cette vérification, un appareil resté
+-- connecté pouvait continuer à écrire — recréant en douce un compte que
+-- l'admin venait pourtant d'effacer (un "compte fantôme", sans email car
+-- déjà absent de auth.users). Utilisée dans les policies ci-dessous, elle
+-- confirme que le compte existe encore réellement avant d'autoriser quoi
+-- que ce soit.
+create or replace function public.mon_compte_existe()
+returns boolean language sql security definer set search_path = public as $$
+  select exists(select 1 from auth.users where id = auth.uid());
+$$;
+grant execute on function public.mon_compte_existe() to authenticated;
+
 drop policy if exists "acces journees" on journees;
 drop policy if exists "journees par compte" on journees;
 create policy "journees par compte" on journees
   for all
-  using ((utilisateur = auth.uid()::text and not est_bloque(utilisateur)) or auth.jwt() ->> 'email' = 'jambou592@gmail.com')
-  with check ((utilisateur = auth.uid()::text and not est_bloque(utilisateur)) or auth.jwt() ->> 'email' = 'jambou592@gmail.com');
+  using ((utilisateur = auth.uid()::text and not est_bloque(utilisateur) and mon_compte_existe()) or auth.jwt() ->> 'email' = 'jambou592@gmail.com')
+  with check ((utilisateur = auth.uid()::text and not est_bloque(utilisateur) and mon_compte_existe()) or auth.jwt() ->> 'email' = 'jambou592@gmail.com');
 
 drop policy if exists "acces profil" on profil;
 drop policy if exists "profil par compte" on profil;
 create policy "profil par compte" on profil
   for all
-  using ((utilisateur = auth.uid()::text and not est_bloque(utilisateur)) or auth.jwt() ->> 'email' = 'jambou592@gmail.com')
-  with check ((utilisateur = auth.uid()::text and not est_bloque(utilisateur)) or auth.jwt() ->> 'email' = 'jambou592@gmail.com');
+  using ((utilisateur = auth.uid()::text and not est_bloque(utilisateur) and mon_compte_existe()) or auth.jwt() ->> 'email' = 'jambou592@gmail.com')
+  with check ((utilisateur = auth.uid()::text and not est_bloque(utilisateur) and mon_compte_existe()) or auth.jwt() ->> 'email' = 'jambou592@gmail.com');
 
 drop policy if exists "acces programmes_musculation" on programmes_musculation;
 drop policy if exists "programmes_musculation par compte" on programmes_musculation;
 create policy "programmes_musculation par compte" on programmes_musculation
   for all
-  using ((utilisateur = auth.uid()::text and not est_bloque(utilisateur)) or auth.jwt() ->> 'email' = 'jambou592@gmail.com')
-  with check ((utilisateur = auth.uid()::text and not est_bloque(utilisateur)) or auth.jwt() ->> 'email' = 'jambou592@gmail.com');
+  using ((utilisateur = auth.uid()::text and not est_bloque(utilisateur) and mon_compte_existe()) or auth.jwt() ->> 'email' = 'jambou592@gmail.com')
+  with check ((utilisateur = auth.uid()::text and not est_bloque(utilisateur) and mon_compte_existe()) or auth.jwt() ->> 'email' = 'jambou592@gmail.com');
 
 drop policy if exists "acces seances_musculation" on seances_musculation;
 drop policy if exists "seances_musculation par compte" on seances_musculation;
 create policy "seances_musculation par compte" on seances_musculation
   for all
-  using ((utilisateur = auth.uid()::text and not est_bloque(utilisateur)) or auth.jwt() ->> 'email' = 'jambou592@gmail.com')
-  with check ((utilisateur = auth.uid()::text and not est_bloque(utilisateur)) or auth.jwt() ->> 'email' = 'jambou592@gmail.com');
+  using ((utilisateur = auth.uid()::text and not est_bloque(utilisateur) and mon_compte_existe()) or auth.jwt() ->> 'email' = 'jambou592@gmail.com')
+  with check ((utilisateur = auth.uid()::text and not est_bloque(utilisateur) and mon_compte_existe()) or auth.jwt() ->> 'email' = 'jambou592@gmail.com');
 
 drop policy if exists "acces exercices_perso_musculation" on exercices_perso_musculation;
 drop policy if exists "exercices_perso_musculation par compte" on exercices_perso_musculation;
 create policy "exercices_perso_musculation par compte" on exercices_perso_musculation
   for all
-  using ((utilisateur = auth.uid()::text and not est_bloque(utilisateur)) or auth.jwt() ->> 'email' = 'jambou592@gmail.com')
-  with check ((utilisateur = auth.uid()::text and not est_bloque(utilisateur)) or auth.jwt() ->> 'email' = 'jambou592@gmail.com');
+  using ((utilisateur = auth.uid()::text and not est_bloque(utilisateur) and mon_compte_existe()) or auth.jwt() ->> 'email' = 'jambou592@gmail.com')
+  with check ((utilisateur = auth.uid()::text and not est_bloque(utilisateur) and mon_compte_existe()) or auth.jwt() ->> 'email' = 'jambou592@gmail.com');
 
 -- Important : ces policies exigent d'être connecté (auth.uid() non nul).
 -- Si l'un de vous continue à utiliser l'identifiant libre sans jamais se
