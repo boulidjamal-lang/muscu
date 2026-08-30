@@ -841,6 +841,9 @@
     /* Ouverte depuis la feuille « Aliments partagés » (z-index 1100), cette
        modale doit se poser par-dessus, pas derrière. */
     #modal-edit-aliment { z-index: 1200; }
+    /* Ouverte depuis #compte-modal (z-index 1000 par défaut), doit se poser
+       par-dessus, pas derrière. */
+    #modal-creer-compte { z-index: 1100; }
     .feuille-contenu {
       width: 100%; max-width: 560px; max-height: min(85dvh, 85vh);
       background: var(--verre-fort);
@@ -2414,6 +2417,21 @@
     <div style="display:flex; gap:10px;">
       <button class="btn btn-secondaire" type="button" style="flex:1;" onclick="annulerMotif()">Annuler</button>
       <button class="btn btn-primary" type="button" style="flex:1;" onclick="validerMotif()">Confirmer</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODALE : confirmation de création de compte ============ -->
+<div class="modal" id="modal-creer-compte" role="dialog" aria-modal="true" aria-labelledby="titre-creer-compte">
+  <div class="modal-content">
+    <div class="modal-entete">
+      <h3 id="titre-creer-compte">Utilisateur inconnu</h3>
+      <button class="close-modal" type="button" onclick="annulerCreationCompte()" aria-label="Fermer">&times;</button>
+    </div>
+    <p class="note" id="creer-compte-texte">&mdash;</p>
+    <div style="display:flex; gap:10px;">
+      <button class="btn btn-secondaire" type="button" style="flex:1;" onclick="annulerCreationCompte()">Annuler</button>
+      <button class="btn btn-primary" type="button" style="flex:1;" onclick="validerCreationCompte()">Créer le compte</button>
     </div>
   </div>
 </div>
@@ -5902,7 +5920,7 @@ async function connexionOuCreerCompte() {
     if (!/invalid login credentials/i.test(error.message || '')) throw error;
   } catch (e) { if (note) note.textContent = messageAuth(e); return; }
 
-  if (!confirm(`Utilisateur inconnu\n\nAucun compte n'est associé à cette adresse email.\n\nSouhaitez-vous créer un compte avec cette adresse et ce mot de passe ?\n\n(Annulez si vous pensez avoir fait une erreur de saisie.)`)) {
+  if (!(await demanderCreationCompte(email))) {
     if (note) note.textContent = 'Adresse ou mot de passe incorrect.';
     return;
   }
@@ -6601,6 +6619,35 @@ function validerMotif() {
 function annulerMotif() {
   fermerModal('modal-motif');
   if (motifResolve) { motifResolve(null); motifResolve = null; }
+}
+
+/* =====================================================================
+   COMPTE — confirmation de création (remplace confirm())
+   Le confirm() natif affiche systématiquement l'origine du site
+   ("boulidjamal-lang.github.io indique"), impossible à retirer ou
+   personnaliser (protection anti-phishing intégrée au navigateur). Cette
+   fenêtre "maison", à l'apparence de l'appli, n'a pas cette limite.
+   ===================================================================== */
+let creerCompteResolve = null;
+
+function demanderCreationCompte(email) {
+  const modal = document.getElementById('modal-creer-compte');
+  const texte = document.getElementById('creer-compte-texte');
+  if (!modal) return Promise.resolve(false);
+  if (texte) texte.innerHTML = `Aucun compte n'est associé à <strong>${escapeHtml(email)}</strong>.<br><br>Souhaitez-vous créer un compte avec cette adresse et ce mot de passe ?`;
+  modal.classList.add('show');
+  majCoucheOuverte();
+  return new Promise(res => { creerCompteResolve = res; });
+}
+
+function validerCreationCompte() {
+  fermerModal('modal-creer-compte');
+  if (creerCompteResolve) { creerCompteResolve(true); creerCompteResolve = null; }
+}
+
+function annulerCreationCompte() {
+  fermerModal('modal-creer-compte');
+  if (creerCompteResolve) { creerCompteResolve(false); creerCompteResolve = null; }
 }
 
 /* =====================================================================
@@ -9939,6 +9986,10 @@ function fermerBackdropSiCible(target) {
     if (target.id === 'modal-bienvenue' && bilanForce) return false;
     if (target.id === 'barcode-modal') stopperScanner();
     if (target.id === 'fiche-exercice-modal') arreterAnimationFiche();
+    // Sans ça, un clic sur le fond laisse la promesse de
+    // demanderCreationCompte() sans réponse pour toujours : le bouton "Se
+    // connecter" resterait bloqué sur "Connexion en cours…".
+    if (target.id === 'modal-creer-compte' && creerCompteResolve) { creerCompteResolve(false); creerCompteResolve = null; }
     target.classList.remove('show');
     majCoucheOuverte();
     return true;
@@ -9986,6 +10037,7 @@ window.addEventListener('keydown', (e) => {
     if (dessus.id === 'modal-bienvenue' && bilanForce) return;
     if (dessus.id === 'barcode-modal') stopperScanner();
     if (dessus.id === 'fiche-exercice-modal') arreterAnimationFiche();
+    if (dessus.id === 'modal-creer-compte' && creerCompteResolve) { creerCompteResolve(false); creerCompteResolve = null; }
     dessus.classList.remove('show');
     majCoucheOuverte();
     return;
