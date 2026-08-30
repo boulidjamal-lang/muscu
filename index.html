@@ -1961,6 +1961,10 @@
         <span class="apercu-nb" id="apercu-inactifs">&mdash;</span>
         <span class="apercu-lbl">Inactifs 30j</span>
       </button>
+      <button class="apercu-case" type="button" data-filtre="supprime" onclick="filtrerParStatut('supprime')">
+        <span class="apercu-nb" id="apercu-supprimes">&mdash;</span>
+        <span class="apercu-lbl">Supprim&eacute;s</span>
+      </button>
     </div>
 
     <div class="input-group">
@@ -6398,8 +6402,11 @@ function rafraichirListeComptes() {
     if (filtreStatutAdmin === 'actif'     && c.statut) return false;
     if (filtreStatutAdmin === 'suspendu'  && c.statut !== 'suspendu') return false;
     if (filtreStatutAdmin === 'inactif'   && !estInactif(c)) return false;
-    // Les comptes supprimes sortent de la vue par defaut : ils encombrent
-    // sans jamais etre ce qu'on cherche.
+    if (filtreStatutAdmin === 'supprime'  && c.statut !== 'supprime') return false;
+    // Les comptes supprimes sortent de la vue "Tous" par defaut : ils
+    // encombrent sans jamais etre ce qu'on cherche — mais restent
+    // accessibles via la recherche ou la case "Supprimés" ci-dessus, sans
+    // quoi il devenait impossible de les retrouver pour les réactiver.
     if (filtreStatutAdmin === 'tous' && c.statut === 'supprime' && !q) return false;
     if (!q) return true;
     const nom = (c.email || String(c.utilisateur)).toLowerCase();
@@ -6445,6 +6452,7 @@ async function chargerApercuAdmin() {
     mettre('apercu-actifs', a.actifs ?? '\u2014');
     mettre('apercu-suspendus', a.suspendus ?? '\u2014');
     mettre('apercu-inactifs', a.inactifs30 ?? '\u2014');
+    mettre('apercu-supprimes', a.supprimes ?? '\u2014');
   } catch (e) {
     // Le script SQL du journal n'a peut-etre pas encore ete execute :
     // on se rabat sur un comptage local plutot que de laisser des tirets.
@@ -6454,6 +6462,7 @@ async function chargerApercuAdmin() {
     mettre('apercu-actifs', tous.filter(c => !c.statut).length);
     mettre('apercu-suspendus', tous.filter(c => c.statut === 'suspendu').length);
     mettre('apercu-inactifs', tous.filter(estInactif).length);
+    mettre('apercu-supprimes', tous.filter(c => c.statut === 'supprime').length);
   }
 }
 
