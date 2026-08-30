@@ -2571,8 +2571,8 @@
     </div>
     <p class="note" style="color:var(--danger); font-weight:700; margin-top:-4px;">Cette action est irréversible. Toutes les journées et le profil de <span id="confirm-suppr-email"></span> seront effacés pour toujours — impossible à annuler ou à rattacher ensuite.</p>
     <div class="input-group">
-      <label for="confirm-suppr-saisie">Tape l'adresse email de ce compte pour confirmer</label>
-      <input type="email" id="confirm-suppr-saisie" autocomplete="off" placeholder="adresse@exemple.com">
+      <label for="confirm-suppr-saisie">Tape l'identifiant affiché ci-dessus pour confirmer</label>
+      <input type="text" id="confirm-suppr-saisie" autocomplete="off" placeholder="adresse@exemple.com">
     </div>
     <div class="input-group">
       <label for="confirm-suppr-mdp">Ton mot de passe administrateur</label>
@@ -6094,7 +6094,12 @@ let confirmSuppressionTimer = null;
 function demarrerConfirmationSuppression(utilisateur, emailOuNom) {
   const compte = adminComptes[utilisateur] || {};
   confirmSuppressionCible = { utilisateur, email: compte.email || '' };
-  document.getElementById('confirm-suppr-email').textContent = compte.email || emailOuNom;
+  // Doit être EXACTEMENT ce que validerSuppressionDefinitive() compare
+  // ensuite (email, ou sinon l'identifiant complet) : afficher à la place
+  // le nom décoratif tronqué ("Compte bfed1931", venu de emailOuNom)
+  // rendait la confirmation impossible à taper correctement pour un compte
+  // sans email.
+  document.getElementById('confirm-suppr-email').textContent = compte.email || String(utilisateur);
   document.getElementById('confirm-suppr-saisie').value = '';
   document.getElementById('confirm-suppr-mdp').value = '';
   document.getElementById('confirm-suppr-note').textContent = compte.email ? '' : "Ce compte n'a pas d'email associé (identifiant libre) : tape-le tel qu'affiché ci-dessus à la place.";
