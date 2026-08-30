@@ -5902,7 +5902,7 @@ async function connexionOuCreerCompte() {
     if (!/invalid login credentials/i.test(error.message || '')) throw error;
   } catch (e) { if (note) note.textContent = messageAuth(e); return; }
 
-  if (!confirm(`Aucun compte connecté avec « ${email} » et ce mot de passe.\n\nCréer un compte avec cette adresse et ce mot de passe ?\n\n(Annuler si c'est juste une faute de frappe.)`)) {
+  if (!confirm(`Utilisateur inconnu\n\nAucun compte n'est associé à cette adresse email.\n\nSouhaitez-vous créer un compte avec cette adresse et ce mot de passe ?\n\n(Annulez si vous pensez avoir fait une erreur de saisie.)`)) {
     if (note) note.textContent = 'Adresse ou mot de passe incorrect.';
     return;
   }
