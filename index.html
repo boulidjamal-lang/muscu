@@ -2505,10 +2505,9 @@
       </label>
       <p class="note" id="note-compte"></p>
       <div style="display:flex; gap:10px;">
-        <button class="btn btn-primary" style="flex:1;" onclick="connexionCompte()">Se connecter</button>
-        <button class="btn btn-secondaire" style="flex:1;" onclick="inscriptionCompte()">Créer un compte</button>
+        <button class="btn btn-primary" style="flex:1;" onclick="connexionOuCreerCompte()">Se connecter</button>
       </div>
-      <p class="note" style="margin-top:12px;">La première personne crée son compte ici avec sa propre adresse ; l'autre fait pareil, sur son propre appareil, avec la sienne.</p>
+      <p class="note" style="margin-top:12px;">Première visite ? Indique l'adresse et le mot de passe de ton choix : le compte se crée automatiquement. Les fois suivantes, les mêmes identifiants te reconnectent. Un compte par personne, pour que chacun ait ses propres repas, poids et statistiques.</p>
     </div>
 
     <div id="compte-connecte" class="hidden">
@@ -5866,19 +5865,78 @@ async function connexionCompte() {
   } catch (e) { if (note) note.textContent = messageAuth(e); }
 }
 
-async function inscriptionCompte() {
+/* Bouton unique "Se connecter" de la modale de compte : tente une connexion
+   normale, et si l'adresse/mot de passe ne correspond à aucun compte
+   existant, propose de créer le compte plutôt que de se contenter d'une
+   erreur — l'ancien bouton séparé "Créer un compte" passait inaperçu, la
+   plupart des gens cliquant par réflexe sur le bouton vert même pour un
+   tout premier compte. */
+async function connexionOuCreerCompte() {
   if (!supa) { alert("Renseigne d'abord l'URL et la clé du projet Supabase (section Synchronisation) : la connexion utilise le même projet."); return; }
   const email = (document.getElementById('compte-email-input').value || '').trim();
   const mdp = document.getElementById('compte-mdp-input').value || '';
+  const seSouvenir = document.getElementById('compte-souvenir').checked;
   const note = document.getElementById('note-compte');
   if (!email || !mdp) { if (note) note.textContent = 'Renseigne une adresse et un mot de passe.'; return; }
+
+  const memoriser = () => {
+    try {
+      if (seSouvenir) localStorage.setItem(IDENTIFIANTS_LS, JSON.stringify({ email, mdp }));
+      else localStorage.removeItem(IDENTIFIANTS_LS);
+    } catch (e) {}
+  };
+
+  if (note) note.textContent = 'Connexion en cours…';
+  try {
+    const { error } = await supa.auth.signInWithPassword({ email, password: mdp });
+    if (!error) {
+      if (note) note.textContent = '';
+      memoriser();
+      document.getElementById('compte-mdp-input').value = '';
+      return;
+    }
+    // Supabase renvoie volontairement la même erreur générique ("Invalid
+    // login credentials") que l'adresse soit inconnue OU que le mot de
+    // passe soit faux, pour ne pas révéler quelles adresses ont un compte.
+    // On ne peut donc distinguer les deux cas qu'en tentant signUp() ensuite.
+    if (!/invalid login credentials/i.test(error.message || '')) throw error;
+  } catch (e) { if (note) note.textContent = messageAuth(e); return; }
+
+  if (!confirm(`Aucun compte connecté avec « ${email} » et ce mot de passe.\n\nCréer un compte avec cette adresse et ce mot de passe ?\n\n(Annuler si c'est juste une faute de frappe.)`)) {
+    if (note) note.textContent = 'Adresse ou mot de passe incorrect.';
+    return;
+  }
+
   if (note) note.textContent = 'Création du compte…';
   try {
-    const { data, error } = await supa.auth.signUp({ email, password: mdp });
+    const { data, error } = await supa.auth.signUp({
+      email, password: mdp,
+      // Sans ceci, le lien de confirmation envoyé par email renvoie vers
+      // l'URL "Site URL" configurée côté tableau de bord Supabase, qui ne
+      // pointe pas forcément vers cette appli — d'où un lien qui "ne renvoie
+      // à rien". Il faut aussi que cette URL soit dans la liste blanche
+      // "Redirect URLs" du projet Supabase (Authentication → URL
+      // Configuration), sinon Supabase l'ignore et retombe sur Site URL.
+      options: { emailRedirectTo: window.location.origin + window.location.pathname }
+    });
     if (error) throw error;
-    if (note) note.textContent = data.session
-      ? ''
-      : 'Compte créé : vérifie ta boîte mail pour confirmer ton adresse, puis connecte-toi.';
+    // data.user.identities est vide quand l'adresse a déjà un compte
+    // confirmé : signUp() ne le signale pas par une erreur explicite (même
+    // logique anti-énumération que signInWithPassword ci-dessus), c'est le
+    // seul moyen fiable de détecter ce cas après coup.
+    if (data.user && data.user.identities && data.user.identities.length === 0) {
+      if (note) note.textContent = 'Un compte existe déjà avec cette adresse : le mot de passe saisi est incorrect.';
+      return;
+    }
+    if (data.session) {
+      // Confirmation par email désactivée côté Supabase : le compte est
+      // actif immédiatement, la session est déjà valide.
+      if (note) note.textContent = '';
+      memoriser();
+      document.getElementById('compte-mdp-input').value = '';
+    } else {
+      if (note) note.textContent = 'Compte créé : vérifie ta boîte mail pour confirmer ton adresse, puis reviens te connecter avec ce même mot de passe.';
+    }
   } catch (e) { if (note) note.textContent = messageAuth(e); }
 }
 
