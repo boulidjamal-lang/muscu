@@ -3106,19 +3106,24 @@ let userProfile = { height: 175, age: 25, gender: 'm', weight: 70 };
 /* La clé Gemini est liée au COMPTE (via le profil synchronisé), pas à
    l'appareil : chacun peut avoir la sienne, avec son propre quota, et la
    retrouve automatiquement en se connectant depuis n'importe quel appareil.
-   Priorité : clé personnelle du compte connecté > ancienne clé enregistrée
-   localement sur cet appareil (rétrocompatibilité, mode sans compte) >
-   clé par défaut fournie avec l'application. */
+   Priorité : clé personnelle du compte connecté > clé par défaut fournie
+   avec l'application (actuellement vide). Le repli sur une clé enregistrée
+   localement sur l'appareil (mode sans compte) a été retiré : la connexion
+   étant désormais obligatoire, il ne servait plus qu'à contourner
+   silencieusement une clé volontairement retirée d'un compte depuis
+   Administration — un appareil ayant déjà eu une clé tapée dans ⚙️ Profil
+   continuait sinon à l'utiliser pour n'importe quel compte connecté dessus. */
 function appliquerGeminiKeyEffective() {
-  geminiKey = (userProfile.geminiKey || '').trim()
-    || localStorage.getItem(GEMINI_KEY_LS)
-    || GEMINI_CLE_DEFAUT;
+  geminiKey = (userProfile.geminiKey || '').trim() || GEMINI_CLE_DEFAUT;
   const champ = document.getElementById('gemini-key-input');
   if (champ) champ.value = userProfile.geminiKey || '';
+  // Purge une éventuelle clé laissée par cet appareil avant ce correctif :
+  // sans ça elle resterait inerte mais présente dans le navigateur.
+  try { localStorage.removeItem(GEMINI_KEY_LS); } catch (e) {}
   majNoteCleIA();
 }
 
-let geminiKey = localStorage.getItem(GEMINI_KEY_LS) || GEMINI_CLE_DEFAUT;
+let geminiKey = GEMINI_CLE_DEFAUT;
 let appData = {};
 
 /* La base d'aliments vit désormais uniquement dans Supabase.
@@ -3705,12 +3710,13 @@ function enregistrerMesures() {
 }
 
 function sauvegarderParametresGlobaux() {
-  // Enregistrée dans le profil (synchronisé par compte) : chacun retrouve
-  // sa propre clé en se connectant, sur n'importe quel appareil. On garde
-  // aussi une copie locale pour le mode sans compte / hors ligne.
+  // Enregistrée uniquement dans le profil (synchronisé par compte) : chacun
+  // retrouve sa propre clé en se connectant, sur n'importe quel appareil.
+  // Plus de copie locale à l'appareil (voir appliquerGeminiKeyEffective) :
+  // elle survivait à une déconnexion et s'appliquait à tout compte utilisé
+  // ensuite sur ce même appareil, même sans clé qui lui soit propre.
   const saisie = document.getElementById('gemini-key-input').value.trim();
   userProfile.geminiKey = saisie;
-  ecrireLocal(GEMINI_KEY_LS, saisie);
   appliquerGeminiKeyEffective();
   userProfile.gender = document.getElementById('base-gender').value;
   userProfile.age = Number(document.getElementById('base-age').value) || 25;
