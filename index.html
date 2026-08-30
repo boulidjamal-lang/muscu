@@ -2651,10 +2651,6 @@
       </div>
     </div>
 
-    <div class="bloc-verre" style="padding:15px; margin-bottom:16px;">
-      <p class="note" style="margin:0;">Le poids et l'objectif ne se règlent plus ici : renseigne le poids une fois par semaine et choisis ton objectif dans l'onglet <strong>Activité</strong> — un changement s'applique à partir d'aujourd'hui, sans jamais modifier tes journées passées.</p>
-    </div>
-
     <div class="input-group">
       <label>🎨 Thème</label>
       <div class="segment" id="segment-theme">
@@ -6056,52 +6052,35 @@ async function rattacherDonnees(ancien, nouveau, nomNouveau) {
 
 /* Suppression définitive : on ne se contente plus d'un confirm() du
    navigateur — cette action est irréversible, donc trois barrières avant
-   qu'elle ne s'exécute (voir demarrerConfirmationSuppression / 
+   qu'elle ne s'exécute (voir demarrerConfirmationSuppression /
    validerSuppressionDefinitive juste après) : un délai de 30 secondes pour
    dissuader un clic précipité, retaper l'email du compte visé pour être sûr
-   qu'on supprime le bon, et le mot de passe de l'administrateur lui-même. */
+   qu'on supprime le bon, et le mot de passe de l'administrateur lui-même.
+
+   L'effacement lui-même passe par admin_effacer_definitivement() (RPC
+   SECURITY DEFINER) plutôt que par des .delete() table par table depuis le
+   client : ceux-ci dépendaient d'une policy RLS avec le bon OR sur l'email
+   admin, qui pouvait échouer en silence (0 ligne supprimée, sans erreur) si
+   elle n'était pas exactement à jour — d'où l'impression que le bouton ne
+   faisait rien. La fonction SQL contourne les policies RLS et supprime en
+   plus le compte d'authentification lui-même (auth.users), ce que le
+   client ne peut de toute façon pas faire sans exposer une clé
+   d'administration Supabase dans le code — donc "Supprimer" (plus haut,
+   réversible) restait jusqu'ici la seule suppression qui marchait
+   vraiment ; "Effacer définitivement" ne faisait qu'essayer. */
 async function executerSuppressionDefinitive(utilisateur) {
   try {
-    // Supabase-js ne lève pas d'exception quand une policy RLS bloque une
-    // suppression : la requête « réussit » techniquement en ne supprimant
-    // rien. On vérifie donc chaque .error explicitement, puis on recompte
-    // après coup pour être sûr que les lignes ont vraiment disparu.
-    const rj = await supa.from('journees').delete().eq('utilisateur', utilisateur);
-    if (rj.error) throw new Error('journées : ' + rj.error.message);
-    const rp = await supa.from('profil').delete().eq('utilisateur', utilisateur);
-    if (rp.error) throw new Error('profil : ' + rp.error.message);
-    const rpm = await supa.from('programmes_musculation').delete().eq('utilisateur', utilisateur);
-    if (rpm.error) throw new Error('programmes de musculation : ' + rpm.error.message);
-    const rsm = await supa.from('seances_musculation').delete().eq('utilisateur', utilisateur);
-    if (rsm.error) throw new Error('séances de musculation : ' + rsm.error.message);
-    const rem = await supa.from('exercices_perso_musculation').delete().eq('utilisateur', utilisateur);
-    if (rem.error) throw new Error('exercices personnalisés : ' + rem.error.message);
+    const { error } = await supa.rpc('admin_effacer_definitivement', { p_utilisateur: utilisateur });
+    if (error) throw error;
 
-    // Panneau de réinitialisation : sans lui, un appareil qui a encore
-    // l'ancienne copie en mémoire la repousserait vers Supabase à sa
-    // prochaine synchro — dans la seconde ou dans une semaine, peu importe.
-    // Ce marqueur force cet appareil à effacer sa propre copie tout seul,
-    // quel que soit le moment où il se reconnecte (voir synchroniser()).
-    const horodatage = Date.now();
-    const { error: e4 } = await supa.from('profil').upsert(
-      [{ utilisateur, donnees: { resetLe: horodatage }, maj: horodatage }],
-      { onConflict: 'utilisateur' }
-    );
-    if (e4) throw e4;
-
-    const verif = await supa.from('journees').select('jour', { count: 'exact', head: true }).eq('utilisateur', utilisateur);
-    if ((verif.count || 0) > 0) {
-      alert(`⚠️ ${verif.count} journée(s) sont encore présentes après la suppression : la policy de sécurité bloque probablement l'écriture pour l'administrateur. Vérifie que le tout dernier script SQL a bien été exécuté (avec le OR sur ton email dans la policy "journees par compte").`);
-    } else {
-      alert("Compte supprimé. Même si l'appareil de cette personne a encore l'ancienne copie en mémoire, il l'effacera tout seul à sa prochaine connexion — plus besoin d'être synchronisé sur le timing.");
-    }
+    alert("Compte effacé : ses données ET son compte de connexion ont été supprimés. Il ne peut plus se reconnecter avec ses anciens identifiants. Même si l'appareil de cette personne a encore l'ancienne copie en mémoire, la prochaine synchronisation n'y changera rien : il n'y a plus de compte pour la recevoir.");
     await consignerAction('effacer', utilisateur,
       (adminComptes[utilisateur] && adminComptes[utilisateur].email) || String(utilisateur).slice(0, 8),
       null, null);
     document.getElementById('admin-stats-zone').classList.add('hidden');
     chargerAdmin();
   } catch (e) {
-    alert('Erreur pendant la suppression : ' + e.message);
+    alert('Erreur pendant la suppression : ' + e.message + ' — as-tu exécuté le tout dernier script SQL (avec admin_effacer_definitivement) ?');
   }
 }
 
@@ -8043,7 +8022,37 @@ begin
   end if;
 end;
 $$;
-grant execute on function public.admin_definir_cle_gemini(text, text) to authenticated;`;
+grant execute on function public.admin_definir_cle_gemini(text, text) to authenticated;
+
+-- Efface VRAIMENT un compte : ses données ET son compte d'authentification
+-- (auth.users), contrairement à "Supprimer" (admin_definir_blocage), qui ne
+-- fait que bloquer l'accès en gardant tout. Après ceci, la personne ne peut
+-- plus se reconnecter avec ses anciens identifiants, et l'adresse redevient
+-- libre pour un nouveau compte. SECURITY DEFINER : contourne les policies
+-- RLS plutôt que d'en dépendre (le bouton "Effacer définitivement" échouait
+-- silencieusement si la policy admin n'était pas exactement à jour côté
+-- client), et permet de toucher à auth.users sans jamais exposer de clé
+-- d'administration Supabase dans le code de l'application.
+create or replace function public.admin_effacer_definitivement(p_utilisateur text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if coalesce(auth.jwt() ->> 'email', '') <> 'jambou592@gmail.com' then
+    raise exception 'Accès réservé à l''administrateur';
+  end if;
+  delete from journees where utilisateur = p_utilisateur;
+  delete from programmes_musculation where utilisateur = p_utilisateur;
+  delete from seances_musculation where utilisateur = p_utilisateur;
+  delete from exercices_perso_musculation where utilisateur = p_utilisateur;
+  delete from profil where utilisateur = p_utilisateur;
+  delete from comptes_bloques where utilisateur = p_utilisateur;
+  delete from auth.users where id::text = p_utilisateur;
+end;
+$$;
+grant execute on function public.admin_effacer_definitivement(text) to authenticated;`;
 
 function sqlRls() { return SQL_RLS; }
 
