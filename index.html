@@ -2118,7 +2118,7 @@
     </button>
     <button class="feuille-action" onclick="depuisFeuille('photo')">
       <span class="ic" aria-hidden="true">📸</span>
-      <span>Photo du plat<span class="sous">Détection des aliments par l'IA</span></span>
+      <span>Photo ou description<span class="sous">Détection des aliments par l'IA, avec ou sans photo</span></span>
     </button>
     <button class="feuille-action" onclick="depuisFeuille('barcode')">
       <span class="ic" aria-hidden="true">📷</span>
@@ -2848,21 +2848,29 @@
 <div id="ai-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="titre-ai">
   <div class="modal-content">
     <div class="modal-entete">
-      <h3 id="titre-ai">📸 Analyse d'une photo</h3>
+      <h3 id="titre-ai">📸 Analyse d'un repas</h3>
       <button class="close-modal" onclick="fermerModal('ai-modal')" aria-label="Fermer">&times;</button>
     </div>
 
     <div class="input-group">
-      <label for="ai-description">Descriptif (facultatif, mais ça aide beaucoup)</label>
+      <label for="ai-description">Description du plat</label>
       <textarea id="ai-description" rows="2" placeholder="ex : poulet basquaise maison, riz basmati, un filet d'huile d'olive"
                 style="width:100%; resize:vertical; font-family:inherit;"></textarea>
       <small style="color:var(--text-muted); display:block; margin-top:6px; font-size:0.75rem;">
-        Précise ce qui n'est pas visible sur la photo : recette, cuisson, marque, matière grasse ajoutée.
+        Avec une photo, précise ce qui n'est pas visible (recette, cuisson, marque, matière grasse ajoutée).
+        Sans photo — quand tu sais ce que tu as mangé mais que tu n'as pas de photo —
+        décris le plat le plus précisément possible : ce sera la seule information dont l'IA dispose.
+        Une photo, une description, ou les deux : au moins l'un des deux est nécessaire.
       </small>
     </div>
-    <input type="file" id="ai-file-input" accept="image/*" capture="environment" onchange="analyserPhotoGemini(event)">
+    <div class="input-group">
+      <label for="ai-file-input">Photo (facultative)</label>
+      <input type="file" id="ai-file-input" accept="image/*" capture="environment" onchange="previsualiserPhoto(event)">
+    </div>
     <span class="puce-ia"></span>
     <img id="preview-image" class="hidden" alt="Aperçu du plat photographié">
+
+    <button class="btn btn-primary" style="width:100%; margin-top:12px;" onclick="analyserRepasGemini()">🧠 Analyser</button>
 
     <div id="ai-loader" class="loader hidden">🧠 Détection des aliments…</div>
     <div id="error-display" class="error-box hidden"></div>
@@ -4837,44 +4845,69 @@ function ajouterAlimentBarcode() {
 }
 
 // --- GEMINI VISION PHOTO ---
-function analyserPhotoGemini(event) {
+// Juste l'aperçu : ne lance plus l'analyse toute seule, pour laisser le
+// temps d'ajouter aussi une description avant d'appuyer sur "Analyser"
+// (ou de ne mettre aucune photo et de décrire le plat à la place).
+function previsualiserPhoto(event) {
   const file = event.target.files[0];
-  if (!file) return;
-  if (!geminiKey) { showAiError('Ajoute ta clé API Gemini dans ⚙️ Profil.'); return; }
+  const img = document.getElementById('preview-image');
+  if (!file) { img.classList.add('hidden'); img.removeAttribute('src'); return; }
   const reader = new FileReader();
-  reader.onload = async (e) => {
-    const dataUrl = e.target.result;
-    const img = document.getElementById('preview-image');
-    img.src = dataUrl; img.classList.remove('hidden');
-    document.getElementById('ai-results-container').classList.add('hidden');
-    document.getElementById('error-display').classList.add('hidden');
-    document.getElementById('ai-loader').classList.remove('hidden');
-    try {
-      const base64 = dataUrl.split(',')[1];
-      const desc = (document.getElementById('ai-description')?.value || '').trim();
-      const contexte = desc
-        ? "L'utilisateur precise : \"" + desc.replace(/"/g, "'") + "\". Tiens compte de ce descriptif en priorite sur ta seule lecture de l'image (recette, cuisson, marque, matieres grasses ajoutees). "
-        : "";
-      const prompt = contexte + "Analyse cette photo de repas. Renvoie UNIQUEMENT un tableau JSON (sans texte autour) des aliments visibles. Pour chaque aliment: {\"name\": string en français, \"grams\": number (portion estimée en g), \"kcal100\": number (kcal pour 100g), \"p100\": number, \"c100\": number, \"f100\": number}.";
-      const res = await geminiGenerate([
-        { text: prompt },
-        { inline_data: { mime_type: file.type || 'image/jpeg', data: base64 } }
-      ], 'photo');
-      const arr = parseJsonArray(res);
-      document.getElementById('ai-loader').classList.add('hidden');
-      if (!arr || !arr.length) { showAiError('Aucun aliment détecté.'); return; }
-      detectedBufferGemini = arr.map(a => ({
-        name: a.name || 'Aliment', grams: Number(a.grams) || 100,
-        kcal100: Number(a.kcal100) || 0, p100: Number(a.p100) || 0,
-        c100: Number(a.c100) || 0, f100: Number(a.f100) || 0
-      }));
-      renderDetectedRows();
-    } catch (err) {
-      document.getElementById('ai-loader').classList.add('hidden');
-      showAiError(messageIA(err));
-    }
-  };
+  reader.onload = (e) => { img.src = e.target.result; img.classList.remove('hidden'); };
   reader.readAsDataURL(file);
+}
+
+function fichierVersBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => resolve(e.target.result.split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+const PROMPT_JSON_ALIMENTS = "Renvoie UNIQUEMENT un tableau JSON (sans texte autour) des aliments. Pour chaque aliment: {\"name\": string en français, \"grams\": number (portion estimée en g), \"kcal100\": number (kcal pour 100g), \"p100\": number, \"c100\": number, \"f100\": number}.";
+
+/* Photo, description, ou les deux : les deux champs sont maintenant
+   indépendants (avant, seule une photo pouvait déclencher l'analyse — pas
+   moyen de dire à l'IA ce qu'on a mangé quand on n'a pas de photo). */
+async function analyserRepasGemini() {
+  if (!geminiKey) { showAiError('Ajoute ta clé API Gemini dans ⚙️ Profil.'); return; }
+  const file = document.getElementById('ai-file-input').files[0];
+  const desc = (document.getElementById('ai-description')?.value || '').trim();
+  if (!file && !desc) { showAiError('Ajoute une photo, une description, ou les deux.'); return; }
+
+  document.getElementById('ai-results-container').classList.add('hidden');
+  document.getElementById('error-display').classList.add('hidden');
+  document.getElementById('ai-loader').classList.remove('hidden');
+
+  try {
+    let prompt;
+    if (file && desc) {
+      prompt = "L'utilisateur precise : \"" + desc.replace(/"/g, "'") + "\". Tiens compte de ce descriptif en priorite sur ta seule lecture de l'image (recette, cuisson, marque, matieres grasses ajoutees). Analyse cette photo de repas. " + PROMPT_JSON_ALIMENTS;
+    } else if (file) {
+      prompt = "Analyse cette photo de repas. " + PROMPT_JSON_ALIMENTS;
+    } else {
+      // Pas de photo : l'IA n'a que la description pour estimer les aliments.
+      prompt = "Aucune photo n'est fournie. Voici uniquement la description par l'utilisateur de ce qu'il/elle a mangé : \"" + desc.replace(/"/g, "'") + "\". A partir de cette seule description, estime les aliments et leurs quantités probables. " + PROMPT_JSON_ALIMENTS;
+    }
+    const parts = [{ text: prompt }];
+    if (file) parts.push({ inline_data: { mime_type: file.type || 'image/jpeg', data: await fichierVersBase64(file) } });
+
+    const res = await geminiGenerate(parts, 'photo');
+    const arr = parseJsonArray(res);
+    document.getElementById('ai-loader').classList.add('hidden');
+    if (!arr || !arr.length) { showAiError('Aucun aliment détecté.'); return; }
+    detectedBufferGemini = arr.map(a => ({
+      name: a.name || 'Aliment', grams: Number(a.grams) || 100,
+      kcal100: Number(a.kcal100) || 0, p100: Number(a.p100) || 0,
+      c100: Number(a.c100) || 0, f100: Number(a.f100) || 0
+    }));
+    renderDetectedRows();
+  } catch (err) {
+    document.getElementById('ai-loader').classList.add('hidden');
+    showAiError(messageIA(err));
+  }
 }
 function renderDetectedRows() {
   document.getElementById('detected-ingredients-list').innerHTML = detectedBufferGemini.map((a, i) => `
