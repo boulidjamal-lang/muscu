@@ -3034,6 +3034,9 @@ const STORAGE_KEY = 'elite_fitness_data_v1';
 const PROFILE_KEY = 'elite_fitness_profile_v1';
 const GEMINI_KEY_LS = 'gemini_key_v43';
 const GEMINI_MODEL = 'gemini-3.5-flash';
+// À quel compte appartiennent les données actuellement en localStorage.
+// Sert à détecter un changement de personne sur un même téléphone.
+const MUSCU_COMPTE_LOCAL_LS = 'mc_compte_local';
 
 /* =====================================================================
    VALEURS PAR DÉFAUT DE L'APPLICATION
@@ -6063,6 +6066,20 @@ function initAuth() {
 function definirSessionUtilisateur(user) {
   const etaitConnecte = !!sessionUtilisateur;
   sessionUtilisateur = user ? { id: user.id, email: user.email } : null;
+
+  // Téléphone partagé entre deux comptes : si les données encore en mémoire
+  // appartiennent à quelqu'un d'autre, les garder les aurait fait remonter
+  // vers CE compte à la prochaine synchro (les deux comptes utilisent
+  // souvent les mêmes dates de journée). On repart d'un stockage vide avant
+  // même la première synchro de ce compte-ci — elle re-téléchargera ses
+  // propres données juste après.
+  if (sessionUtilisateur) {
+    let compteLocalPrecedent = null;
+    try { compteLocalPrecedent = localStorage.getItem(MUSCU_COMPTE_LOCAL_LS); } catch (e) {}
+    if (compteLocalPrecedent && compteLocalPrecedent !== sessionUtilisateur.id) viderDonneesLocales();
+    try { localStorage.setItem(MUSCU_COMPTE_LOCAL_LS, sessionUtilisateur.id); } catch (e) {}
+  }
+
   majUICompte();
   if (sessionUtilisateur) {
     // Une connexion réussie referme la gate toute seule : sans ça, la
@@ -6083,6 +6100,30 @@ function definirSessionUtilisateur(user) {
   // Le changement d'identifiant ne rejoue pas automatiquement les données
   // déjà en mémoire : on relance juste une synchro vers/depuis le bon compte.
   if (!!sessionUtilisateur !== etaitConnecte) synchroniser(sessionUtilisateur ? 'connexion' : 'deconnexion');
+}
+
+/* Efface les données de CET APPAREIL (pas le compte distant) : repas, poids,
+   séances, programmes de musculation. Utilisée à la déconnexion — une fois
+   les dernières modifications bien transférées — et à la détection d'un
+   changement de compte sur un téléphone partagé, pour qu'aucun repas ou
+   poids d'une personne ne traîne visible pour la suivante, ni ne se
+   retrouve poussé par erreur vers son compte à elle. */
+function viderDonneesLocales() {
+  appData = {};
+  userProfile = { height: 175, age: 25, gender: 'm', weight: 70 };
+  musculationProgrammes = []; musculationHistorique = []; musculationExosPerso = [];
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(PROFILE_KEY);
+    localStorage.removeItem(MUSCU_PROGRAMMES_KEY);
+    localStorage.removeItem(MUSCU_HISTORIQUE_KEY);
+    localStorage.removeItem(MUSCU_EXOS_PERSO_KEY);
+    localStorage.removeItem(MUSCU_COMPTE_LOCAL_LS);
+  } catch (e) {}
+  invaliderHistorique();
+  renderApp();
+  if (ecranActif === 'stats') prepareStats();
+  if (ecranActif === 'seance') renderSeance();
 }
 
 /* Un compte suspendu ou marqué supprimé garde des identifiants valides côté
@@ -6256,7 +6297,16 @@ async function connexionOuCreerCompte() {
 
 async function deconnexionCompte() {
   if (!supa) return;
+  // On force un dernier envoi avant de couper : sans ça, une modification
+  // faite dans les 2,5 dernières secondes (le délai de planifierSync)
+  // pourrait ne pas être encore partie vers le serveur au moment où on
+  // vide l'appareil juste après.
+  try { await synchroniser('avant-deconnexion'); } catch (e) {}
   try { await supa.auth.signOut(); } catch (e) {}
+  // Téléphone partagé entre plusieurs comptes : une fois les données bien
+  // transférées, on ne laisse plus les repas/poids de cette personne
+  // traîner sur l'appareil pour la suivante.
+  viderDonneesLocales();
 }
 
 function oublierIdentifiants() {
