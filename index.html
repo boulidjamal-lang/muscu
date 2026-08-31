@@ -4553,19 +4553,24 @@ function uniteProbable(product) {
   if (!product) return 'g';
   if (product.product_quantity_unit === 'ml') return 'ml';
   const tags = (product.categories_tags || []).join(' ').toLowerCase();
-  if (/beverage|drink|water|juice|soda|milk|beer|wine|smoothie|nectar/.test(tags)) return 'ml';
+  // Les tags OFF sont parfois uniquement en français ("fr:eaux-de-source",
+  // "en:boissons") : "water" seul ratait Volvic, dont la fiche ne porte
+  // que des catégories françaises.
+  if (/beverage|drink|water|juice|soda|milk|beer|wine|smoothie|nectar|eau|boisson/.test(tags)) return 'ml';
   const texte = [product.serving_size, product.quantity].filter(Boolean).join(' ');
   return /\d\s*(ml|cl)\b|\d\s*l\b/i.test(texte) ? 'ml' : 'g';
 }
 
 /* Les suggestions de la base CIQUAL, des aliments partagés et d'USDA n'ont
    ni catégorie ni taille de portion à interroger : seul le nom reste comme
-   indice. Liste volontairement limitée aux boissons évidentes — mieux vaut
-   rater une boisson ambiguë (elle reste en g, comme avant) que faire passer
-   un plat en ml par erreur. */
+   indice. Un mot générique (eau, jus, soda...) ne suffit pas : « Volvic »
+   ou « Evian » ne contiennent aucun de ces mots. On ajoute donc les grandes
+   marques d'eaux et de boissons vendues en France — liste volontairement
+   limitée aux cas évidents, mieux vaut rater une marque obscure que faire
+   passer un plat en ml par erreur. */
 function uniteProbableParNom(nom) {
   const t = normaliserRecherche(nom);
-  return /\b(eau|jus|soda|coca|cola|limonade|the|cafe|lait|biere|vin|smoothie|nectar|sirop|boisson|infusion|kombucha|milkshake|cidre)\b/.test(t)
+  return /\b(eau|jus|soda|coca|cola|limonade|the|cafe|lait|biere|vin|smoothie|nectar|sirop|boisson|infusion|kombucha|milkshake|cidre|volvic|evian|vittel|contrex|hepar|badoit|perrier|cristaline|vichy|quezac|orezza|salvetat|thonon|courmayeur|orangina|oasis|tropicana|schweppes|fanta|sprite|pepsi|lipton|ricqles|teisseire|yop|actimel|pellegrino|redbull|red bull)\b/.test(t)
     ? 'ml' : 'g';
 }
 
