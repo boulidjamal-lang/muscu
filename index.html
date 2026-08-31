@@ -2120,7 +2120,7 @@
       <button class="close-modal" onclick="fermerModal('macros-popup-modal')" aria-label="Fermer">&times;</button>
     </div>
     <div class="input-group" style="margin-bottom:14px;">
-      <label for="macros-popup-poids">Poids (g)</label>
+      <label for="macros-popup-poids">Poids (<span id="macros-popup-unite">g</span>)</label>
       <input type="number" id="macros-popup-poids" inputmode="numeric" min="1" max="5000" step="1"
              oninput="recalculerApercuPoids()">
     </div>
@@ -2858,7 +2858,7 @@
         <p class="note" id="barcode-source" style="margin:6px 2px 0;"></p>
       </div>
       <div class="input-group">
-        <label for="barcode-grams">Quantité (g ou ml)</label>
+        <label for="barcode-grams">Quantité (<span id="barcode-grams-unite">g ou ml</span>)</label>
         <input type="text" id="barcode-grams" value="100" inputmode="decimal">
       </div>
       <button class="btn btn-primary" onclick="ajouterAlimentBarcode()">Ajouter au repas</button>
@@ -3422,6 +3422,8 @@ function ouvrirPoidsAliment(el) {
   };
   document.getElementById('macros-popup-nom').textContent = item.name || 'Aliment';
   document.getElementById('macros-popup-poids').value = Math.round(g);
+  const lblUnite = document.getElementById('macros-popup-unite');
+  if (lblUnite) lblUnite.textContent = item.unite === 'ml' ? 'ml' : 'g';
   recalculerApercuPoids();
   ouvrirModal('macros-popup-modal');
 }
@@ -3473,7 +3475,7 @@ function renderMeals(day) {
              data-nom="${escapeHtml(it.name)}" data-kcal="${Math.round(it.kcal)}"
              data-p="${Math.round(it.p)}" data-c="${Math.round(it.c)}" data-f="${Math.round(it.f)}">
           <span class="food-name">${escapeHtml(it.name)}</span>
-          <span class="food-detail">${Math.round(it.grams)} g${it.code ? `
+          <span class="food-detail">${Math.round(it.grams)} ${it.unite === 'ml' ? 'ml' : 'g'}${it.code ? `
             <button class="chip-code" onclick="event.stopPropagation(); copierCode('${escapeHtml(String(it.code))}')"
                     title="Code-barres OpenFoodFacts — toucher pour copier">⌗ ${escapeHtml(String(it.code))}</button>` : ''}</span>
           <div class="food-macros">
@@ -3913,6 +3915,10 @@ function ouvrirBarcode(mealId) {
   activeMealId = mealId;
   document.getElementById('manual-barcode-input').value = '';
   document.getElementById('barcode-result').classList.add('hidden');
+  // Sinon l'unité détectée pour le dernier produit scanné reste affichée
+  // au scan suivant, avant même que la recherche n'ait répondu.
+  const lblUnite = document.getElementById('barcode-grams-unite');
+  if (lblUnite) lblUnite.textContent = 'g ou ml';
   ouvrirModal('barcode-modal');
   startScanner();
 }
@@ -4134,6 +4140,7 @@ function construireHistorique() {
         e.p100 = Math.round((Number(it.p) || 0) * f * 10) / 10;
         e.c100 = Math.round((Number(it.c) || 0) * f * 10) / 10;
         e.f100 = Math.round((Number(it.f) || 0) * f * 10) / 10;
+        if (it.unite) e.unite = it.unite;
         if (it.code) e.code = String(it.code);
         parCle.set(cle, e);
       });
@@ -4404,6 +4411,19 @@ async function onScanSuccess(decodedText) {
   }
 }
 
+/* OpenFoodFacts étiquette systématiquement ses nutriments "_100g" dans le
+   JSON, même pour un liquide — et son propre champ nutrition_data_per, censé
+   distinguer 100g de 100ml, vaut quasiment toujours "100g" y compris pour
+   des boissons (incohérence connue de la base). Le signal fiable est plutôt
+   la catégorie du produit : on y détecte les boissons pour proposer "ml"
+   plutôt que "g" — évite d'afficher un nombre sans savoir s'il s'agit de
+   grammes ou de millilitres. */
+function uniteProbable(product) {
+  if (product && product.product_quantity_unit === 'ml') return 'ml';
+  const tags = ((product && product.categories_tags) || []).join(' ').toLowerCase();
+  return /beverage|drink|water|juice|soda|milk|beer|wine|smoothie|nectar/.test(tags) ? 'ml' : 'g';
+}
+
 async function chercherProduitOFFParCode(code) {
   code = String(code).trim();
   let trouve = null;
@@ -4422,6 +4442,7 @@ async function chercherProduitOFFParCode(code) {
         p100: Number(n['proteins_100g']) || 0,
         c100: Number(n['carbohydrates_100g']) || 0,
         f100: Number(n['fat_100g']) || 0,
+        unite: uniteProbable(p),
         source: 'OpenFoodFacts'
       };
     }
@@ -4430,7 +4451,7 @@ async function chercherProduitOFFParCode(code) {
   // 2) Sinon, ce qu'on a déjà mangé avec ce code-barres (le plus rapide, hors ligne).
   if (!trouve) {
     const h = chercherHistoriqueParCode(code);
-    if (h) trouve = { name: h.nom, code, marque: '', kcal100: h.kcal100 || 0, p100: h.p100 || 0, c100: h.c100 || 0, f100: h.f100 || 0, source: 'ton historique' };
+    if (h) trouve = { name: h.nom, code, marque: '', kcal100: h.kcal100 || 0, p100: h.p100 || 0, c100: h.c100 || 0, f100: h.f100 || 0, unite: h.unite || 'g', source: 'ton historique' };
   }
 
   // 3) Sinon, la base perso synchronisée (utile si scanné depuis un autre appareil).
@@ -4442,6 +4463,10 @@ async function chercherProduitOFFParCode(code) {
     document.getElementById('barcode-grams').value = 100;
     const src = document.getElementById('barcode-source');
     if (src) src.textContent = trouve.source ? `Trouvé dans : ${trouve.source}` : '';
+    // Le libellé annonce l'unité détectée (boisson -> ml) au lieu de
+    // laisser deviner : la valeur saisie ensuite reste ambiguë sinon.
+    const lblUnite = document.getElementById('barcode-grams-unite');
+    if (lblUnite) lblUnite.textContent = trouve.unite === 'ml' ? 'ml' : 'g';
     document.getElementById('barcode-result').classList.remove('hidden');
     return;
   }
@@ -4526,6 +4551,7 @@ function ajouterAlimentBarcode() {
   const f = g / 100;
   addItemToMeal(activeMealId, {
     name: currentScannedFood.name, grams: g,
+    unite: currentScannedFood.unite || 'g',
     code: currentScannedFood.code || undefined,
     kcal: currentScannedFood.kcal100 * f, p: currentScannedFood.p100 * f,
     c: currentScannedFood.c100 * f, f: currentScannedFood.f100 * f
