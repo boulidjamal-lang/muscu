@@ -1692,7 +1692,7 @@
       <!-- Le bouton « Mon compte » vivait ici, puis un bouton de bascule de
            thème (🌗) : tous deux retirés, direction Réglages pour ce
            qu'on ne touche pas plusieurs fois par jour. -->
-      <button class="btn-icone" onclick="majSuggestionEau(); ouvrirModal('settings-modal')" aria-label="Profil et réglages" title="Profil">⚙️</button>
+      <button class="btn-icone" onclick="majAffichageObjectifEau(); ouvrirModal('settings-modal')" aria-label="Profil et réglages" title="Profil">⚙️</button>
     </div>
   </div>
 </header>
@@ -2515,7 +2515,7 @@
     </div>
 
     <button class="btn btn-primary" onclick="synchroniser('manuel')">🔄 Synchroniser maintenant</button>
-    <button class="btn btn-secondaire" style="margin-top:10px; width:100%;" onclick="fermerModal('sync-info-modal'); majSuggestionEau(); ouvrirModal('settings-modal');">⚙️ Réglages de synchronisation</button>
+    <button class="btn btn-secondaire" style="margin-top:10px; width:100%;" onclick="fermerModal('sync-info-modal'); majAffichageObjectifEau(); ouvrirModal('settings-modal');">⚙️ Réglages de synchronisation</button>
   </div>
 </div>
 
@@ -2768,9 +2768,9 @@
       <input type="number" id="base-height" value="175" inputmode="numeric" onchange="sauvegarderParametresGlobaux()">
     </div>
     <div class="input-group">
-      <label for="base-quota-eau">💧 Objectif d'eau bue (ml/jour)</label>
-      <input type="number" id="base-quota-eau" value="2000" step="100" inputmode="numeric" onchange="sauvegarderParametresGlobaux()">
-      <p class="note" id="suggestion-eau" style="margin:8px 0 0;"></p>
+      <label>💧 Objectif d'eau bue</label>
+      <p style="margin:0; font-weight:700;" id="affichage-objectif-eau"></p>
+      <p class="note" style="margin:6px 0 0;">Calculé automatiquement à partir de ton poids, ton âge, ton sexe et le sport du jour — rien à régler ici, visible sur l'écran Repas.</p>
     </div>
 
     <hr class="sep">
@@ -3590,14 +3590,14 @@ function majMacro(cle, valeur, cible) {
   }
 }
 
-/* Eau bue : un quota simple (userProfile.quotaEauMl, réglable dans Profil,
-   2000 ml par défaut), sans lien avec l'hydratation en % de la balance à
+/* Eau bue : comparée à un objectif calculé automatiquement (quotaEauSuggere),
+   jamais réglé à la main — sans lien avec l'hydratation en % de la balance à
    impédancemétrie (mesures corporelles) — deux choses différentes malgré le
    nom proche, d'où des identifiants distincts (eauMl / eauPct). */
 function majJaugeEau(day) {
   day = day || getDay(currentDate);
   const bu = Math.max(0, Number(day.eauMl) || 0);
-  const quota = Number(userProfile.quotaEauMl) || 2000;
+  const quota = quotaEauSuggere(currentDate);
   const texte = document.getElementById('eau-texte');
   if (texte) texte.textContent = `${bu} / ${quota} ml`;
   const jauge = document.getElementById('jauge-eau');
@@ -3623,52 +3623,53 @@ function retirerEau() {
   majJaugeEau(day);
 }
 
-/* Besoin en EAU BUE du jour — une suggestion, pas une prescription.
-   Deux composantes mesurables à partir de ce que l'appli connaît déjà :
-   - la base : ~33 ml par kg de poids (le milieu de la fourchette usuelle
-     30-35 ml/kg pour un adulte actif). L'eau contenue dans les aliments
-     couvre une autre part des besoins totaux ; cette suggestion ne porte
-     volontairement que sur ce qu'il reste à boire.
+/* Besoin en EAU BUE du jour — calculé automatiquement, jamais un réglage :
+   personne ne connaît son propre besoin en eau au ml près, donc rien à
+   régler à la main. Trois éléments que l'appli connaît déjà :
+   - le poids : ml par kg de poids corporel. La fourchette usuelle est
+     30-35 ml/kg pour un adulte actif, et elle diminue avec l'âge — la masse
+     hydrique corporelle et la capacité de concentration du rein baissent
+     toutes deux avec le temps. L'eau contenue dans les aliments couvre une
+     autre part des besoins totaux ; ce calcul ne porte volontairement que
+     sur ce qu'il reste à boire.
+   - l'âge : 35 ml/kg avant 30 ans, 33 entre 30 et 55, 30 entre 55 et 65,
+     28 après 65 ans.
+   - le sexe : à poids égal, une femme a en moyenne un peu plus de masse
+     grasse (qui retient moins d'eau que le muscle) — léger ajustement
+     (-5 %), jamais de quoi inverser l'effet du poids ou de l'âge.
    - l'effort : environ 600 ml de sueur perdus par heure d'effort modéré,
      à reconstituer en plus de la base — soit 10 ml par minute de sport
      déjà loggée ce jour-là (musculation, cardio...).
    Ce que ce calcul ne peut PAS connaître, et qui fait varier le vrai
    besoin : chaleur/climat, altitude, apport élevé en protéines, café et
    alcool (qui augmentent les pertes), grossesse/allaitement, fièvre ou
-   diarrhée. La valeur reste un point de départ à ajuster, jamais un avis
+   diarrhée. La valeur reste une estimation à l'oeil, jamais un avis
    médical. */
 function quotaEauSuggere(dateStr) {
   const ds = dateStr || currentDate;
   const poids = dernierPoidsConnu(ds);
+  const age = Number(userProfile.age) || 25;
   const day = appData[ds];
   const minutesSport = ((day && day.workouts) || []).reduce((s, w) => s + (Number(w.time) || 0), 0);
-  const base = poids * 33;
+
+  let mlParKg = 35;
+  if (age >= 65) mlParKg = 28;
+  else if (age >= 55) mlParKg = 30;
+  else if (age >= 30) mlParKg = 33;
+  if (userProfile.gender === 'f') mlParKg *= 0.95;
+
+  const base = poids * mlParKg;
   const effort = minutesSport * 10;
-  return Math.round((base + effort) / 100) * 100;
+  // Plancher à 1200 ml : même pour un poids très faible ou un âge avancé,
+  // en dessous ce n'est plus une estimation crédible.
+  return Math.max(1200, Math.round((base + effort) / 100) * 100);
 }
 
-// Affichée à l'ouverture des réglages : une suggestion posée à côté du
-// champ, jamais appliquée toute seule.
-function majSuggestionEau() {
-  const el = document.getElementById('suggestion-eau');
-  if (!el) return;
-  const suggestion = quotaEauSuggere(currentDate);
-  const actuel = Number(userProfile.quotaEauMl) || 2000;
-  if (suggestion === actuel) { el.innerHTML = ''; return; }
-  el.innerHTML = '';
-  const span = document.createElement('span');
-  span.textContent = `💡 Suggestion à ton poids et ton activité du jour : ${suggestion} ml. `;
-  const btn = document.createElement('button');
-  btn.type = 'button';
-  btn.className = 'chip-code';
-  btn.textContent = 'Utiliser cette valeur';
-  btn.addEventListener('click', () => {
-    document.getElementById('base-quota-eau').value = suggestion;
-    sauvegarderParametresGlobaux();
-    majSuggestionEau();
-  });
-  el.appendChild(span);
-  el.appendChild(btn);
+// Affiche en Réglages la valeur du jour, purement informative : ce n'est
+// plus un champ éditable, rien à confirmer ni à appliquer.
+function majAffichageObjectifEau() {
+  const el = document.getElementById('affichage-objectif-eau');
+  if (el) el.textContent = quotaEauSuggere(currentDate).toLocaleString('fr-FR') + ' ml aujourd’hui';
 }
 
 /* Un objectif calorique sorti de nulle part n'inspire pas confiance : on montre
@@ -3833,10 +3834,10 @@ function sauvegarderParametresGlobaux() {
   userProfile.gender = document.getElementById('base-gender').value;
   userProfile.age = Number(document.getElementById('base-age').value) || 25;
   userProfile.height = Number(document.getElementById('base-height').value) || 175;
-  userProfile.quotaEauMl = Number(document.getElementById('base-quota-eau').value) || 2000;
   saveData();
   updateSummary(getDay(currentDate));
   majJaugeEau();
+  majAffichageObjectifEau();
 }
 
 function changerDate(delta) {
@@ -4916,7 +4917,7 @@ async function lancerAnalyseJour() {
   const seanceMuscuDesc = resumeSeanceMuscuJour(currentDate);
 
   const prompt = `Tu es un coach nutrition & sport haut de gamme. Analyse cette journée et donne un clair, motivant et actionnable en français (max 180 mots, sans markdown).
-Objectif: ${t.goal}. Poids: ${t.poids} kg. Pas: ${day.steps}. Eau bue: ${Number(day.eauMl) || 0} / ${Number(userProfile.quotaEauMl) || 2000} ml. Sports: ${workoutsDesc}.${seanceMuscuDesc ? `
+Objectif: ${t.goal}. Poids: ${t.poids} kg. Pas: ${day.steps}. Eau bue: ${Number(day.eauMl) || 0} / ${quotaEauSuggere(currentDate)} ml. Sports: ${workoutsDesc}.${seanceMuscuDesc ? `
 Détail de la séance de musculation du jour: ${seanceMuscuDesc}.` : ''}
 Calories consommées: ${totals.kcal} / objectif ${t.target} kcal. Protéines ${totals.p}/${t.protein}g, Glucides ${totals.c}/${t.carbs}g, Lipides ${totals.f}/${t.fat}g.`;
   try {
@@ -5079,6 +5080,7 @@ function buildMasterArrays() {
   globalMasterLabels = []; globalMasterConsumed = []; globalMasterTarget = [];
   globalMasterProtein = []; globalMasterCarbs = []; globalMasterFat = [];
   globalMasterSteps = []; globalMasterWorkoutData = {}; globalMasterEauBue = [];
+  globalMasterEauObjectif = [];
   globalMasterWeight = []; globalMasterRempli = []; globalMasterSportMin = [];
   globalMasterGrasse = []; globalMasterMuscle = []; globalMasterOs = []; globalMasterEau = [];
 
@@ -5091,6 +5093,10 @@ function buildMasterArrays() {
     const ds = shiftDate(todayStr(), -i);
     const d = appData[ds];
     globalMasterLabels.push(new Date(ds + 'T12:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }));
+    // Contrairement à l'objectif calorique, celui-ci ne dépend pas d'avoir
+    // mangé ce jour-là — juste du poids connu à cette date, de l'âge/sexe
+    // du profil et du sport loggé ce jour : calculable même sans repas saisi.
+    globalMasterEauObjectif.push(quotaEauSuggere(ds));
 
     const dailySportMinutes = {};
     let minutesJour = 0;
@@ -5155,7 +5161,7 @@ function buildMasterArrays() {
 
 let globalMasterLabels = [], globalMasterConsumed = [], globalMasterTarget = [];
 let globalMasterProtein = [], globalMasterCarbs = [], globalMasterFat = [], globalMasterSteps = [];
-let globalMasterEauBue = [];
+let globalMasterEauBue = [], globalMasterEauObjectif = [];
 let globalMasterWorkoutData = {};
 let globalMasterWeight = [], globalMasterRempli = [], globalMasterSportMin = [];
 let globalMasterGrasse = [], globalMasterMuscle = [], globalMasterOs = [], globalMasterEau = [];
@@ -5235,6 +5241,7 @@ function bilanPeriode(s, e) {
     protParKg: (poidsRef > 0 && prot.length) ? avg(prot) / poidsRef : null,
     moyPas: Math.round(avg(idx.filter(i => globalMasterRempli[i]).map(i => globalMasterSteps[i]))),
     moyEau: Math.round(avg(idx.filter(i => globalMasterRempli[i]).map(i => globalMasterEauBue[i]))),
+    moyEauObjectif: Math.round(avg(idx.filter(i => globalMasterRempli[i]).map(i => globalMasterEauObjectif[i]))),
     dansLaCible,
     partCible: remplis.length ? Math.round(dansLaCible / remplis.length * 100) : 0,
     minutesSport, joursSport,
@@ -5298,8 +5305,8 @@ function afficherChiffresCles(s, e) {
       sous: b.joursSport + ' jours actifs' + (b.minutesParSemaine >= 150 ? ' — recommandation OMS atteinte' : '') },
     { lbl: 'Pas / jour', val: b.moyPas.toLocaleString('fr-FR'), sous: 'Moyenne sur les jours renseignés' },
     { lbl: 'Eau / jour', val: b.moyEau.toLocaleString('fr-FR') + ' ml',
-      cls: b.moyEau >= (Number(userProfile.quotaEauMl) || 2000) ? 'pos' : '',
-      sous: 'Objectif : ' + ((Number(userProfile.quotaEauMl) || 2000).toLocaleString('fr-FR')) + ' ml/jour' }
+      cls: b.moyEau >= b.moyEauObjectif ? 'pos' : '',
+      sous: 'Objectif moyen sur la période : ' + b.moyEauObjectif.toLocaleString('fr-FR') + ' ml/jour' }
   ];
 
   g.innerHTML = '';
@@ -5611,15 +5618,14 @@ function renderCharts(s, e) {
   });
 
   // Même logique que le graphique Calories : la valeur réelle en aire pleine,
-  // l'objectif (constant : dernier réglage du quota, pas d'historique par
-  // jour) en pointillés — même code couleur que partout ailleurs dans l'appli.
+  // l'objectif en pointillés — sauf qu'ici l'objectif varie lui aussi jour
+  // après jour (poids, âge, sport de ce jour-là), plutôt qu'une ligne plate.
   if (eauChartInstance) eauChartInstance.destroy();
-  const quotaEauGraphe = Number(userProfile.quotaEauMl) || 2000;
   eauChartInstance = new Chart(document.getElementById('eauChart'), {
     type: 'line',
     data: { labels, datasets: [
       { label: 'Eau bue', data: globalMasterEauBue.slice(s, e + 1), borderColor: cPrimaire, backgroundColor: 'rgba(0,200,120,0.14)', tension: 0.35, fill: true, pointRadius: 0, borderWidth: 2, spanGaps: false },
-      { label: 'Objectif', data: new Array(e - s + 1).fill(quotaEauGraphe), borderColor: cAccent, borderDash: [5, 5], tension: 0, pointRadius: 0, fill: false, borderWidth: 2 }
+      { label: 'Objectif', data: globalMasterEauObjectif.slice(s, e + 1), borderColor: cAccent, borderDash: [5, 5], tension: 0.35, pointRadius: 0, fill: false, borderWidth: 2 }
     ] }, options: optionsGraphiqueBase(p, { avecLegende: true })
   });
 
@@ -10447,7 +10453,7 @@ window.addEventListener('load', () => {
   document.getElementById('base-gender').value = userProfile.gender;
   document.getElementById('base-age').value = userProfile.age;
   document.getElementById('base-height').value = userProfile.height;
-  document.getElementById('base-quota-eau').value = userProfile.quotaEauMl || 2000;
+  majAffichageObjectifEau();
 
   const cs = confSupabase();
   document.getElementById('supa-url').value = localStorage.getItem(SUPA_URL_LS) || '';
