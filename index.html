@@ -1739,6 +1739,20 @@
       </div>
     </div>
 
+    <div class="bloc-verre" style="margin-bottom:16px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:10px;">
+        <h3 style="margin:0;font-size:0.85rem;text-transform:uppercase;letter-spacing:0.8px;">💧 Eau bue</h3>
+        <span class="note" id="eau-texte" style="margin:0;white-space:nowrap;">0 / 2000 ml</span>
+      </div>
+      <div class="jauge"><i id="jauge-eau"></i></div>
+      <div style="display:flex;gap:8px;margin-top:12px;">
+        <button class="btn-icone" style="flex:1;" onclick="ajouterEau(250)">+250 ml</button>
+        <button class="btn-icone" style="flex:1;" onclick="ajouterEau(500)">+500 ml</button>
+        <button class="btn-icone" style="flex:1;" onclick="ajouterEau(1000)">+1 L</button>
+        <button class="btn-icone" style="flex:0 0 auto;width:42px;padding:0;" onclick="retirerEau()" aria-label="Retirer 250 ml" title="Retirer 250 ml">−</button>
+      </div>
+    </div>
+
     <div id="meals-container"></div>
 
     <div class="titre-section">🤖 Bilan de la journée</div>
@@ -1873,6 +1887,9 @@
 
     <div class="titre-section">👟 Pas quotidiens</div>
     <div class="chart-container"><canvas id="stepsChart"></canvas></div>
+
+    <div class="titre-section">💧 Eau bue (vs objectif)</div>
+    <div class="chart-container"><canvas id="eauChart"></canvas></div>
 
     <div class="titre-section">🏋️ Activités (minutes par sport)</div>
     <div class="chart-container"><canvas id="workoutChart"></canvas></div>
@@ -2750,6 +2767,10 @@
       <label for="base-height">Taille (cm)</label>
       <input type="number" id="base-height" value="175" inputmode="numeric" onchange="sauvegarderParametresGlobaux()">
     </div>
+    <div class="input-group">
+      <label for="base-quota-eau">💧 Objectif d'eau bue (ml/jour)</label>
+      <input type="number" id="base-quota-eau" value="2000" step="100" inputmode="numeric" onchange="sauvegarderParametresGlobaux()">
+    </div>
 
     <hr class="sep">
 
@@ -3099,6 +3120,7 @@ let currentScannedFood = null;
 let detectedBufferGemini = [];
 
 let caloriesChartInstance = null, macrosChartInstance = null, stepsChartInstance = null, workoutChartInstance = null;
+let eauChartInstance = null;
 let compoChartInstance = null;
 let poidsChartInstance = null;
 
@@ -3543,6 +3565,7 @@ function updateSummary(day) {
 
   majDetailDepense(day, t);
   updateLiquidFill(totals.kcal, t.target);
+  majJaugeEau(day);
 }
 
 /* Chaque macro a sa barre : la comparaison « 118 / 180 g » demandait un
@@ -3559,6 +3582,39 @@ function majMacro(cle, valeur, cible) {
     pct.textContent = Math.round(p) + ' %';
     pct.style.color = p > 110 ? 'var(--danger)' : 'var(--text-muted)';
   }
+}
+
+/* Eau bue : un quota simple (userProfile.quotaEauMl, réglable dans Profil,
+   2000 ml par défaut), sans lien avec l'hydratation en % de la balance à
+   impédancemétrie (mesures corporelles) — deux choses différentes malgré le
+   nom proche, d'où des identifiants distincts (eauMl / eauPct). */
+function majJaugeEau(day) {
+  day = day || getDay(currentDate);
+  const bu = Math.max(0, Number(day.eauMl) || 0);
+  const quota = Number(userProfile.quotaEauMl) || 2000;
+  const texte = document.getElementById('eau-texte');
+  if (texte) texte.textContent = `${bu} / ${quota} ml`;
+  const jauge = document.getElementById('jauge-eau');
+  if (jauge) {
+    jauge.style.width = pourcent(bu, quota) + '%';
+    jauge.style.background = bu >= quota ? 'var(--primary)' : 'var(--accent)';
+  }
+}
+
+function ajouterEau(ml) {
+  const day = getDay(currentDate);
+  day.eauMl = Math.max(0, (Number(day.eauMl) || 0) + ml);
+  saveData(currentDate);
+  majJaugeEau(day);
+}
+
+// Un seul pas de retrait (250 ml) : assez pour corriger un tap de trop,
+// pas besoin d'un clavier pour une correction aussi mineure.
+function retirerEau() {
+  const day = getDay(currentDate);
+  day.eauMl = Math.max(0, (Number(day.eauMl) || 0) - 250);
+  saveData(currentDate);
+  majJaugeEau(day);
 }
 
 /* Un objectif calorique sorti de nulle part n'inspire pas confiance : on montre
@@ -3723,8 +3779,10 @@ function sauvegarderParametresGlobaux() {
   userProfile.gender = document.getElementById('base-gender').value;
   userProfile.age = Number(document.getElementById('base-age').value) || 25;
   userProfile.height = Number(document.getElementById('base-height').value) || 175;
+  userProfile.quotaEauMl = Number(document.getElementById('base-quota-eau').value) || 2000;
   saveData();
   updateSummary(getDay(currentDate));
+  majJaugeEau();
 }
 
 function changerDate(delta) {
@@ -4673,7 +4731,7 @@ async function lancerAnalyseJour() {
   const seanceMuscuDesc = resumeSeanceMuscuJour(currentDate);
 
   const prompt = `Tu es un coach nutrition & sport haut de gamme. Analyse cette journée et donne un clair, motivant et actionnable en français (max 180 mots, sans markdown).
-Objectif: ${t.goal}. Poids: ${t.poids} kg. Pas: ${day.steps}. Sports: ${workoutsDesc}.${seanceMuscuDesc ? `
+Objectif: ${t.goal}. Poids: ${t.poids} kg. Pas: ${day.steps}. Eau bue: ${Number(day.eauMl) || 0} / ${Number(userProfile.quotaEauMl) || 2000} ml. Sports: ${workoutsDesc}.${seanceMuscuDesc ? `
 Détail de la séance de musculation du jour: ${seanceMuscuDesc}.` : ''}
 Calories consommées: ${totals.kcal} / objectif ${t.target} kcal. Protéines ${totals.p}/${t.protein}g, Glucides ${totals.c}/${t.carbs}g, Lipides ${totals.f}/${t.fat}g.`;
   try {
@@ -4835,7 +4893,7 @@ function parseJsonArray(text) {
 function buildMasterArrays() {
   globalMasterLabels = []; globalMasterConsumed = []; globalMasterTarget = [];
   globalMasterProtein = []; globalMasterCarbs = []; globalMasterFat = [];
-  globalMasterSteps = []; globalMasterWorkoutData = {};
+  globalMasterSteps = []; globalMasterWorkoutData = {}; globalMasterEauBue = [];
   globalMasterWeight = []; globalMasterRempli = []; globalMasterSportMin = [];
   globalMasterGrasse = []; globalMasterMuscle = []; globalMasterOs = []; globalMasterEau = [];
 
@@ -4857,6 +4915,7 @@ function buildMasterArrays() {
       globalMasterConsumed.push(totals.kcal); globalMasterTarget.push(t.target);
       globalMasterProtein.push(totals.p); globalMasterCarbs.push(totals.c); globalMasterFat.push(totals.f);
       globalMasterSteps.push(Number(d.steps) || 0);
+      globalMasterEauBue.push(Number(d.eauMl) || 0);
 
       /* Une journée « renseignée » est une journée où quelque chose a été mangé.
          Sans ce drapeau, les moyennes étaient calculées sur 180 jours dont la
@@ -4893,6 +4952,7 @@ function buildMasterArrays() {
       globalMasterConsumed.push(null); globalMasterTarget.push(null);
       globalMasterProtein.push(null); globalMasterCarbs.push(null); globalMasterFat.push(null);
       globalMasterSteps.push(null);
+      globalMasterEauBue.push(null);
       globalMasterRempli.push(false);
       globalMasterWeight.push(null);
       globalMasterGrasse.push(null);
@@ -4910,6 +4970,7 @@ function buildMasterArrays() {
 
 let globalMasterLabels = [], globalMasterConsumed = [], globalMasterTarget = [];
 let globalMasterProtein = [], globalMasterCarbs = [], globalMasterFat = [], globalMasterSteps = [];
+let globalMasterEauBue = [];
 let globalMasterWorkoutData = {};
 let globalMasterWeight = [], globalMasterRempli = [], globalMasterSportMin = [];
 let globalMasterGrasse = [], globalMasterMuscle = [], globalMasterOs = [], globalMasterEau = [];
@@ -4988,6 +5049,7 @@ function bilanPeriode(s, e) {
     poidsDebut, poidsFin, poidsRef,
     protParKg: (poidsRef > 0 && prot.length) ? avg(prot) / poidsRef : null,
     moyPas: Math.round(avg(idx.filter(i => globalMasterRempli[i]).map(i => globalMasterSteps[i]))),
+    moyEau: Math.round(avg(idx.filter(i => globalMasterRempli[i]).map(i => globalMasterEauBue[i]))),
     dansLaCible,
     partCible: remplis.length ? Math.round(dansLaCible / remplis.length * 100) : 0,
     minutesSport, joursSport,
@@ -5049,7 +5111,10 @@ function afficherChiffresCles(s, e) {
     { lbl: 'Entraînement', val: b.minutesParSemaine + ' min/sem.',
       cls: b.minutesParSemaine >= 150 ? 'pos' : '',
       sous: b.joursSport + ' jours actifs' + (b.minutesParSemaine >= 150 ? ' — recommandation OMS atteinte' : '') },
-    { lbl: 'Pas / jour', val: b.moyPas.toLocaleString('fr-FR'), sous: 'Moyenne sur les jours renseignés' }
+    { lbl: 'Pas / jour', val: b.moyPas.toLocaleString('fr-FR'), sous: 'Moyenne sur les jours renseignés' },
+    { lbl: 'Eau / jour', val: b.moyEau.toLocaleString('fr-FR') + ' ml',
+      cls: b.moyEau >= (Number(userProfile.quotaEauMl) || 2000) ? 'pos' : '',
+      sous: 'Objectif : ' + ((Number(userProfile.quotaEauMl) || 2000).toLocaleString('fr-FR')) + ' ml/jour' }
   ];
 
   g.innerHTML = '';
@@ -5358,6 +5423,19 @@ function renderCharts(s, e) {
     data: { labels, datasets: [
       { label: 'Pas', data: globalMasterSteps.slice(s, e + 1), borderColor: cPrimaire, backgroundColor: 'rgba(0,200,120,0.14)', tension: 0.35, fill: true, pointRadius: 0, borderWidth: 2, spanGaps: false }
     ] }, options: baseOpts
+  });
+
+  // Même logique que le graphique Calories : la valeur réelle en aire pleine,
+  // l'objectif (constant : dernier réglage du quota, pas d'historique par
+  // jour) en pointillés — même code couleur que partout ailleurs dans l'appli.
+  if (eauChartInstance) eauChartInstance.destroy();
+  const quotaEauGraphe = Number(userProfile.quotaEauMl) || 2000;
+  eauChartInstance = new Chart(document.getElementById('eauChart'), {
+    type: 'line',
+    data: { labels, datasets: [
+      { label: 'Eau bue', data: globalMasterEauBue.slice(s, e + 1), borderColor: cPrimaire, backgroundColor: 'rgba(0,200,120,0.14)', tension: 0.35, fill: true, pointRadius: 0, borderWidth: 2, spanGaps: false },
+      { label: 'Objectif', data: new Array(e - s + 1).fill(quotaEauGraphe), borderColor: cAccent, borderDash: [5, 5], tension: 0, pointRadius: 0, fill: false, borderWidth: 2 }
+    ] }, options: optionsGraphiqueBase(p, { avecLegende: true })
   });
 
   if (workoutChartInstance) workoutChartInstance.destroy();
@@ -10137,6 +10215,7 @@ window.addEventListener('load', () => {
   document.getElementById('base-gender').value = userProfile.gender;
   document.getElementById('base-age').value = userProfile.age;
   document.getElementById('base-height').value = userProfile.height;
+  document.getElementById('base-quota-eau').value = userProfile.quotaEauMl || 2000;
 
   const cs = confSupabase();
   document.getElementById('supa-url').value = localStorage.getItem(SUPA_URL_LS) || '';
