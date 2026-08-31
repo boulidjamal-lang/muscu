@@ -1739,6 +1739,20 @@
       </div>
     </div>
 
+    <div class="bloc-verre" style="margin-bottom:16px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:10px;">
+        <h3 style="margin:0;font-size:0.85rem;text-transform:uppercase;letter-spacing:0.8px;">💧 Eau bue</h3>
+        <span class="note" id="eau-texte" style="margin:0;white-space:nowrap;">0 / 2000 ml</span>
+      </div>
+      <div class="jauge"><i id="jauge-eau"></i></div>
+      <div style="display:flex;gap:8px;margin-top:12px;">
+        <button class="btn-icone" style="flex:1;" onclick="ajouterEau(250)">+250 ml</button>
+        <button class="btn-icone" style="flex:1;" onclick="ajouterEau(500)">+500 ml</button>
+        <button class="btn-icone" style="flex:1;" onclick="ajouterEau(1000)">+1 L</button>
+        <button class="btn-icone" style="flex:0 0 auto;width:42px;padding:0;" onclick="retirerEau()" aria-label="Retirer 250 ml" title="Retirer 250 ml">−</button>
+      </div>
+    </div>
+
     <div id="meals-container"></div>
 
     <div class="titre-section">🤖 Bilan de la journée</div>
@@ -1809,20 +1823,6 @@
           336 kcal, pas 500.
         </p>
       </details>
-    </div>
-
-    <div class="bloc-verre">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:10px;">
-        <h3 style="margin:0;font-size:0.85rem;text-transform:uppercase;letter-spacing:0.8px;">💧 Eau bue</h3>
-        <span class="note" id="eau-texte" style="margin:0;white-space:nowrap;">0 / 2000 ml</span>
-      </div>
-      <div class="jauge"><i id="jauge-eau"></i></div>
-      <div style="display:flex;gap:8px;margin-top:12px;">
-        <button class="btn-icone" style="flex:1;" onclick="ajouterEau(250)">+250 ml</button>
-        <button class="btn-icone" style="flex:1;" onclick="ajouterEau(500)">+500 ml</button>
-        <button class="btn-icone" style="flex:1;" onclick="ajouterEau(1000)">+1 L</button>
-        <button class="btn-icone" style="flex:0 0 auto;width:42px;padding:0;" onclick="retirerEau()" aria-label="Retirer 250 ml" title="Retirer 250 ml">−</button>
-      </div>
     </div>
   </section>
 
@@ -3713,6 +3713,14 @@ function majDetailDepense(day, t) {
     const b = document.createElement('span'); b.textContent = d;
     r.appendChild(a); r.appendChild(b); el.appendChild(r);
   });
+  // Unité différente (ml, pas kcal), donc séparée du reste plutôt que mêlée
+  // à la dégradation "Objectif" ci-dessus — même logique de calcul basée sur
+  // l'activité du jour, d'où sa place ici plutôt qu'ailleurs.
+  const ligneEau = document.createElement('div');
+  ligneEau.style.cssText = 'display:flex;justify-content:space-between;gap:12px;padding:6px 0;margin-top:4px;border-top:1px solid var(--verre-brd);';
+  const aEau = document.createElement('span'); aEau.textContent = '💧 Objectif eau';
+  const bEau = document.createElement('span'); bEau.textContent = quotaEauSuggere(currentDate).toLocaleString('fr-FR') + ' ml';
+  ligneEau.appendChild(aEau); ligneEau.appendChild(bEau); el.appendChild(ligneEau);
   const note = document.getElementById('note-poids');
   if (note) {
     note.textContent = t.poidsEstime
