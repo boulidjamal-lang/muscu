@@ -2182,7 +2182,7 @@
 
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 15px;">
       <div class="input-group" style="margin-bottom: 0;">
-        <label for="man-grams">Quantité (g / ml)</label>
+        <label for="man-grams">Quantité (<span id="man-grams-unite">g ou ml</span>)</label>
         <input type="text" id="man-grams" value="100" inputmode="decimal" oninput="calculerApercuManuel()">
       </div>
       <div class="input-group" style="margin-bottom: 0;">
@@ -2781,6 +2781,8 @@
         <button class="btn-action btn-manual" onclick="document.getElementById('import-file-input').click()">📥 Importer</button>
         <input type="file" id="import-file-input" accept=".json,application/json" class="hidden" onchange="importerDonnees(event)">
       </div>
+      <button class="btn btn-secondaire" id="btn-corriger-unites" style="margin-top:10px; width:100%;" onclick="corrigerUnitesHistorique()">🔍 Corriger les unités g/ml de l'historique</button>
+      <p class="note" style="margin:8px 0 0;">Repasse sur tous les repas déjà enregistrés pour repérer les boissons encore marquées en grammes (eau, jus, soda…) et les convertir en ml.</p>
     </div>
 
     <button class="btn btn-primary" onclick="fermerModal('settings-modal')">Fermer</button>
@@ -3951,6 +3953,10 @@ function ouvrirManuel(mealId) {
   // suivant : on repart toujours d'une fiche vierge.
   codeCourant = '';
   majCodeCourant();
+  // Idem pour l'unité : sans remise à zéro, choisir "eau" (ml) puis annuler
+  // et taper "poulet" à la main aurait quand même enregistré des ml.
+  uniteCourante = 'g';
+  majUniteCourante();
   cacherSuggestionsOFF();
   calculerApercuManuel();
   ouvrirModal('manual-modal');
@@ -4155,6 +4161,10 @@ function fillFromOFF(product) {
   if (product.grammes > 0) document.getElementById('man-grams').value = product.grammes;
   codeCourant = product.code || '';
   majCodeCourant();
+  // L'historique et le scan connaissent parfois déjà l'unité ; sinon, le nom
+  // du produit est le seul indice qui reste (base CIQUAL, partagés, USDA).
+  uniteCourante = product.unite || uniteProbableParNom(product.name);
+  majUniteCourante();
   calculerApercuManuel();
 }
 function round1(v) { return v == null ? '' : Math.round(Number(v) * 10) / 10; }
@@ -4231,6 +4241,7 @@ function entreeVersProduit(e) {
     source: 'historique',
     grammes: e.grammes,
     code: e.code,
+    unite: e.unite,
     fois: e.fois,
     dernierJour: e.dernierJour,
     nutriments: {
@@ -4262,6 +4273,16 @@ function chercherDansHistorique(q, limite) {
 /* Le code-barres de l'aliment en cours de saisie. Il voyage du scanner ou de
    l'historique jusqu'à l'enregistrement, sinon il serait perdu en route. */
 let codeCourant = '';
+
+/* Pareil pour l'unité : une suggestion sélectionnée en saisie manuelle doit
+   se souvenir si elle a été détectée comme une boisson, sinon le "g / ml" du
+   libellé ne servait à rien et l'aliment repartait toujours en grammes. */
+let uniteCourante = 'g';
+
+function majUniteCourante() {
+  const el = document.getElementById('man-grams-unite');
+  if (el) el.textContent = uniteCourante === 'ml' ? 'ml' : 'g';
+}
 
 function majCodeCourant() {
   const z = document.getElementById('zone-code');
@@ -4334,6 +4355,7 @@ function validerAjoutManuel() {
   const f = g / 100;
   const item = {
     name, grams: g,
+    unite: uniteCourante === 'ml' ? 'ml' : 'g',
     kcal: kcal100 * f,
     p: nombreChamp('man-p100') * f,
     c: nombreChamp('man-c100') * f,
@@ -4343,6 +4365,7 @@ function validerAjoutManuel() {
   // l'historique : c'est ce qui permet de retrouver le produit exact plus tard.
   if (codeCourant) item.code = codeCourant;
   addItemToMeal(activeMealId, item);
+  if (item.unite === 'ml') ajouterEau(Math.round(g));
   fermerModal('manual-modal');
 }
 
@@ -4486,6 +4509,96 @@ function uniteProbable(product) {
   return /\d\s*(ml|cl)\b|\d\s*l\b/i.test(texte) ? 'ml' : 'g';
 }
 
+/* Les suggestions de la base CIQUAL, des aliments partagés et d'USDA n'ont
+   ni catégorie ni taille de portion à interroger : seul le nom reste comme
+   indice. Liste volontairement limitée aux boissons évidentes — mieux vaut
+   rater une boisson ambiguë (elle reste en g, comme avant) que faire passer
+   un plat en ml par erreur. */
+function uniteProbableParNom(nom) {
+  const t = normaliserRecherche(nom);
+  return /\b(eau|jus|soda|coca|cola|limonade|the|cafe|lait|biere|vin|smoothie|nectar|sirop|boisson|infusion|kombucha|milkshake|cidre)\b/.test(t)
+    ? 'ml' : 'g';
+}
+
+/* Tout ce qui a été mangé avant l'existence de la distinction g/ml est resté
+   marqué en grammes, y compris les boissons. On repasse une fois sur tout
+   l'historique pour corriger : d'abord le nom (rapide, hors ligne, couvre
+   la grande majorité des cas), puis les codes-barres restants via
+   OpenFoodFacts pour les fiches dont le nom seul ne trahissait rien
+   (ex. une marque). Un geste explicite (bouton en Réglages), pas un passage
+   automatique au chargement : c'est une modification de données, l'appli
+   ne la déclenche jamais toute seule. */
+async function corrigerUnitesHistorique() {
+  if (!confirm("Analyser tous les repas déjà enregistrés pour repérer les "
+    + "boissons encore marquées en grammes et les convertir en ml ?\n\n"
+    + "Seuls les aliments actuellement en g sont revérifiés ; le reste ne change pas.")) return;
+
+  const bouton = document.getElementById('btn-corriger-unites');
+  const texteInitial = bouton ? bouton.textContent : '';
+  if (bouton) { bouton.disabled = true; bouton.textContent = '⏳ Analyse en cours…'; }
+
+  try {
+    const joursModifies = new Set();
+    let corriges = 0;
+
+    // 1) Passe locale, instantanée : le nom seul suffit pour la plupart des
+    //    boissons évidentes (eau, jus, soda, lait...). Les aliments avec un
+    //    code-barres que le nom ne trahit pas sont mis de côté pour la passe 2.
+    const parCode = new Map();   // code -> [{ ds, mealId, idx }]
+    Object.keys(appData).forEach(ds => {
+      const j = appData[ds];
+      if (!j || !j.meals) return;
+      Object.keys(j.meals).forEach(mealId => {
+        const liste = j.meals[mealId];
+        if (!Array.isArray(liste)) return;
+        liste.forEach((it, idx) => {
+          if (!it || it.unite === 'ml') return;
+          if (uniteProbableParNom(it.name) === 'ml') {
+            it.unite = 'ml';
+            corriges++;
+            joursModifies.add(ds);
+          } else if (it.code) {
+            const cle = String(it.code);
+            if (!parCode.has(cle)) parCode.set(cle, []);
+            parCode.get(cle).push({ ds, mealId, idx });
+          }
+        });
+      });
+    });
+
+    // 2) Passe réseau : un code-barres à la fois, avec une courte pause —
+    //    l'API OpenFoodFacts est gratuite et publique, on ne la bombarde pas.
+    const codes = Array.from(parCode.keys());
+    for (let i = 0; i < codes.length; i++) {
+      const code = codes[i];
+      if (bouton) bouton.textContent = `⏳ Code-barres ${i + 1}/${codes.length}…`;
+      try {
+        const r = await fetch(`https://world.openfoodfacts.org/api/v0/product/${code}.json`);
+        const j = await r.json();
+        if (j.status === 1 && uniteProbable(j.product) === 'ml') {
+          parCode.get(code).forEach(({ ds, mealId, idx }) => {
+            appData[ds].meals[mealId][idx].unite = 'ml';
+            corriges++;
+            joursModifies.add(ds);
+          });
+        }
+      } catch (e) { /* hors ligne ou code introuvable : cet aliment reste en g */ }
+      if (i < codes.length - 1) await new Promise(res => setTimeout(res, 200));
+    }
+
+    joursModifies.forEach(ds => saveData(ds));
+    invaliderHistorique();
+    buildMasterArrays();
+    updateSummary(getDay(currentDate));
+
+    alert(corriges > 0
+      ? `${corriges} aliment(s) corrigé(s) en ml, sur ${joursModifies.size} jour(s).`
+      : "Rien à corriger : tout était déjà correctement marqué.");
+  } finally {
+    if (bouton) { bouton.disabled = false; bouton.textContent = texteInitial; }
+  }
+}
+
 async function chercherProduitOFFParCode(code) {
   code = String(code).trim();
   let trouve = null;
@@ -4496,15 +4609,22 @@ async function chercherProduitOFFParCode(code) {
     const j = await r.json();
     if (j.status === 1) {
       const p = j.product; const n = p.nutriments || {};
+      // energy-kcal_100g absent (undefined) = fiche sans données nutritionnelles ;
+      // egal a 0 = vraiment zero kcal (eau, soda zero...). Le || 0 d'avant
+      // confondait les deux, et déclenchait l'avertissement "aucune calorie"
+      // même pour une eau minérale scannée, dont le 0 est parfaitement exact.
+      const kcalBrut = n['energy-kcal_100g'] !== undefined ? n['energy-kcal_100g']
+        : (n['energy_100g'] !== undefined ? n['energy_100g'] / 4.184 : undefined);
       trouve = {
         name: p.product_name || 'Produit ' + code,
         code,
         marque: (p.brands || '').split(',')[0].trim(),
-        kcal100: Math.round(n['energy-kcal_100g'] || (n['energy_100g'] ? n['energy_100g'] / 4.184 : 0)),
+        kcal100: Math.round(kcalBrut || 0),
         p100: Number(n['proteins_100g']) || 0,
         c100: Number(n['carbohydrates_100g']) || 0,
         f100: Number(n['fat_100g']) || 0,
         unite: uniteProbable(p),
+        sansDonneesNutrition: kcalBrut === undefined,
         source: 'OpenFoodFacts'
       };
     }
@@ -4513,7 +4633,7 @@ async function chercherProduitOFFParCode(code) {
   // 2) Sinon, ce qu'on a déjà mangé avec ce code-barres (le plus rapide, hors ligne).
   if (!trouve) {
     const h = chercherHistoriqueParCode(code);
-    if (h) trouve = { name: h.nom, code, marque: '', kcal100: h.kcal100 || 0, p100: h.p100 || 0, c100: h.c100 || 0, f100: h.f100 || 0, unite: h.unite || 'g', source: 'ton historique' };
+    if (h) trouve = { name: h.nom, code, marque: '', kcal100: h.kcal100 || 0, p100: h.p100 || 0, c100: h.c100 || 0, f100: h.f100 || 0, unite: h.unite || 'g', sansDonneesNutrition: false, source: 'ton historique' };
   }
 
   // 3) Sinon, la base perso synchronisée (utile si scanné depuis un autre appareil).
@@ -4562,6 +4682,7 @@ async function chercherBaseParCode(code) {
       name: row[s.nom] || ('Produit ' + code), code: String(code), marque: '',
       kcal100: Math.round(nombreSouple(row[s.kcal])),
       p100: nombreSouple(row[s.prot]), c100: nombreSouple(row[s.gluc]), f100: nombreSouple(row[s.lip]),
+      sansDonneesNutrition: false,
       source: 'ta base perso'
     };
   } catch (e) { return null; }
@@ -4592,10 +4713,12 @@ function stopperScanner() {
 function ajouterAlimentBarcode() {
   if (!currentScannedFood) return;
   const g = nombreChamp('barcode-grams') || 100;
-  /* Beaucoup de fiches OpenFoodFacts n'ont aucune valeur nutritionnelle :
+  /* Certaines fiches OpenFoodFacts n'ont vraiment aucune donnée nutritionnelle :
      le produit etait alors ajoute a 0 kcal, ce qui fausse la journee en
-     silence. On previent et on propose de completer a la main. */
-  if (!(currentScannedFood.kcal100 > 0)) {
+     silence. On previent et on propose de completer a la main — mais
+     seulement quand la donnee est ABSENTE, pas quand 0 kcal est la vraie
+     valeur (une eau minérale scannée affiche alors ce message à tort). */
+  if (currentScannedFood.sansDonneesNutrition) {
     if (!confirm("Cette fiche OpenFoodFacts n'indique aucune calorie.\n\n"
       + "OK : ouvrir la saisie manuelle pour completer.\n"
       + "Annuler : revenir au scanner.")) return;
@@ -4618,6 +4741,11 @@ function ajouterAlimentBarcode() {
     kcal: currentScannedFood.kcal100 * f, p: currentScannedFood.p100 * f,
     c: currentScannedFood.c100 * f, f: currentScannedFood.f100 * f
   });
+  // Un produit détecté en ml est une boisson : sa quantité compte aussi
+  // pour l'hydratation du jour, sans geste en plus. Compte toute boisson
+  // (pas seulement l'eau littérale) — soda, jus, lait apportent aussi de
+  // l'eau, même si l'alcool ou la caféine en atténuent un peu l'effet.
+  if (currentScannedFood.unite === 'ml') ajouterEau(Math.round(g));
   // Sans cet arrêt, la caméra restait allumée tant que l'onglet vivait :
   // batterie vidée, voyant allumé, décodage à 10 images/seconde en fond.
   stopperScanner();
