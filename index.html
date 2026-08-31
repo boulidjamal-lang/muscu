@@ -4414,14 +4414,18 @@ async function onScanSuccess(decodedText) {
 /* OpenFoodFacts étiquette systématiquement ses nutriments "_100g" dans le
    JSON, même pour un liquide — et son propre champ nutrition_data_per, censé
    distinguer 100g de 100ml, vaut quasiment toujours "100g" y compris pour
-   des boissons (incohérence connue de la base). Le signal fiable est plutôt
-   la catégorie du produit : on y détecte les boissons pour proposer "ml"
-   plutôt que "g" — évite d'afficher un nombre sans savoir s'il s'agit de
-   grammes ou de millilitres. */
+   des boissons (incohérence connue de la base). Trois signaux, du plus au
+   moins direct : l'unité déclarée du produit, ses catégories, et à défaut
+   (beaucoup de fiches n'ont ni l'une ni l'autre — ex. produits protéinés
+   peu renseignés) la présence d'un "ml"/"cl"/"l" dans le format de portion
+   ou la quantité, souvent renseignés même quand le reste ne l'est pas. */
 function uniteProbable(product) {
-  if (product && product.product_quantity_unit === 'ml') return 'ml';
-  const tags = ((product && product.categories_tags) || []).join(' ').toLowerCase();
-  return /beverage|drink|water|juice|soda|milk|beer|wine|smoothie|nectar/.test(tags) ? 'ml' : 'g';
+  if (!product) return 'g';
+  if (product.product_quantity_unit === 'ml') return 'ml';
+  const tags = (product.categories_tags || []).join(' ').toLowerCase();
+  if (/beverage|drink|water|juice|soda|milk|beer|wine|smoothie|nectar/.test(tags)) return 'ml';
+  const texte = [product.serving_size, product.quantity].filter(Boolean).join(' ');
+  return /\d\s*(ml|cl)\b|\d\s*l\b/i.test(texte) ? 'ml' : 'g';
 }
 
 async function chercherProduitOFFParCode(code) {
