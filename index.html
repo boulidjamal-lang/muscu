@@ -1692,7 +1692,7 @@
       <!-- Le bouton « Mon compte » vivait ici, puis un bouton de bascule de
            thème (🌗) : tous deux retirés, direction Réglages pour ce
            qu'on ne touche pas plusieurs fois par jour. -->
-      <button class="btn-icone" onclick="ouvrirModal('settings-modal')" aria-label="Profil et réglages" title="Profil">⚙️</button>
+      <button class="btn-icone" onclick="majSuggestionEau(); ouvrirModal('settings-modal')" aria-label="Profil et réglages" title="Profil">⚙️</button>
     </div>
   </div>
 </header>
@@ -2515,7 +2515,7 @@
     </div>
 
     <button class="btn btn-primary" onclick="synchroniser('manuel')">🔄 Synchroniser maintenant</button>
-    <button class="btn btn-secondaire" style="margin-top:10px; width:100%;" onclick="fermerModal('sync-info-modal'); ouvrirModal('settings-modal');">⚙️ Réglages de synchronisation</button>
+    <button class="btn btn-secondaire" style="margin-top:10px; width:100%;" onclick="fermerModal('sync-info-modal'); majSuggestionEau(); ouvrirModal('settings-modal');">⚙️ Réglages de synchronisation</button>
   </div>
 </div>
 
@@ -2770,6 +2770,7 @@
     <div class="input-group">
       <label for="base-quota-eau">💧 Objectif d'eau bue (ml/jour)</label>
       <input type="number" id="base-quota-eau" value="2000" step="100" inputmode="numeric" onchange="sauvegarderParametresGlobaux()">
+      <p class="note" id="suggestion-eau" style="margin:8px 0 0;"></p>
     </div>
 
     <hr class="sep">
@@ -3617,6 +3618,54 @@ function retirerEau() {
   day.eauMl = Math.max(0, (Number(day.eauMl) || 0) - 250);
   saveData(currentDate);
   majJaugeEau(day);
+}
+
+/* Besoin en EAU BUE du jour — une suggestion, pas une prescription.
+   Deux composantes mesurables à partir de ce que l'appli connaît déjà :
+   - la base : ~33 ml par kg de poids (le milieu de la fourchette usuelle
+     30-35 ml/kg pour un adulte actif). L'eau contenue dans les aliments
+     couvre une autre part des besoins totaux ; cette suggestion ne porte
+     volontairement que sur ce qu'il reste à boire.
+   - l'effort : environ 600 ml de sueur perdus par heure d'effort modéré,
+     à reconstituer en plus de la base — soit 10 ml par minute de sport
+     déjà loggée ce jour-là (musculation, cardio...).
+   Ce que ce calcul ne peut PAS connaître, et qui fait varier le vrai
+   besoin : chaleur/climat, altitude, apport élevé en protéines, café et
+   alcool (qui augmentent les pertes), grossesse/allaitement, fièvre ou
+   diarrhée. La valeur reste un point de départ à ajuster, jamais un avis
+   médical. */
+function quotaEauSuggere(dateStr) {
+  const ds = dateStr || currentDate;
+  const poids = dernierPoidsConnu(ds);
+  const day = appData[ds];
+  const minutesSport = ((day && day.workouts) || []).reduce((s, w) => s + (Number(w.time) || 0), 0);
+  const base = poids * 33;
+  const effort = minutesSport * 10;
+  return Math.round((base + effort) / 100) * 100;
+}
+
+// Affichée à l'ouverture des réglages : une suggestion posée à côté du
+// champ, jamais appliquée toute seule.
+function majSuggestionEau() {
+  const el = document.getElementById('suggestion-eau');
+  if (!el) return;
+  const suggestion = quotaEauSuggere(currentDate);
+  const actuel = Number(userProfile.quotaEauMl) || 2000;
+  if (suggestion === actuel) { el.innerHTML = ''; return; }
+  el.innerHTML = '';
+  const span = document.createElement('span');
+  span.textContent = `💡 Suggestion à ton poids et ton activité du jour : ${suggestion} ml. `;
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'chip-code';
+  btn.textContent = 'Utiliser cette valeur';
+  btn.addEventListener('click', () => {
+    document.getElementById('base-quota-eau').value = suggestion;
+    sauvegarderParametresGlobaux();
+    majSuggestionEau();
+  });
+  el.appendChild(span);
+  el.appendChild(btn);
 }
 
 /* Un objectif calorique sorti de nulle part n'inspire pas confiance : on montre
