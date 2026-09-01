@@ -2152,6 +2152,10 @@
   <button type="button" role="menuitem" onclick="choisirTechniqueMenu('pyramidal')">🔺 Pyramidal</button>
   <button type="button" role="menuitem" onclick="choisirTechniqueMenu('echec')">🔥 Échec</button>
 </div>
+<div class="menu-technique-popup hidden" id="menu-programme-popup" role="menu">
+  <button type="button" role="menuitem" onclick="choisirOptionProgramme('dupliquer')">📄 Dupliquer</button>
+  <button type="button" role="menuitem" onclick="choisirOptionProgramme('supprimer')" style="color:var(--danger);">🗑️ Supprimer</button>
+</div>
 
 <!-- ============ NAVIGATION : tout passe par le bouton flottant ============ -->
 <nav class="fab-zone" id="fab-zone" aria-label="Navigation principale">
@@ -9591,15 +9595,13 @@ function renderListeProgrammes() {
     const derniere = dernierePerfProgramme(p.id);
     const meta = p.exercices.length + ' exercice(s)' + (derniere ? ' · dernière fois ' + formatDateDisplay(derniere.date) : '');
     return `<div class="programme-carte">
-      <div class="programme-entete">
+      <button type="button" class="programme-entete" style="display:block;width:100%;background:none;border:none;padding:0;margin:0 0 12px;font:inherit;color:inherit;text-align:left;cursor:pointer;" onclick="ouvrirEditionProgramme('${p.id}')" aria-label="Modifier ${escapeHtml(p.nom)}">
         <div class="programme-nom">${escapeHtml(p.nom)}</div>
         <div class="programme-meta">${meta}</div>
-      </div>
+      </button>
       <div class="programme-actions">
         <button class="btn btn-primary" style="width:auto; flex:1;" onclick="apercuProgramme('${p.id}')">▶️ Démarrer</button>
-        <button class="btn-icone" onclick="ouvrirEditionProgramme('${p.id}')" title="Modifier" aria-label="Modifier">✏️</button>
-        <button class="btn-icone" onclick="dupliquerProgramme('${p.id}')" title="Dupliquer" aria-label="Dupliquer">📄</button>
-        <button class="btn-delete" onclick="supprimerProgramme('${p.id}')" aria-label="Supprimer le programme">&times;</button>
+        <button class="btn-icone btn-options-programme" onclick="ouvrirMenuProgramme(this,'${p.id}')" title="Plus d'options" aria-label="Plus d'options pour ${escapeHtml(p.nom)}">⋯</button>
       </div>
     </div>`;
   }).join('');
@@ -10084,7 +10086,9 @@ function renderProgrammeExercicesEnEdition() {
     return `<div class="exo-en-programme">
       <div class="exo-en-programme-entete">
         <div>
-          <div class="exo-en-programme-nom">${escapeHtml(exo ? libelleExercice(exo) : 'Exercice supprimé')}</div>
+          ${exo
+            ? `<button type="button" class="exo-en-programme-nom" style="background:none;border:none;padding:0;font:inherit;color:inherit;cursor:pointer;text-decoration:underline;text-underline-offset:3px;text-align:left;" onclick="afficherFicheExerciceBiblio('${pe.exerciceId}')">${escapeHtml(libelleExercice(exo))}</button>`
+            : `<div class="exo-en-programme-nom">Exercice supprimé</div>`}
           <div class="exo-en-programme-meta">${escapeHtml(meta)}</div>
         </div>
         <div style="display:flex; gap:6px; align-items:center;">
@@ -10558,13 +10562,44 @@ function choisirTechniqueMenu(valeur) {
   if (menuTechniqueSur) menuTechniqueSur(valeur);
   fermerMenuTechnique();
 }
-// Tap en dehors du menu (ou de la pastille qui vient de l'ouvrir) = on le
-// referme sans rien changer, comme n'importe quel menu contextuel. Même
-// geste pour une ligne de série glissée-ouverte (voir plus bas).
+// Menu « ⋯ » d'un programme (Dupliquer / Supprimer) : même mécanique que le
+// menu de technique juste au-dessus (un seul élément partagé, repositionné
+// à l'ouverture), mais menuProgrammeSur retient l'id du programme plutôt
+// qu'une closure.
+let menuProgrammeSur = null;
+function ouvrirMenuProgramme(boutonEl, id) {
+  const menu = document.getElementById('menu-programme-popup');
+  if (!menu) return;
+  menuProgrammeSur = id;
+  const r = boutonEl.getBoundingClientRect();
+  const largeurMenu = 168;
+  menu.style.top = (r.bottom + 4) + 'px';
+  menu.style.left = Math.min(r.right - largeurMenu, window.innerWidth - largeurMenu - 8) + 'px';
+  menu.classList.remove('hidden');
+}
+function fermerMenuProgramme() {
+  const menu = document.getElementById('menu-programme-popup');
+  if (menu) menu.classList.add('hidden');
+  menuProgrammeSur = null;
+}
+function choisirOptionProgramme(action) {
+  const id = menuProgrammeSur;
+  fermerMenuProgramme();
+  if (!id) return;
+  if (action === 'dupliquer') dupliquerProgramme(id);
+  else if (action === 'supprimer') supprimerProgramme(id);
+}
+// Tap en dehors du menu (ou de la pastille/bouton qui vient de l'ouvrir) =
+// on le referme sans rien changer, comme n'importe quel menu contextuel.
+// Même geste pour une ligne de série glissée-ouverte (voir plus bas).
 document.addEventListener('click', (e) => {
   const menu = document.getElementById('menu-technique-popup');
   if (menu && !menu.classList.contains('hidden') && !menu.contains(e.target) && !e.target.closest('.serie-num-btn')) {
     fermerMenuTechnique();
+  }
+  const menuProg = document.getElementById('menu-programme-popup');
+  if (menuProg && !menuProg.classList.contains('hidden') && !menuProg.contains(e.target) && !e.target.closest('.btn-options-programme')) {
+    fermerMenuProgramme();
   }
   document.querySelectorAll('.serie-ligne.ouverte').forEach(l => {
     const fenetre = l.closest('.serie-ligne-fenetre');
