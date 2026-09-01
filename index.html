@@ -733,9 +733,13 @@
        sur les conteneurs qui, eux, ont le droit de défiler (voir
        .modal-content et .feuille-contenu plus bas). */
     body.couche-ouverte { overflow: hidden; touch-action: none; }
+    /* Fondu radial plutôt qu'un liseré : le vert reste net au centre (comme
+       avant) et se mêle au noir vers le bord, au lieu d'un aplat de couleur
+       cerné d'un contour. */
     .fab {
-      width: 60px; height: 60px; border-radius: 21px; border: 1px solid var(--verre-brd);
-      background: var(--primary); color: var(--primary-txt);
+      width: 60px; height: 60px; border-radius: 21px; border: none;
+      background: radial-gradient(circle at 50% 42%, var(--primary) 0%, var(--primary) 40%, color-mix(in srgb, var(--primary) 45%, #000) 72%, #000 100%);
+      color: var(--primary-txt);
       font-size: 1.5rem; line-height: 1; cursor: pointer;
       box-shadow: 0 14px 34px var(--primary-glow), inset 0 1px 0 rgba(255,255,255,0.35);
       display: flex; align-items: center; justify-content: center;
@@ -1336,20 +1340,20 @@
        directionnel. Le reflet spéculaire, lui, suit l'inclinaison du
        téléphone via --lx / --ly.
        ===================================================================== */
-    /* .btn-icone et .fab-action retirés de ce groupe (voir leurs styles
-       propres, plus bas) : l'anneau lentille — flou + rehauts de bord — est
-       precisement ce qui leur donnait cet aspect embouti/vitreux jugé peu
-       lisible pour de petits boutons utilitaires ou un menu texte sur fond
-       assombri. Les CTA (.btn), le bouton flottant (.fab) et les grandes
-       lignes de feuille (.feuille-action) gardent l'effet, qui reste voulu
-       à cette échelle-là. */
-    .verre, .app-bar, .summary-card, .btn, .fab,
+    /* .btn-icone, .fab-action et .fab retirés de ce groupe (voir leurs
+       styles propres) : l'anneau lentille — flou + rehauts de bord — est
+       precisement ce qui leur donnait cet aspect embouti/vitreux. Pour le
+       bouton flottant (.fab), le liseré est remplacé par un fondu radial
+       (vert au centre, qui se mêle au noir vers le bord). Les CTA (.btn)
+       et les grandes lignes de feuille (.feuille-action) gardent l'anneau,
+       qui reste voulu à cette échelle-là. */
+    .verre, .app-bar, .summary-card, .btn,
     .feuille-action, .meal-card, .bloc-verre, .fitness-card, .analysis-card,
     .daily-questionnaire, .modal-content, .feuille-contenu {
       isolation: isolate;
     }
     .verre::before, .app-bar::before, .summary-card::before, .btn::before,
-    .fab::before, .feuille-action::before,
+    .feuille-action::before,
     .meal-card::before, .bloc-verre::before, .fitness-card::before,
     .analysis-card::before, .daily-questionnaire::before,
     .modal-content::before, .feuille-contenu::before {
@@ -1383,7 +1387,7 @@
        alors que le liseré, qui est déjà l'essentiel de l'effet. */
     @supports not ((mask-composite: exclude) or (-webkit-mask-composite: xor)) {
       .verre::before, .app-bar::before, .summary-card::before, .btn::before,
-      .fab::before, .feuille-action::before,
+      .feuille-action::before,
       .meal-card::before, .bloc-verre::before, .fitness-card::before,
       .analysis-card::before, .daily-questionnaire::before,
       .modal-content::before, .feuille-contenu::before {
@@ -1392,7 +1396,7 @@
     }
     /* Les éléments encore statiques ont besoin d'un repère pour l'anneau ;
        ceux qui sont déjà sticky / fixed / relative gardent le leur. */
-    .btn, .fab, .feuille-action, .meal-card, .bloc-verre,
+    .btn, .feuille-action, .meal-card, .bloc-verre,
     .fitness-card, .analysis-card, .daily-questionnaire, .modal-content,
     .feuille-contenu, .verre { position: relative; }
     /* Le contenu passe devant l'anneau. */
@@ -1403,7 +1407,6 @@
     /* Anneau plus fin sur les petites cibles : sur 46 px de haut, 7 px de bord
        mangeraient la moitié de la pastille. */
     .btn, .feuille-action, .puce-sync { --lentille-ep: 4px; }
-    .fab { --lentille-ep: 5px; }
     .summary-card, .modal-content, .feuille-contenu { --lentille-ep: 9px; }
 
     /* Le verre s'enfonce quand on le presse : la lentille se rétracte. */
@@ -1411,7 +1414,7 @@
 
     html.sans-verre .verre::before, html.sans-verre .app-bar::before,
     html.sans-verre .summary-card::before, html.sans-verre .btn::before,
-    html.sans-verre .fab::before, html.sans-verre .feuille-action::before,
+    html.sans-verre .feuille-action::before,
     html.sans-verre .meal-card::before, html.sans-verre .bloc-verre::before,
     html.sans-verre .fitness-card::before, html.sans-verre .analysis-card::before,
     html.sans-verre .daily-questionnaire::before,
@@ -1545,11 +1548,6 @@
     .exo-en-programme-entete { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
     .exo-en-programme-nom { font-weight: 700; font-size: 0.88rem; }
     .exo-en-programme-meta { font-size: 0.7rem; color: var(--text-muted); margin-top: 2px; }
-    /* Un seul champ désormais (Repos) : Séries et Répétitions sont passées
-       au tableau de séries individuelles, comme au lancement de la séance. */
-    .exo-en-programme-champs { display: grid; grid-template-columns: 1fr; gap: 8px; max-width: 160px; }
-    .exo-en-programme-champs .input-group { margin-bottom: 0; }
-    .exo-en-programme-champs label { font-size: 0.58rem; }
     .exo-en-programme-reordre { display: flex; flex-direction: column; gap: 3px; }
     .exo-en-programme-reordre button {
       width: 28px; height: 22px; border-radius: 6px; border: 1px solid var(--verre-brd);
@@ -1596,10 +1594,8 @@
     .btn-ajouter-serie {
       width: 100%; height: 26px; margin-top: 8px; padding: 0; border: 0; box-shadow: none;
       display: flex; align-items: center; justify-content: center; line-height: 1;
-      background: var(--verre-sheen), var(--verre-fort);
-      -webkit-backdrop-filter: blur(var(--verre-flou-doux)) saturate(var(--verre-sat));
-      backdrop-filter: blur(var(--verre-flou-doux)) saturate(var(--verre-sat));
-      color: var(--text); border-radius: 8px; font-weight: 700; cursor: pointer;
+      background: var(--verre-creux);
+      color: var(--text-muted); border-radius: 8px; font-weight: 700; cursor: pointer;
       font-size: 0.75rem; font-family: inherit;
     }
     /* Le numéro de série sert aussi à choisir son type (normale/dégressif/
@@ -10131,16 +10127,8 @@ function renderProgrammeExercicesEnEdition() {
         ${lignesSeries}
       </div>
       <button type="button" class="btn-ajouter-serie" onclick="ajouterSerieProgramme(${i})">Ajouter une série</button>
-      <div class="exo-en-programme-champs">
-        <div class="input-group"><label>Repos entre les séries (s)</label><input type="number" min="0" step="15" value="${pe.repos}" onchange="modifierExerciceProgramme(${i},'repos',this.value)"></div>
-      </div>
     </div>`;
   }).join('');
-}
-function modifierExerciceProgramme(i, champ, valeur) {
-  const pe = programmeEnEdition.exercices[i];
-  if (!pe) return;
-  if (champ === 'repos') pe.repos = Math.max(0, Number(valeur) || 0);
 }
 function modifierSerieProgramme(i, si, champ, valeur) {
   const pe = programmeEnEdition.exercices[i];
@@ -10318,7 +10306,7 @@ function choisirExercicePicker(id) {
     programmeEnEdition.exercices.push({
       exerciceId: id,
       series: [{ poids: null, reps: 10, technique: null }, { poids: null, reps: 10, technique: null }, { poids: null, reps: 10, technique: null }],
-      repos: 90, supersetSuivant: false
+      supersetSuivant: false
     });
     fermerModal('picker-exercices-modal');
     renderProgrammeExercicesEnEdition();
@@ -10766,10 +10754,15 @@ function terminerSeance() {
   if (etaitLibre && confirm('Enregistrer cette séance comme nouveau programme réutilisable ?')) {
     programmeEnEdition = {
       id: null,
-      exercices: entree.exercices.map(e => {
-        const derniereSerie = e.series[e.series.length - 1];
-        return { exerciceId: e.exerciceId, series: e.series.length || 3, reps: String((derniereSerie && derniereSerie.reps) || 10), repos: 90 };
-      })
+      // Reprend le poids et les répétitions réels de chaque série de la
+      // séance qui vient de se terminer, pas juste leur nombre : c'est tout
+      // l'intérêt d'enregistrer une séance libre comme programme plutôt que
+      // d'en repartir d'un programme vide.
+      exercices: entree.exercices.map(e => ({
+        exerciceId: e.exerciceId,
+        series: e.series.map(s => ({ poids: s.poids, reps: s.reps, technique: s.technique || null })),
+        supersetSuivant: !!e.supersetSuivant
+      }))
     };
     document.getElementById('titre-programme-modal').textContent = '📋 Nouveau programme';
     document.getElementById('programme-nom-input').value = '';
