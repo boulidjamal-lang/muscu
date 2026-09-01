@@ -304,7 +304,7 @@
     :root { --spl-duree: 2.6s; }
 
   .spl-scene {
-    position:relative; width:min(72vw,224px); height:min(88vw,274px);
+    position:relative; width:min(42vw,134px); height:min(51vw,164px);
     animation:spl-pousse var(--spl-duree) cubic-bezier(.33,0,.2,1) infinite;
   }
   /* Le sol encaisse a l'arrachage puis rend l'effort au verrouillage.
@@ -320,7 +320,7 @@
      L'aigle de la marque, meme silhouette que celle de la barre du haut
      (masque CSS sur le meme dessin), plutot qu'une figure humaine animee :
      c'est l'embleme Anqa qui ouvre l'application. Le contour lumineux vert
-     rythme le meme battement que le socle (spl-pousse / spl-sol). */
+     rythme le meme battement que spl-pousse. */
   .spl-aigle {
     position:absolute; inset:0;
     background-color:#f4f7fb;
@@ -335,40 +335,6 @@
   @keyframes spl-aigle-vie {
     0%,100% { filter:drop-shadow(0 0 4px rgba(244,247,251,.10)); opacity:.88; }
     43%     { filter:drop-shadow(0 0 16px rgba(34,197,94,.5));   opacity:1; }
-  }
-
-  .spl-sol {
-    width:min(76vw,290px); height:1px; margin-top:2px;
-    background:linear-gradient(90deg,transparent,rgba(244,247,251,.28),transparent);
-    animation:spl-solPulse var(--spl-duree) ease-in-out infinite;
-  }
-  @keyframes spl-solPulse {
-    0%,100% { opacity:.28; transform:scaleX(.76); }
-    43%     { opacity:1;   transform:scaleX(1); }
-  }
-
-  .spl-marque { text-align:center; margin-top:34px; padding:0 18px; }
-  .spl-nom { font-family:'Cinzel',serif; font-size:clamp(1.5rem,7vw,2.1rem); font-weight:900; letter-spacing:5px; margin:0; }
-  .spl-trait {
-    width:46px; height:2px; margin:14px auto 0; background:var(--primary); border-radius:2px;
-    animation:spl-trait var(--spl-duree) ease-in-out infinite;
-  }
-  @keyframes spl-trait {
-    0%,100% { width:24px; opacity:.35; }
-    43%     { width:72px; opacity:1; }
-  }
-  .spl-slogan {
-    font-size:clamp(.9rem,4vw,1.15rem); font-weight:800; letter-spacing:7px;
-    margin:10px 0 0; color:var(--primary);
-    animation:spl-slogan var(--spl-duree) ease-in-out infinite;
-  }
-  @keyframes spl-slogan {
-    0%,100% { opacity:.5; letter-spacing:6px; }
-    43%     { opacity:1;  letter-spacing:9px; }
-  }
-  .spl-devise {
-    font-size:clamp(.56rem,2.9vw,.68rem); letter-spacing:2.6px; font-weight:700;
-    color:rgba(244,247,251,.40); margin:16px 0 0; line-height:1.6;
   }
 
     @keyframes poser {
@@ -393,15 +359,12 @@
 
     @media (prefers-reduced-motion: reduce) {
       #splash-screen, .splash-skip, .etat-bg::before,
-      .spl-scene, .spl-aigle, .spl-sol, .spl-trait, .spl-slogan
+      .spl-scene, .spl-aigle
         { animation: none !important; }
       /* Sans animation, on fige l'aigle avec son contour au maximum : une
          silhouette figee vaut mieux qu'un ecran vide. */
       .spl-aigle { opacity: 1; filter:drop-shadow(0 0 16px rgba(34,197,94,.5)); }
-      .spl-slogan, .splash-skip { opacity: 1; }
-      .spl-slogan { letter-spacing: 8px; }
-      .spl-trait  { width: 60px; opacity: 1; }
-      .spl-sol    { opacity: .7; transform: none; }
+      .splash-skip { opacity: 1; }
       * { transition-duration: 0.01ms !important; }
     }
 
@@ -1696,13 +1659,6 @@
 <div id="splash-screen">
   <div class="spl-scene" aria-hidden="true">
     <div class="spl-aigle"></div>
-  </div>
-  <div class="spl-sol" aria-hidden="true"></div>
-  <div class="spl-marque">
-    <div class="spl-nom">ANQĀ</div>
-    <div class="spl-trait"></div>
-    <div class="spl-slogan">PLUS ULTRA</div>
-    <div class="spl-devise">CE QUI SE MESURE SE DÉPASSE</div>
   </div>
   <div class="splash-skip">Touchez pour passer</div>
 </div>
