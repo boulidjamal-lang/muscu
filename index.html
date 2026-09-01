@@ -1557,8 +1557,9 @@
     .serie-table td { padding: 4px 3px; text-align: center; }
     .serie-num { font-size: 0.75rem; font-weight: 700; color: var(--text-muted); }
     /* Le numéro de série sert aussi à choisir son type (normale/dégressif/
-       pyramidal) : un tap fait défiler les trois, la couleur indique lequel
-       est actif — pas de champ ni de menu séparé. */
+       pyramidal/échec) : un tap ouvre un petit menu (comme Strong), et une
+       fois un type choisi, la pastille affiche sa lettre (D/P/É) au lieu du
+       numéro — la couleur suffit à la distinguer d'une numérotation. */
     .serie-num-btn {
       width: 26px; height: 26px; border-radius: 50%; padding: 0; border: 1px solid var(--verre-brd);
       background: var(--verre-fort); color: var(--text-muted); font-size: 0.75rem; font-weight: 700;
@@ -1566,6 +1567,23 @@
     }
     .serie-num-btn[data-technique="degressif"] { background: var(--accent); border-color: var(--accent); color: #fff; }
     .serie-num-btn[data-technique="pyramidal"] { background: var(--carbs); border-color: var(--carbs); color: #fff; }
+    .serie-num-btn[data-technique="echec"] { background: var(--danger); border-color: var(--danger); color: #fff; }
+    /* Menu qui s'ouvre au tap sur la pastille — même habillage que la liste
+       de suggestions d'aliments (.off-liste), en position fixe pour rester
+       ancré au bon endroit quel que soit le défilement du contenu derrière. */
+    .menu-technique-popup {
+      position: fixed; z-index: 3000; min-width: 168px; border-radius: 14px; overflow: hidden;
+      background: linear-gradient(var(--barre), var(--barre)), var(--bg);
+      border: 1px solid var(--verre-brd-vive); box-shadow: var(--ombre-haute);
+    }
+    .menu-technique-popup button {
+      display: block; width: 100%; text-align: left; border: 0;
+      border-bottom: 1px solid var(--verre-brd); background: transparent;
+      color: inherit; font-family: inherit; padding: 10px 14px; font-size: 0.85rem;
+      cursor: pointer; min-height: 42px;
+    }
+    .menu-technique-popup button:last-child { border-bottom: none; }
+    .menu-technique-popup button:hover, .menu-technique-popup button:focus-visible { background: color-mix(in srgb, var(--primary) 14%, transparent); }
     .serie-table input {
       width: 100%; min-height: 40px; padding: 6px 4px; text-align: center;
       background: var(--verre); border: 1px solid var(--verre-brd); color: var(--text);
@@ -2106,6 +2124,16 @@
   <span class="bandeau-seance-flottant-pastille" aria-hidden="true">🔴</span>
   <span class="bandeau-seance-flottant-texte" id="bandeau-seance-flottant-texte"></span>
 </button>
+
+<!-- Menu du type de série (normale/dégressif/pyramidal/échec), ouvert au tap
+     sur la pastille numérotée d'une série — un seul menu partagé, positionné
+     dynamiquement (voir ouvrirMenuTechnique). -->
+<div class="menu-technique-popup hidden" id="menu-technique-popup" role="menu">
+  <button type="button" role="menuitem" onclick="choisirTechniqueMenu(null)">Normale</button>
+  <button type="button" role="menuitem" onclick="choisirTechniqueMenu('degressif')">💧 Dégressif</button>
+  <button type="button" role="menuitem" onclick="choisirTechniqueMenu('pyramidal')">🔺 Pyramidal</button>
+  <button type="button" role="menuitem" onclick="choisirTechniqueMenu('echec')">🔥 Échec</button>
+</div>
 
 <!-- ============ NAVIGATION : tout passe par le bouton flottant ============ -->
 <nav class="fab-zone" id="fab-zone" aria-label="Navigation principale">
@@ -3912,6 +3940,10 @@ function fermerModal(id) {
   if (id === 'compte-modal' && connexionObligatoire) return;
   if (id === 'modal-bienvenue' && bilanForce) return;
   if (id === 'fiche-exercice-modal') arreterAnimationFiche();
+  // Sinon, fermer la séance/le programme en cours d'édition sans avoir
+  // choisi d'option laissait le petit menu de type de série flotter,
+  // orphelin, par-dessus tout le reste de l'appli.
+  if (typeof fermerMenuTechnique === 'function') fermerMenuTechnique();
   const el = document.getElementById(id);
   if (el) el.classList.remove('show');
   majCoucheOuverte();
@@ -9493,7 +9525,8 @@ function grouperBlocsExercices(liste) {
   }
   return blocs;
 }
-const TECHNIQUE_LABELS = { degressif: '💧 Dégressif', pyramidal: '🔺 Pyramidal' };
+const TECHNIQUE_LABELS = { degressif: '💧 Dégressif', pyramidal: '🔺 Pyramidal', echec: '🔥 Échec' };
+const TECHNIQUE_LETTRES = { degressif: 'D', pyramidal: 'P', echec: 'É' };
 
 /* =====================================================================
    Rendu de l'onglet Séance
@@ -10022,7 +10055,7 @@ function renderProgrammeExercicesEnEdition() {
     const dernierDeLaListe = i === programmeEnEdition.exercices.length - 1;
     const lignesSeries = pe.series.map((s, si) => `
       <tr>
-        <td>${boutonNumeroSerie(si, s.technique, `cyclerTechniqueSerieProgramme(${i},${si})`)}</td>
+        <td>${boutonNumeroSerie(si, s.technique, `ouvrirMenuTechniqueProgramme(this,${i},${si})`)}</td>
         <td><input type="number" inputmode="decimal" step="0.5" value="${s.poids ?? ''}" placeholder="—" onchange="modifierSerieProgramme(${i},${si},'poids',this.value)"></td>
         <td><input type="number" inputmode="numeric" step="1" value="${s.reps ?? ''}" placeholder="—" onchange="modifierSerieProgramme(${i},${si},'reps',this.value)"></td>
       </tr>`).join('');
@@ -10067,13 +10100,6 @@ function modifierSerieProgramme(i, si, champ, valeur) {
   const s = pe && pe.series[si];
   if (!s) return;
   s[champ] = valeur === '' ? null : Number(valeur);
-}
-function cyclerTechniqueSerieProgramme(i, si) {
-  const pe = programmeEnEdition.exercices[i];
-  const s = pe && pe.series[si];
-  if (!s) return;
-  s.technique = cyclerTechnique(s.technique);
-  renderProgrammeExercicesEnEdition();
 }
 function ajouterSerieProgramme(i) {
   const pe = programmeEnEdition.exercices[i];
@@ -10445,7 +10471,7 @@ function renderSessionExerciceBlocHTML(exo, ei) {
     : 'Première fois sur cet exercice.';
   const lignesSeries = exo.series.map((set, si) => `
     <tr>
-      <td>${boutonNumeroSerie(si, set.technique, `cyclerTechniqueSerieSession(${ei},${si})`)}</td>
+      <td>${boutonNumeroSerie(si, set.technique, `ouvrirMenuTechniqueSession(this,${ei},${si})`)}</td>
       <td><input type="number" inputmode="decimal" step="0.5" value="${set.poids ?? ''}" placeholder="—" onchange="modifierSerieSession(${ei},${si},'poids',this.value)"></td>
       <td><input type="number" inputmode="numeric" step="1" value="${set.reps ?? ''}" placeholder="—" onchange="modifierSerieSession(${ei},${si},'reps',this.value)"></td>
       <td><button type="button" class="serie-check ${set.fait ? 'faite' : ''}" onclick="basculerSerieSession(${ei},${si})" aria-label="Marquer la série comme faite">✓</button></td>
@@ -10467,24 +10493,77 @@ function renderSessionExerciceBlocHTML(exo, ei) {
     </div>
   </div>`;
 }
-/* Le "type" d'une série (dégressif, pyramidal...) — comme Warm up/Drop
+/* Le "type" d'une série (dégressif, pyramidal, échec) — comme Warm up/Drop
    set/Failure chez Strong — s'applique à CETTE série précise, pas à tout
    l'exercice : une même série de dégressif est en général suivie de séries
-   normales, pas l'inverse. Pas de champ ni de menu séparé : le numéro de
-   la série lui-même sert de bouton, sa couleur indiquant le type actif — un
-   tap fait défiler normale → dégressif → pyramidal → normale. onclickJs
-   est absent (undefined) pour un rendu en lecture seule (historique). */
-const CYCLE_TECHNIQUE = [null, 'degressif', 'pyramidal'];
-function cyclerTechnique(actuel) {
-  return CYCLE_TECHNIQUE[(CYCLE_TECHNIQUE.indexOf(actuel || null) + 1) % CYCLE_TECHNIQUE.length];
-}
-function boutonNumeroSerie(si, technique, onclickJs) {
+   normales, pas l'inverse. Pas de champ ni de menu toujours visible : le
+   numéro de la série lui-même sert de bouton, qui ouvre au tap un petit
+   menu (menuTechniquePopup ci-dessous) — une fois un type choisi, la
+   pastille affiche sa lettre (D/P/É) et sa couleur plutôt que le numéro.
+   ouvrirMenuJs est absent (undefined) pour un rendu en lecture seule
+   (détail d'une séance déjà terminée). */
+function boutonNumeroSerie(si, technique, ouvrirMenuJs) {
   const libelle = technique && TECHNIQUE_LABELS[technique] ? TECHNIQUE_LABELS[technique] : 'Normale';
-  if (!onclickJs) {
-    return `<span class="serie-num-btn" data-technique="${technique || ''}" aria-label="Série ${si + 1} — ${libelle}">${si + 1}</span>`;
+  const contenu = (technique && TECHNIQUE_LETTRES[technique]) || (si + 1);
+  if (!ouvrirMenuJs) {
+    return `<span class="serie-num-btn" data-technique="${technique || ''}" aria-label="Série ${si + 1} — ${libelle}">${contenu}</span>`;
   }
-  return `<button type="button" class="serie-num-btn" data-technique="${technique || ''}" onclick="${onclickJs}"
-    aria-label="Série ${si + 1} — ${libelle} — appuyer pour changer le type">${si + 1}</button>`;
+  return `<button type="button" class="serie-num-btn" data-technique="${technique || ''}" onclick="${ouvrirMenuJs}"
+    aria-label="Série ${si + 1} — ${libelle} — appuyer pour changer le type">${contenu}</button>`;
+}
+
+/* Menu du type de série : un seul élément partagé (#menu-technique-popup),
+   repositionné à chaque ouverture sous la pastille tapée. menuTechniqueSur
+   retient QUOI modifier quand une option est choisie — appelant spécifique
+   (session ou programme), pas une fonction générique passée en chaîne : on
+   ne peut pas sérialiser une closure dans un attribut onclick. */
+let menuTechniqueSur = null;
+function ouvrirMenuTechnique(boutonEl, appliquer) {
+  const menu = document.getElementById('menu-technique-popup');
+  if (!menu) return;
+  menuTechniqueSur = appliquer;
+  const r = boutonEl.getBoundingClientRect();
+  const largeurMenu = 168;
+  menu.style.top = (r.bottom + 4) + 'px';
+  // Le menu déborderait à droite pour une pastille proche du bord : on le
+  // recale plutôt que de le laisser sortir de l'écran.
+  menu.style.left = Math.min(r.left, window.innerWidth - largeurMenu - 8) + 'px';
+  menu.classList.remove('hidden');
+}
+function fermerMenuTechnique() {
+  const menu = document.getElementById('menu-technique-popup');
+  if (menu) menu.classList.add('hidden');
+  menuTechniqueSur = null;
+}
+function choisirTechniqueMenu(valeur) {
+  if (menuTechniqueSur) menuTechniqueSur(valeur);
+  fermerMenuTechnique();
+}
+// Tap en dehors du menu (ou de la pastille qui vient de l'ouvrir) = on le
+// referme sans rien changer, comme n'importe quel menu contextuel.
+document.addEventListener('click', (e) => {
+  const menu = document.getElementById('menu-technique-popup');
+  if (!menu || menu.classList.contains('hidden')) return;
+  if (menu.contains(e.target) || e.target.closest('.serie-num-btn')) return;
+  fermerMenuTechnique();
+});
+function ouvrirMenuTechniqueSession(boutonEl, ei, si) {
+  ouvrirMenuTechnique(boutonEl, (valeur) => {
+    const set = musculationSessionActive.exercices[ei] && musculationSessionActive.exercices[ei].series[si];
+    if (!set) return;
+    set.technique = valeur;
+    sauvegarderSessionActive();
+    renderSessionModal();
+  });
+}
+function ouvrirMenuTechniqueProgramme(boutonEl, i, si) {
+  ouvrirMenuTechnique(boutonEl, (valeur) => {
+    const pe = programmeEnEdition.exercices[i];
+    const s = pe && pe.series[si];
+    if (!s) return;
+    s.technique = valeur;
+    renderProgrammeExercicesEnEdition();
+  });
 }
 function modifierSerieSession(ei, si, champ, valeur) {
   const set = musculationSessionActive.exercices[ei] && musculationSessionActive.exercices[ei].series[si];
@@ -10499,13 +10578,6 @@ function basculerSerieSession(ei, si) {
   sauvegarderSessionActive();
   renderSessionModal();
   renderBandeauSessionActive();
-}
-function cyclerTechniqueSerieSession(ei, si) {
-  const set = musculationSessionActive.exercices[ei] && musculationSessionActive.exercices[ei].series[si];
-  if (!set) return;
-  set.technique = cyclerTechnique(set.technique);
-  sauvegarderSessionActive();
-  renderSessionModal();
 }
 function ajouterSerieSession(ei) {
   const exo = musculationSessionActive.exercices[ei];
