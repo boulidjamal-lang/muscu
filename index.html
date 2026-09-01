@@ -748,7 +748,7 @@
     .fab {
       width: 60px; height: 60px; border-radius: 21px;
       border: 2px solid var(--primary);
-      background: rgba(255,255,255,0.045);
+      background: rgba(255,255,255,0.01);
       -webkit-backdrop-filter: blur(14px) saturate(160%);
       backdrop-filter: blur(14px) saturate(160%);
       color: var(--primary);
@@ -2141,6 +2141,145 @@
     </div>
   </section>
 
+  <!-- ================= ÉCRAN : RÉGLAGES ================= -->
+  <section id="ecran-reglages" class="ecran" role="region" aria-label="Réglages">
+    <h2 class="titre-ecran"><span class="ic" aria-hidden="true">⚙️</span> Profil &amp; réglages</h2>
+
+    <div class="bloc-verre" style="padding:15px; margin-bottom:16px;">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+        <div style="min-width:0;">
+          <div style="font-weight:700; font-size:0.72rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.8px;">👤 Mon compte</div>
+          <div id="reglages-email" style="font-weight:700; font-size:0.88rem; margin-top:4px; word-break:break-word;">Non connecté</div>
+        </div>
+        <button class="btn btn-secondaire" style="width:auto; flex:none; white-space:nowrap;"
+                onclick="ouvrirModal('compte-modal');">Gérer</button>
+      </div>
+    </div>
+
+    <div class="bloc-verre hidden" id="bloc-installer-app" style="padding:15px; margin-bottom:16px;">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+        <div style="min-width:0;">
+          <div style="font-weight:700; font-size:0.72rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.8px;">📲 Application</div>
+          <div style="font-weight:700; font-size:0.88rem; margin-top:4px;">Pas encore sur ton écran d'accueil</div>
+        </div>
+        <button class="btn btn-secondaire" style="width:auto; flex:none; white-space:nowrap;" onclick="ouvrirInstallation()">Installer</button>
+      </div>
+    </div>
+
+    <div class="input-group">
+      <label>🎨 Thème</label>
+      <div class="segment" id="segment-theme">
+        <button type="button" onclick="choisirTheme('light')" aria-pressed="false">Clair</button>
+        <button type="button" onclick="choisirTheme('dark')" aria-pressed="false">Sombre</button>
+      </div>
+    </div>
+
+    <div class="input-group">
+      <label>📐 Densité d'affichage</label>
+      <div class="segment" id="segment-densite">
+        <button type="button" onclick="choisirDensite('confort')" aria-pressed="false">Confort</button>
+        <button type="button" onclick="choisirDensite('compact')" aria-pressed="false">Compact</button>
+      </div>
+    </div>
+
+    <hr class="sep">
+
+    <div class="bloc-verre reserve-admin hidden" style="padding:15px; margin-bottom:16px;">
+      <label style="display:block;font-weight:700;font-size:0.72rem;margin-bottom:6px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px;">
+        ☁️ Synchronisation (facultative)
+      </label>
+      <p class="note">Tout est enregistré sur cet appareil, y compris hors ligne. L'application est préconfigurée avec le projet Supabase par défaut : tu n'as rien à saisir ici pour que ça fonctionne. Ne remplis les champs ci-dessous que si tu veux utiliser un <em>autre</em> projet ; laisse-les vides pour revenir automatiquement au projet par défaut (y compris s'il est mis à jour plus tard).</p>
+
+      <div class="input-group">
+        <label for="supa-url">URL du projet <small style="font-weight:400;color:var(--text-muted);">(optionnel — vide = projet par défaut)</small></label>
+        <input type="text" id="supa-url" placeholder="https://xxxx.supabase.co" autocomplete="off" onchange="enregistrerSupabase()">
+      </div>
+      <div class="input-group">
+        <label for="supa-key">Clé publique (anon) <small style="font-weight:400;color:var(--text-muted);">(optionnel)</small></label>
+        <input type="password" id="supa-key" placeholder="eyJhbGci…" autocomplete="off" onchange="enregistrerSupabase()">
+      </div>
+      <div class="input-group">
+        <label for="supa-id">Identifiant de synchronisation</label>
+        <input type="text" id="supa-id" placeholder="moi" autocomplete="off" onchange="enregistrerSupabase()">
+        <small style="color:var(--text-muted); display:block; margin-top:6px; font-size:0.75rem;">Le même sur tous tes appareils pour qu'ils partagent les mêmes données. Inutile si tu utilises un compte (👤 en haut) : il prend automatiquement le relais, et ce champ est alors désactivé.</small>
+      </div>
+
+      <p class="note" id="note-sync" style="margin:10px 0 0;"></p>
+      <p class="note" style="margin:8px 0 0;">L'état détaillé de la synchronisation est visible dans le pop-up ☁️ « À jour » sur l'écran principal.</p>
+      <details style="margin-top:10px;">
+        <summary style="cursor:pointer;font-size:0.75rem;color:var(--text-muted);font-weight:700;">Préparer la table des aliments</summary>
+        <p class="note" style="margin:10px 0 0;">À exécuter une fois. Ajoute le code-barres, la recherche sans accents, et l'index qui la rend instantanée. Aucune donnée existante n'est touchée.</p>
+        <div class="bloc-sql" id="bloc-sql-accents"></div>
+        <button class="btn btn-secondaire" style="margin-top:9px;" onclick="copierSqlAccents()">📋 Copier</button>
+      </details>
+
+      <details style="margin-top:10px;">
+        <summary style="cursor:pointer;font-size:0.75rem;color:var(--text-muted);font-weight:700;">SQL à exécuter une fois dans Supabase</summary>
+        <div class="bloc-sql" id="bloc-sql"></div>
+        <button class="btn btn-secondaire" style="margin-top:9px;" onclick="copierSql()">📋 Copier le SQL</button>
+      </details>
+
+      <details style="margin-top:10px;">
+        <summary style="cursor:pointer;font-size:0.75rem;color:var(--text-muted);font-weight:700;">🔒 Sécuriser l'accès une fois que vous êtes tous les deux connectés (👤)</summary>
+        <p class="note" style="margin:10px 0 0;">Par défaut, la table est ouverte à quiconque possède la clé publique du projet (c'est ce qui permet à l'appli de fonctionner même sans compte). Une fois que toi et ta femme avez chacun créé un compte, exécute ce SQL une fois : chaque compte ne pourra plus lire ou modifier que ses propres journées.</p>
+        <div class="bloc-sql" id="bloc-sql-rls"></div>
+        <button class="btn btn-secondaire" style="margin-top:9px;" onclick="copierSqlRls()">📋 Copier le SQL</button>
+      </details>
+    </div>
+
+    <hr class="sep">
+
+    <div class="input-group reserve-admin hidden">
+      <label for="gemini-key-input">🔑 Clé API Google Gemini</label>
+      <input type="password" id="gemini-key-input" placeholder="AIzaSy…" onchange="sauvegarderParametresGlobaux()">
+      <small style="color:var(--text-muted); display: block; margin-top: 6px; font-size:0.75rem;">Liée à ton compte (👤), pas à cet appareil : si toi et ta femme avez chacun votre clé, chacun garde son propre quota de requêtes, sur n'importe quel appareil où vous vous connectez. Une clé par défaut est utilisée tant que ce champ est vide. Obtiens ta propre clé sur <strong>aistudio.google.com</strong>.</small>
+    </div>
+
+    <div class="input-group reserve-admin hidden">
+      <label for="ia-limite">Limite quotidienne (facultatif)</label>
+      <input type="number" id="ia-limite" placeholder="ex : 250" inputmode="numeric" onchange="enregistrerLimiteIA()">
+      <small style="color:var(--text-muted); display: block; margin-top: 6px; font-size:0.75rem;">
+        Renseigne-la pour voir « 12 / 250 » au lieu de « 12 ». Ton chiffre est sur AI&nbsp;Studio → Limite de débit (requêtes par jour).
+      </small>
+      <span class="puce-ia" style="text-align:left;"></span>
+    </div>
+
+    <hr class="sep">
+
+    <div class="input-group">
+      <label for="base-gender">Sexe</label>
+      <select id="base-gender" onchange="sauvegarderParametresGlobaux()">
+        <option value="m">Homme</option>
+        <option value="f">Femme</option>
+      </select>
+    </div>
+    <div class="input-group">
+      <label for="base-age">Âge</label>
+      <input type="number" id="base-age" value="25" inputmode="numeric" onchange="sauvegarderParametresGlobaux()">
+    </div>
+    <div class="input-group">
+      <label for="base-height">Taille (cm)</label>
+      <input type="number" id="base-height" value="175" inputmode="numeric" onchange="sauvegarderParametresGlobaux()">
+    </div>
+    <div class="input-group">
+      <label>💧 Objectif d'eau bue</label>
+      <p style="margin:0; font-weight:700;" id="affichage-objectif-eau"></p>
+      <p class="note" style="margin:6px 0 0;">Calculé automatiquement à partir de ton poids, ton âge, ton sexe et le sport du jour — rien à régler ici, visible sur l'écran Repas.</p>
+    </div>
+
+    <hr class="sep">
+
+    <div style="margin-bottom: 16px;">
+      <label style="display: block; font-weight: 700; font-size: 0.72rem; margin-bottom: 8px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.8px;">💾 Gestion des données</label>
+      <div style="display: flex; gap: 10px;">
+        <button class="btn-action btn-ai" onclick="exporterDonnees()">📤 Exporter</button>
+        <button class="btn-action btn-manual" onclick="document.getElementById('import-file-input').click()">📥 Importer</button>
+        <input type="file" id="import-file-input" accept=".json,application/json" class="hidden" onchange="importerDonnees(event)">
+      </div>
+      <button class="btn btn-secondaire" id="btn-corriger-unites" style="margin-top:10px; width:100%;" onclick="corrigerUnitesHistorique()">🔍 Corriger les unités g/ml de l'historique</button>
+      <p class="note" style="margin:8px 0 0;">Repasse sur tous les repas déjà enregistrés pour repérer les boissons encore marquées en grammes (eau, jus, soda…) et les convertir en ml.</p>
+    </div>
+  </section>
 </main>
 
 <div class="scrim" id="scrim" onclick="fermerFab()"></div>
@@ -2170,15 +2309,14 @@
 <!-- ============ NAVIGATION : tout passe par le bouton flottant ============ -->
 <nav class="fab-zone" id="fab-zone" aria-label="Navigation principale">
   <div class="fab-actions">
+    <!-- Tout en haut de la pile, le plus loin du bouton : c'est l'onglet le
+         moins utilisé au quotidien. -->
+    <button class="fab-action" id="nav-reglages" onclick="allerA('reglages')"><span class="ic" aria-hidden="true">⚙️</span> Réglages</button>
     <button class="fab-action hidden" id="nav-admin" onclick="allerA('admin')"><span class="ic" aria-hidden="true">👑</span> Administration</button>
     <button class="fab-action" id="nav-stats" onclick="allerA('stats')"><span class="ic" aria-hidden="true">📊</span> Statistiques</button>
     <button class="fab-action" id="nav-seance" onclick="allerA('seance')"><span class="ic" aria-hidden="true">🏋️</span> Séance</button>
     <button class="fab-action" id="nav-activite" onclick="allerA('activite')"><span class="ic" aria-hidden="true">👟</span> Activité</button>
     <button class="fab-action" id="nav-repas" onclick="allerA('repas')"><span class="ic" aria-hidden="true">🍽️</span> Repas du jour</button>
-    <!-- Pas un onglet (id volontairement hors du préfixe nav-* que lit
-         allerA()) : ouvre juste la modale Réglages, en refermant le menu
-         du bouton flottant comme le fait allerA() pour les vrais onglets. -->
-    <button class="fab-action" id="fab-reglages" onclick="fermerFab(); majAffichageObjectifEau(); ouvrirModal('settings-modal');"><span class="ic" aria-hidden="true">⚙️</span> Réglages</button>
   </div>
   <button class="fab" id="fab" onclick="basculerFab()" aria-label="Changer d'écran" aria-expanded="false">🍽️</button>
 </nav>
@@ -2592,7 +2730,6 @@
   </div>
 </div>
 
-<!-- Modal Paramètres Généraux -->
 <!-- Modal État de synchronisation (ouverte depuis le bouton "à jour" / "☁️" de l'écran principal) -->
 <div id="sync-info-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="titre-sync-info">
   <div class="modal-content">
@@ -2609,7 +2746,7 @@
     </div>
 
     <button class="btn btn-primary" onclick="synchroniser('manuel')">🔄 Synchroniser maintenant</button>
-    <button class="btn btn-secondaire" style="margin-top:10px; width:100%;" onclick="fermerModal('sync-info-modal'); majAffichageObjectifEau(); ouvrirModal('settings-modal');">⚙️ Réglages de synchronisation</button>
+    <button class="btn btn-secondaire" style="margin-top:10px; width:100%;" onclick="fermerModal('sync-info-modal'); allerA('reglages');">⚙️ Réglages de synchronisation</button>
   </div>
 </div>
 
@@ -2735,152 +2872,6 @@
     </div>
 
     <button class="btn btn-primary" style="margin-top:6px;" onclick="enregistrerMesures()">💾 Enregistrer</button>
-  </div>
-</div>
-
-<div id="settings-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="titre-settings">
-  <div class="modal-content">
-    <div class="modal-entete">
-      <h3 id="titre-settings">⚙️ Profil &amp; réglages</h3>
-      <button class="close-modal" onclick="fermerModal('settings-modal')" aria-label="Fermer">&times;</button>
-    </div>
-
-    <div class="bloc-verre" style="padding:15px; margin-bottom:16px;">
-      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
-        <div style="min-width:0;">
-          <div style="font-weight:700; font-size:0.72rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.8px;">👤 Mon compte</div>
-          <div id="reglages-email" style="font-weight:700; font-size:0.88rem; margin-top:4px; word-break:break-word;">Non connecté</div>
-        </div>
-        <button class="btn btn-secondaire" style="width:auto; flex:none; white-space:nowrap;"
-                onclick="fermerModal('settings-modal'); ouvrirModal('compte-modal');">Gérer</button>
-      </div>
-    </div>
-
-    <div class="bloc-verre hidden" id="bloc-installer-app" style="padding:15px; margin-bottom:16px;">
-      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
-        <div style="min-width:0;">
-          <div style="font-weight:700; font-size:0.72rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.8px;">📲 Application</div>
-          <div style="font-weight:700; font-size:0.88rem; margin-top:4px;">Pas encore sur ton écran d'accueil</div>
-        </div>
-        <button class="btn btn-secondaire" style="width:auto; flex:none; white-space:nowrap;" onclick="ouvrirInstallation()">Installer</button>
-      </div>
-    </div>
-
-    <div class="input-group">
-      <label>🎨 Thème</label>
-      <div class="segment" id="segment-theme">
-        <button type="button" onclick="choisirTheme('light')" aria-pressed="false">Clair</button>
-        <button type="button" onclick="choisirTheme('dark')" aria-pressed="false">Sombre</button>
-      </div>
-    </div>
-
-    <div class="input-group">
-      <label>📐 Densité d'affichage</label>
-      <div class="segment" id="segment-densite">
-        <button type="button" onclick="choisirDensite('confort')" aria-pressed="false">Confort</button>
-        <button type="button" onclick="choisirDensite('compact')" aria-pressed="false">Compact</button>
-      </div>
-    </div>
-
-    <hr class="sep">
-
-    <div class="bloc-verre reserve-admin hidden" style="padding:15px; margin-bottom:16px;">
-      <label style="display:block;font-weight:700;font-size:0.72rem;margin-bottom:6px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px;">
-        ☁️ Synchronisation (facultative)
-      </label>
-      <p class="note">Tout est enregistré sur cet appareil, y compris hors ligne. L'application est préconfigurée avec le projet Supabase par défaut : tu n'as rien à saisir ici pour que ça fonctionne. Ne remplis les champs ci-dessous que si tu veux utiliser un <em>autre</em> projet ; laisse-les vides pour revenir automatiquement au projet par défaut (y compris s'il est mis à jour plus tard).</p>
-
-      <div class="input-group">
-        <label for="supa-url">URL du projet <small style="font-weight:400;color:var(--text-muted);">(optionnel — vide = projet par défaut)</small></label>
-        <input type="text" id="supa-url" placeholder="https://xxxx.supabase.co" autocomplete="off" onchange="enregistrerSupabase()">
-      </div>
-      <div class="input-group">
-        <label for="supa-key">Clé publique (anon) <small style="font-weight:400;color:var(--text-muted);">(optionnel)</small></label>
-        <input type="password" id="supa-key" placeholder="eyJhbGci…" autocomplete="off" onchange="enregistrerSupabase()">
-      </div>
-      <div class="input-group">
-        <label for="supa-id">Identifiant de synchronisation</label>
-        <input type="text" id="supa-id" placeholder="moi" autocomplete="off" onchange="enregistrerSupabase()">
-        <small style="color:var(--text-muted); display:block; margin-top:6px; font-size:0.75rem;">Le même sur tous tes appareils pour qu'ils partagent les mêmes données. Inutile si tu utilises un compte (👤 en haut) : il prend automatiquement le relais, et ce champ est alors désactivé.</small>
-      </div>
-
-      <p class="note" id="note-sync" style="margin:10px 0 0;"></p>
-      <p class="note" style="margin:8px 0 0;">L'état détaillé de la synchronisation est visible dans le pop-up ☁️ « À jour » sur l'écran principal.</p>
-      <details style="margin-top:10px;">
-        <summary style="cursor:pointer;font-size:0.75rem;color:var(--text-muted);font-weight:700;">Préparer la table des aliments</summary>
-        <p class="note" style="margin:10px 0 0;">À exécuter une fois. Ajoute le code-barres, la recherche sans accents, et l'index qui la rend instantanée. Aucune donnée existante n'est touchée.</p>
-        <div class="bloc-sql" id="bloc-sql-accents"></div>
-        <button class="btn btn-secondaire" style="margin-top:9px;" onclick="copierSqlAccents()">📋 Copier</button>
-      </details>
-
-      <details style="margin-top:10px;">
-        <summary style="cursor:pointer;font-size:0.75rem;color:var(--text-muted);font-weight:700;">SQL à exécuter une fois dans Supabase</summary>
-        <div class="bloc-sql" id="bloc-sql"></div>
-        <button class="btn btn-secondaire" style="margin-top:9px;" onclick="copierSql()">📋 Copier le SQL</button>
-      </details>
-
-      <details style="margin-top:10px;">
-        <summary style="cursor:pointer;font-size:0.75rem;color:var(--text-muted);font-weight:700;">🔒 Sécuriser l'accès une fois que vous êtes tous les deux connectés (👤)</summary>
-        <p class="note" style="margin:10px 0 0;">Par défaut, la table est ouverte à quiconque possède la clé publique du projet (c'est ce qui permet à l'appli de fonctionner même sans compte). Une fois que toi et ta femme avez chacun créé un compte, exécute ce SQL une fois : chaque compte ne pourra plus lire ou modifier que ses propres journées.</p>
-        <div class="bloc-sql" id="bloc-sql-rls"></div>
-        <button class="btn btn-secondaire" style="margin-top:9px;" onclick="copierSqlRls()">📋 Copier le SQL</button>
-      </details>
-    </div>
-
-    <hr class="sep">
-
-    <div class="input-group reserve-admin hidden">
-      <label for="gemini-key-input">🔑 Clé API Google Gemini</label>
-      <input type="password" id="gemini-key-input" placeholder="AIzaSy…" onchange="sauvegarderParametresGlobaux()">
-      <small style="color:var(--text-muted); display: block; margin-top: 6px; font-size:0.75rem;">Liée à ton compte (👤), pas à cet appareil : si toi et ta femme avez chacun votre clé, chacun garde son propre quota de requêtes, sur n'importe quel appareil où vous vous connectez. Une clé par défaut est utilisée tant que ce champ est vide. Obtiens ta propre clé sur <strong>aistudio.google.com</strong>.</small>
-    </div>
-
-    <div class="input-group reserve-admin hidden">
-      <label for="ia-limite">Limite quotidienne (facultatif)</label>
-      <input type="number" id="ia-limite" placeholder="ex : 250" inputmode="numeric" onchange="enregistrerLimiteIA()">
-      <small style="color:var(--text-muted); display: block; margin-top: 6px; font-size:0.75rem;">
-        Renseigne-la pour voir « 12 / 250 » au lieu de « 12 ». Ton chiffre est sur AI&nbsp;Studio → Limite de débit (requêtes par jour).
-      </small>
-      <span class="puce-ia" style="text-align:left;"></span>
-    </div>
-
-    <hr class="sep">
-
-    <div class="input-group">
-      <label for="base-gender">Sexe</label>
-      <select id="base-gender" onchange="sauvegarderParametresGlobaux()">
-        <option value="m">Homme</option>
-        <option value="f">Femme</option>
-      </select>
-    </div>
-    <div class="input-group">
-      <label for="base-age">Âge</label>
-      <input type="number" id="base-age" value="25" inputmode="numeric" onchange="sauvegarderParametresGlobaux()">
-    </div>
-    <div class="input-group">
-      <label for="base-height">Taille (cm)</label>
-      <input type="number" id="base-height" value="175" inputmode="numeric" onchange="sauvegarderParametresGlobaux()">
-    </div>
-    <div class="input-group">
-      <label>💧 Objectif d'eau bue</label>
-      <p style="margin:0; font-weight:700;" id="affichage-objectif-eau"></p>
-      <p class="note" style="margin:6px 0 0;">Calculé automatiquement à partir de ton poids, ton âge, ton sexe et le sport du jour — rien à régler ici, visible sur l'écran Repas.</p>
-    </div>
-
-    <hr class="sep">
-
-    <div style="margin-bottom: 16px;">
-      <label style="display: block; font-weight: 700; font-size: 0.72rem; margin-bottom: 8px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.8px;">💾 Gestion des données</label>
-      <div style="display: flex; gap: 10px;">
-        <button class="btn-action btn-ai" onclick="exporterDonnees()">📤 Exporter</button>
-        <button class="btn-action btn-manual" onclick="document.getElementById('import-file-input').click()">📥 Importer</button>
-        <input type="file" id="import-file-input" accept=".json,application/json" class="hidden" onchange="importerDonnees(event)">
-      </div>
-      <button class="btn btn-secondaire" id="btn-corriger-unites" style="margin-top:10px; width:100%;" onclick="corrigerUnitesHistorique()">🔍 Corriger les unités g/ml de l'historique</button>
-      <p class="note" style="margin:8px 0 0;">Repasse sur tous les repas déjà enregistrés pour repérer les boissons encore marquées en grammes (eau, jus, soda…) et les convertir en ml.</p>
-    </div>
-
-    <button class="btn btn-primary" onclick="fermerModal('settings-modal')">Fermer</button>
   </div>
 </div>
 
@@ -5937,8 +5928,8 @@ function importerDonnees(event) {
    corriger un repas du soir il fallait passer devant tout le reste. Quatre
    ecrans, une barre basse, et chaque tache tient dans une hauteur d'ecran.
    ===================================================================== */
-const ECRANS = ['repas', 'activite', 'seance', 'stats', 'admin'];
-const ECRAN_ICONE = { repas: '🍽️', activite: '👟', seance: '🏋️', stats: '📊', admin: '👑' };
+const ECRANS = ['repas', 'activite', 'seance', 'stats', 'admin', 'reglages'];
+const ECRAN_ICONE = { repas: '🍽️', activite: '👟', seance: '🏋️', stats: '📊', admin: '👑', reglages: '⚙️' };
 let ecranActif = 'repas';
 
 function allerA(nom) {
@@ -5968,6 +5959,10 @@ function allerA(nom) {
   // Les aliments ne sont chargés qu'à l'ouverture de leur feuille :
   // inutile d'interroger Supabase tant que personne ne les regarde.
   if (nom === 'admin') chargerAdmin();
+  // Affichage recalculé à chaque fois plutôt qu'une fois pour toutes au
+  // chargement : l'objectif d'eau dépend du poids et du sport du jour, qui
+  // peuvent changer sans jamais repasser par cet écran entre-temps.
+  if (nom === 'reglages') majAffichageObjectifEau();
   // Le bandeau flottant se masque sur l'onglet Séance (qui a déjà le sien)
   // et doit réapparaître dès qu'on le quitte avec une séance toujours active.
   majBandeauSeanceFlottant();
