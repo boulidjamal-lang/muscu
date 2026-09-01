@@ -304,7 +304,7 @@
     :root { --spl-duree: 2.6s; }
 
   .spl-scene {
-    position:relative; width:min(42vw,134px); height:min(51vw,164px);
+    position:relative; width:min(28vw,90px); height:min(34vw,110px);
     animation:spl-pousse var(--spl-duree) cubic-bezier(.33,0,.2,1) infinite;
   }
   /* Le sol encaisse a l'arrachage puis rend l'effort au verrouillage.
@@ -343,14 +343,6 @@
     }
 
 
-    .splash-skip {
-      position: absolute; bottom: 30px; z-index: 1;
-      font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
-      font-size: 0.6rem; letter-spacing: 1.6px; color: #4a5361;
-      opacity: 0; animation: fadeInText 0.4s ease 1.8s forwards;
-    }
-
-    @keyframes fadeInText { to { opacity: 1; transform: translateY(0); } }
     @keyframes fadeOutCinematic {
       0% { opacity: 1; visibility: visible; }
       87% { opacity: 1; visibility: visible; } /* 87% de 3s = 2,6s : le cycle de pose est fini, on peut fondre */
@@ -358,13 +350,12 @@
     }
 
     @media (prefers-reduced-motion: reduce) {
-      #splash-screen, .splash-skip, .etat-bg::before,
+      #splash-screen, .etat-bg::before,
       .spl-scene, .spl-aigle
         { animation: none !important; }
       /* Sans animation, on fige l'aigle avec son contour au maximum : une
          silhouette figee vaut mieux qu'un ecran vide. */
       .spl-aigle { opacity: 1; filter:drop-shadow(0 0 16px rgba(34,197,94,.5)); }
-      .splash-skip { opacity: 1; }
       * { transition-duration: 0.01ms !important; }
     }
 
@@ -1660,7 +1651,6 @@
   <div class="spl-scene" aria-hidden="true">
     <div class="spl-aigle"></div>
   </div>
-  <div class="splash-skip">Touchez pour passer</div>
 </div>
 <script>
   /* Le theme est applique AVANT le premier rendu : sans cela, l'app clignotait
@@ -1859,9 +1849,9 @@
 
     <div class="titre-section">📋 Mes programmes</div>
     <div id="programmes-liste-container"></div>
-    <div style="display:flex; gap:10px; margin-bottom:6px;">
-      <button class="btn btn-primary" style="flex:1;" onclick="ouvrirCreationProgramme()">➕ Créer un programme</button>
-      <button class="btn btn-secondaire" style="flex:1;" onclick="demarrerSeanceLibre()">⚡ Séance libre</button>
+    <div style="display:flex; gap:8px; margin-top:12px; margin-bottom:6px;">
+      <button class="btn btn-primary" style="flex:1; min-height:auto; padding:10px 8px; font-size:0.78rem;" onclick="ouvrirCreationProgramme()">➕ Créer un programme</button>
+      <button class="btn btn-secondaire" style="flex:1; min-height:auto; padding:10px 8px; font-size:0.78rem;" onclick="demarrerSeanceLibre()">⚡ Séance libre</button>
     </div>
     <p class="note" style="margin:10px 2px 0;">Une séance libre n'est rattachée à aucun programme : choisis tes exercices au fil de la séance, tu pourras l'enregistrer comme programme à la fin.</p>
 
