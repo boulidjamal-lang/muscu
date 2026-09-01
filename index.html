@@ -181,7 +181,12 @@
 
       --verre: rgba(255, 255, 255, 0.055);
       --verre-fort: rgba(255, 255, 255, 0.10);
-      --verre-creux: rgba(0, 0, 0, 0.28);
+      /* Noir sur fond quasi noir : sans la bordure qu'ils avaient avant
+         (retirée avec les liserés), tous les éléments posés sur ce fond
+         (cases, puces, champs…) devenaient invisibles en thème sombre.
+         Une pointe de blanc au lieu du noir leur redonne un contour lisible,
+         comme .verre/.verre-fort, en restant le plus discret des trois. */
+      --verre-creux: rgba(255, 255, 255, 0.06);
       --verre-brd: rgba(255, 255, 255, 0.11);
       --verre-brd-vive: rgba(255, 255, 255, 0.18);
       --verre-hi: rgba(255, 255, 255, 0.20);
