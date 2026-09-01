@@ -1127,18 +1127,13 @@
     }
     .btn:active { transform: scale(0.985); }
 
-    /* --- BOUTONS "VERRE COLORÉ" (.btn-analysis) ---
-       Le principe du Liquid Glass : pas d'aplat de couleur, juste un contour
-       teinté et un vrai verre dépoli derrière lui — flou et saturation poussés
-       au maximum, un reflet net qui glisse en haut à gauche comme sur du verre
-       bombé, et une lueur douce de la couleur qui sourd depuis le bord plutôt
-       que de remplir tout le bouton. Le texte reprend la couleur du contour :
-       ce sont les mêmes teintes déjà validées ailleurs comme texte sur le
-       fond de l'appli, donc le contraste reste bon dans les deux thèmes.
-       .btn-primary n'utilise plus cette recette : même fond plat + teinte
-       que .btn-icone.compte-actif / .filtre-chip sélectionnée, pour rester
-       cohérent avec le reste des boutons désormais aplatis (ex. à côté de
-       "Modifier" dans l'onglet Séance, il jurait avec son halo épais). */
+    /* --- BOUTONS "VERRE COLORÉ" ---
+       Ancienne recette Liquid Glass (contour teinté + verre dépoli très
+       flouté/saturé + lueur en bevel) : abandonnée pour tous les boutons.
+       Même fond plat + teinte que .btn-icone.compte-actif / .filtre-chip
+       sélectionnée, pour que .btn-primary/.btn-analysis/.btn-secondaire
+       aient tous le même poids visuel — plus aucun ne doit jurer à côté
+       d'un bouton déjà aplati (ex. "Modifier" dans l'onglet Séance). */
     .btn-primary {
       background: color-mix(in srgb, var(--primary) 20%, var(--verre-creux));
       color: var(--primary);
@@ -1147,22 +1142,15 @@
       background: color-mix(in srgb, var(--primary) 28%, var(--verre-creux));
     }
     .btn-analysis {
-      -webkit-backdrop-filter: blur(calc(var(--verre-flou) + 14px)) saturate(240%);
-      backdrop-filter: blur(calc(var(--verre-flou) + 14px)) saturate(240%);
       margin-top: 10px;
-      background: var(--verre-sheen-vive), color-mix(in srgb, var(--ai-color) 16%, var(--verre-fort));
+      background: color-mix(in srgb, var(--ai-color) 20%, var(--verre-creux));
       color: var(--ai-color);
-      box-shadow:
-        0 10px 26px color-mix(in srgb, var(--ai-color) 28%, transparent),
-        inset 0 1px 0 var(--verre-hi), inset 0 -1px 0 var(--verre-lo),
-        inset 0 0 22px color-mix(in srgb, var(--ai-color) 14%, transparent);
     }
     .btn-analysis:hover {
-      background: var(--verre-sheen-vive), color-mix(in srgb, var(--ai-color) 24%, var(--verre-fort));
+      background: color-mix(in srgb, var(--ai-color) 28%, var(--verre-creux));
     }
     .btn-secondaire {
-      background: var(--verre-sheen), var(--verre-creux); color: var(--text);
-      box-shadow: inset 0 1px 0 var(--verre-hi);
+      background: var(--verre-creux); color: var(--text);
     }
 
     #preview-image { max-width: 100%; max-height: 180px; margin: 12px 0; border-radius: 14px; object-fit: cover; border: 0; }
@@ -1394,12 +1382,13 @@
     html.sans-verre .btn::before, html.sans-verre .feuille-action::before {
       display: none;
     }
-    /* .btn-primary est aplati (voir plus haut) : même l'anneau lentille,
-       flouté par-dessus son fond vert, ressortait comme un fin liseré
-       vert sur le bord. On le coupe spécifiquement ici plutôt que de
-       sortir .btn du groupe partagé, pour ne pas priver .btn-secondaire
-       et .btn-analysis de l'anneau qu'ils gardent. */
-    .btn-primary::before { display: none; }
+    /* .btn-primary/.btn-analysis/.btn-secondaire sont aplatis (voir plus
+       haut) : même l'anneau lentille, flouté par-dessus leur fond teinté,
+       ressortait comme un fin liseré coloré sur le bord. On le coupe
+       spécifiquement pour ces trois-là plutôt que de sortir .btn du
+       groupe partagé, pour ne pas priver .feuille-action de l'anneau
+       qu'il garde. */
+    .btn-primary::before, .btn-analysis::before, .btn-secondaire::before { display: none; }
 
     /* =====================================================================
        SÉANCE — MUSCULATION
