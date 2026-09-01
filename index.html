@@ -1581,15 +1581,19 @@
       touch-action: pan-y; transition: transform 0.18s ease;
     }
     .serie-ligne.en-glissement { transition: none; }
-    /* "+ Série" : le seul bouton restant sous la liste (le glisser a
-       remplacé "– Série", voir plus haut) — pleine largeur, sans bordure
-       ni relief, plus bas qu'un .btn-icone standard. */
+    /* "Ajouter une série" : le seul bouton restant sous la liste (le
+       glisser a remplacé "– Série", voir plus haut) — pleine largeur, sans
+       bordure ni relief, plus bas qu'un .btn-icone standard. display:flex +
+       line-height:1 + padding:0 : sans ça, le line-height et le padding par
+       défaut du bouton auraient empêché de descendre sous ~38-40px sans
+       rogner le texte. */
     .btn-ajouter-serie {
-      width: 100%; height: 34px; margin-top: 8px; border: 0; box-shadow: none;
+      width: 100%; height: 26px; margin-top: 8px; padding: 0; border: 0; box-shadow: none;
+      display: flex; align-items: center; justify-content: center; line-height: 1;
       background: var(--verre-sheen), var(--verre-fort);
       -webkit-backdrop-filter: blur(var(--verre-flou-doux)) saturate(var(--verre-sat));
       backdrop-filter: blur(var(--verre-flou-doux)) saturate(var(--verre-sat));
-      color: var(--text); border-radius: 10px; font-weight: 700; cursor: pointer;
+      color: var(--text); border-radius: 8px; font-weight: 700; cursor: pointer;
       font-size: 0.75rem; font-family: inherit;
     }
     /* Le numéro de série sert aussi à choisir son type (normale/dégressif/
@@ -10120,7 +10124,7 @@ function renderProgrammeExercicesEnEdition() {
         <div class="serie-entete serie-entete--3col"><span>Série</span><span>Poids (kg)</span><span>Répétitions</span></div>
         ${lignesSeries}
       </div>
-      <button type="button" class="btn-ajouter-serie" onclick="ajouterSerieProgramme(${i})">+ Série</button>
+      <button type="button" class="btn-ajouter-serie" onclick="ajouterSerieProgramme(${i})">Ajouter une série</button>
       <div class="exo-en-programme-champs">
         <div class="input-group"><label>Repos entre les séries (s)</label><input type="number" min="0" step="15" value="${pe.repos}" onchange="modifierExerciceProgramme(${i},'repos',this.value)"></div>
       </div>
@@ -10535,7 +10539,7 @@ function renderSessionExerciceBlocHTML(exo, ei) {
       <div class="serie-entete serie-entete--4col"><span>Série</span><span>Poids (kg)</span><span>Répétitions</span><span>✓</span></div>
       ${lignesSeries}
     </div>
-    <button type="button" class="btn-ajouter-serie" onclick="ajouterSerieSession(${ei})">+ Série</button>
+    <button type="button" class="btn-ajouter-serie" onclick="ajouterSerieSession(${ei})">Ajouter une série</button>
   </div>`;
 }
 /* Le "type" d'une série (dégressif, pyramidal, échec) — comme Warm up/Drop
