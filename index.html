@@ -3063,6 +3063,18 @@
   </div>
 </div>
 
+<!-- ================= SÉANCE — Bilan de fin de séance (analyse locale, sans IA) ================= -->
+<div id="bilan-seance-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="titre-bilan-seance">
+  <div class="modal-content" style="max-width:480px;">
+    <div class="modal-entete">
+      <h3 id="titre-bilan-seance">🏁 Bilan de la séance</h3>
+      <button class="close-modal" onclick="fermerBilanSeance()" aria-label="Fermer">&times;</button>
+    </div>
+    <div id="bilan-seance-container"></div>
+    <button class="btn btn-primary" style="margin-top:6px;" onclick="fermerBilanSeance()">Fermer</button>
+  </div>
+</div>
+
 <!-- ================= SÉANCE — Sélecteur d'exercices (bibliothèque / ajout) ================= -->
 <div id="picker-exercices-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="titre-picker-exercices">
   <div class="modal-content" style="max-width:560px;">
@@ -9246,6 +9258,10 @@ let pickerGroupesActifs = new Set();
 let pickerMaterielsActifs = new Set();
 let historiqueDetailCourant = null;
 let sessionChronoInterval = null;
+// Séance libre venant d'être terminée, en attente de la proposition « en
+// faire un programme » une fois le bilan local (voir terminerSeance) fermé —
+// null sinon.
+let seanceLibreAProposer = null;
 
 function idUnique(prefixe) {
   return prefixe + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -10777,6 +10793,11 @@ function terminerSeance() {
       supersetSuivant: !!e.supersetSuivant
     })).filter(e => e.series.length)
   };
+  // Calculé AVANT d'ajouter cette séance à l'historique : dernierePerfExercice
+  // et dernierePerfProgramme lisent musculationHistorique tel quel, donc
+  // comparer après l'unshift aurait comparé la séance à elle-même.
+  const bilan = analyserSeanceLocal(entree, dureeMin);
+
   musculationHistorique.unshift(entree);
   sauvegarderHistorique();
 
@@ -10795,25 +10816,139 @@ function terminerSeance() {
   renderSeance();
   renderApp();
 
-  if (etaitLibre && confirm('Enregistrer cette séance comme nouveau programme réutilisable ?')) {
-    programmeEnEdition = {
-      id: null,
-      // Reprend le poids et les répétitions réels de chaque série de la
-      // séance qui vient de se terminer, pas juste leur nombre : c'est tout
-      // l'intérêt d'enregistrer une séance libre comme programme plutôt que
-      // d'en repartir d'un programme vide.
-      exercices: entree.exercices.map(e => ({
-        exerciceId: e.exerciceId,
-        series: e.series.map(s => ({ poids: s.poids, reps: s.reps, technique: s.technique || null })),
-        supersetSuivant: !!e.supersetSuivant
-      }))
-    };
-    document.getElementById('titre-programme-modal').textContent = '📋 Nouveau programme';
-    document.getElementById('programme-nom-input').value = '';
-    document.getElementById('btn-suppr-programme').style.display = 'none';
-    renderProgrammeExercicesEnEdition();
-    ouvrirModal('programme-modal');
+  // La proposition « en faire un programme » (pour une séance libre) est
+  // reportée à la fermeture du bilan (voir fermerBilanSeance) plutôt que
+  // posée ici tout de suite par-dessus : pas deux fenêtres empilées d'un
+  // coup, on regarde d'abord comment ça s'est passé.
+  seanceLibreAProposer = etaitLibre ? entree : null;
+  document.getElementById('bilan-seance-container').innerHTML = renderBilanSeance(bilan);
+  ouvrirModal('bilan-seance-modal');
+}
+/* Bilan local de fin de séance — entièrement calculé sur l'appareil, sans
+   appel à une IA : compare la séance qui vient de se terminer à ce qui la
+   précède (dernière fois sur chaque exercice, dernière séance de ce même
+   programme, moyenne de durée) pour dégager ce qui a été bien, ce qui peut
+   progresser et ce qui a été manqué. Voir terminerSeance pour l'ordre
+   d'appel (avant l'ajout à l'historique). */
+function analyserSeanceLocal(entree, dureeMin) {
+  const bien = [], ameliorer = [], mauvais = [];
+
+  // 1) Séries cochées « faites » vs nombre de séries prévues.
+  let totalSeries = 0, totalFaites = 0;
+  entree.exercices.forEach(e => { totalSeries += e.series.length; totalFaites += e.series.filter(s => s.fait).length; });
+  if (totalSeries > 0) {
+    const taux = totalFaites / totalSeries;
+    if (taux >= 0.95) bien.push(`Quasiment toutes les séries prévues ont été faites (${totalFaites}/${totalSeries}).`);
+    else if (taux >= 0.7) ameliorer.push(`${totalFaites}/${totalSeries} séries cochées comme faites — essaie d'aller au bout la prochaine fois.`);
+    else mauvais.push(`Seulement ${totalFaites}/${totalSeries} séries cochées comme faites : la séance s'est arrêtée en cours de route.`);
   }
+
+  // 2) Progression de charge par exercice par rapport à la dernière fois où
+  //    chacun a été pratiqué (première fois sur cet exercice = rien à
+  //    comparer, ignoré plutôt que compté en négatif).
+  let stable = 0;
+  entree.exercices.forEach(e => {
+    const faites = e.series.filter(s => s.fait && s.poids != null);
+    if (!faites.length) return;
+    const derniere = dernierePerfExercice(e.exerciceId);
+    if (!derniere) return;
+    const faitesAvant = derniere.series.filter(s => s.fait && s.poids != null);
+    if (!faitesAvant.length) return;
+    const maxAujourdhui = Math.max(...faites.map(s => s.poids));
+    const maxAvant = Math.max(...faitesAvant.map(s => s.poids));
+    const exoRef = trouverExercice(e.exerciceId);
+    const nom = exoRef ? libelleExercice(exoRef) : e.nom;
+    if (maxAujourdhui > maxAvant) bien.push(`${nom} : charge en hausse (${maxAvant} → ${maxAujourdhui} kg).`);
+    else if (maxAujourdhui < maxAvant) mauvais.push(`${nom} : charge en baisse (${maxAvant} → ${maxAujourdhui} kg) par rapport à la dernière fois.`);
+    else stable++;
+  });
+  if (stable > 0) ameliorer.push(`Charge inchangée sur ${stable} exercice${stable > 1 ? 's' : ''} par rapport à la dernière fois : de quoi viser une petite hausse au prochain essai.`);
+
+  if (entree.programmeId) {
+    // 3) Volume total (poids × répétitions des séries faites) et régularité,
+    //    par rapport à la dernière séance de ce même programme.
+    const derniereSeance = dernierePerfProgramme(entree.programmeId);
+    if (derniereSeance) {
+      const volume = h => h.exercices.reduce((n, e) => n + e.series
+        .filter(s => s.fait && s.poids != null && s.reps != null)
+        .reduce((m, s) => m + s.poids * s.reps, 0), 0);
+      const volAvant = volume(derniereSeance);
+      const volAujourdhui = volume(entree);
+      if (volAvant > 0) {
+        const delta = Math.round(((volAujourdhui - volAvant) / volAvant) * 100);
+        if (delta >= 5) bien.push(`Volume total soulevé en hausse de ${delta}% par rapport à la dernière séance de ce programme.`);
+        else if (delta <= -10) mauvais.push(`Volume total soulevé en baisse de ${Math.abs(delta)}% par rapport à la dernière séance de ce programme.`);
+      }
+      const jours = Math.round((new Date(entree.date) - new Date(derniereSeance.date)) / 86400000);
+      if (jours >= 14) ameliorer.push(`${jours} jours depuis la dernière séance de ce programme — resserre un peu le rythme si la régularité est ton objectif.`);
+    }
+
+    // 4) Exercices prévus au programme mais jamais cochés comme faits.
+    const prog = musculationProgrammes.find(p => p.id === entree.programmeId);
+    if (prog) {
+      const idsFaits = new Set(entree.exercices.filter(e => e.series.some(s => s.fait)).map(e => e.exerciceId));
+      const zappes = prog.exercices.filter(pe => !idsFaits.has(pe.exerciceId));
+      if (zappes.length) {
+        const noms = zappes.map(pe => { const exo = trouverExercice(pe.exerciceId); return exo ? libelleExercice(exo) : 'un exercice'; });
+        mauvais.push(`${zappes.length} exercice${zappes.length > 1 ? 's' : ''} du programme non fait${zappes.length > 1 ? 's' : ''} du tout : ${noms.join(', ')}.`);
+      }
+    }
+  }
+
+  // 5) Durée de la séance vs la moyenne des séances comparables (même
+  //    programme, ou toutes les séances libres sinon) — musculationHistorique
+  //    ne contient pas encore la séance du jour à ce stade (voir terminerSeance).
+  const comparables = entree.programmeId
+    ? musculationHistorique.filter(h => h.programmeId === entree.programmeId)
+    : musculationHistorique.filter(h => !h.programmeId);
+  if (comparables.length >= 2) {
+    const dureeMoyenne = comparables.reduce((n, h) => n + h.dureeMin, 0) / comparables.length;
+    if (dureeMin < dureeMoyenne * 0.5) ameliorer.push(`Séance assez courte (${dureeMin} min) comparée à ta moyenne habituelle (~${Math.round(dureeMoyenne)} min) — vérifie que les repos n'ont pas été trop écourtés.`);
+  }
+
+  if (!bien.length) bien.push('Séance notée dans ton historique — chaque séance compte.');
+  if (!ameliorer.length) ameliorer.push('Rien de particulier à ajuster cette fois.');
+  if (!mauvais.length) mauvais.push('Rien à signaler.');
+  return { bien, ameliorer, mauvais };
+}
+function renderBilanSeance(bilan) {
+  const section = (titre, couleur, items) => `
+    <div style="margin-bottom:16px;">
+      <p style="font-weight:800; font-size:0.78rem; text-transform:uppercase; letter-spacing:0.6px; color:${couleur}; margin:0 0 8px;">${titre}</p>
+      <ul style="margin:0; padding-left:18px; font-size:0.86rem; line-height:1.55;">
+        ${items.map(t => `<li style="margin-bottom:4px;">${escapeHtml(t)}</li>`).join('')}
+      </ul>
+    </div>`;
+  return section('✅ Ce qui a été bien', 'var(--primary)', bilan.bien)
+       + section('🎯 Axes d’amélioration', 'var(--carbs)', bilan.ameliorer)
+       + section('⚠️ Ce qui n’a pas été bien', 'var(--danger)', bilan.mauvais);
+}
+// Referme le bilan puis, pour une séance libre, enchaîne sur la proposition
+// « en faire un programme » — reportée ici plutôt que posée en même temps
+// que le bilan (voir terminerSeance).
+function fermerBilanSeance() {
+  fermerModal('bilan-seance-modal');
+  if (!seanceLibreAProposer) return;
+  const entree = seanceLibreAProposer;
+  seanceLibreAProposer = null;
+  if (!confirm('Enregistrer cette séance comme nouveau programme réutilisable ?')) return;
+  programmeEnEdition = {
+    id: null,
+    // Reprend le poids et les répétitions réels de chaque série de la
+    // séance qui vient de se terminer, pas juste leur nombre : c'est tout
+    // l'intérêt d'enregistrer une séance libre comme programme plutôt que
+    // d'en repartir d'un programme vide.
+    exercices: entree.exercices.map(e => ({
+      exerciceId: e.exerciceId,
+      series: e.series.map(s => ({ poids: s.poids, reps: s.reps, technique: s.technique || null })),
+      supersetSuivant: !!e.supersetSuivant
+    }))
+  };
+  document.getElementById('titre-programme-modal').textContent = '📋 Nouveau programme';
+  document.getElementById('programme-nom-input').value = '';
+  document.getElementById('btn-suppr-programme').style.display = 'none';
+  renderProgrammeExercicesEnEdition();
+  ouvrirModal('programme-modal');
 }
 function abandonnerSeance() {
   if (!confirm('Abandonner cette séance ? Rien ne sera enregistré dans ton historique.')) return;
@@ -10840,6 +10975,10 @@ function fermerBackdropSiCible(target) {
     // demanderResetMdp() sans réponse pour toujours : le bouton "Se
     // connecter" resterait bloqué sur "Connexion en cours…".
     if (target.id === 'modal-creer-compte' && confirmCompteResolve) { confirmCompteResolve(false); confirmCompteResolve = null; }
+    // Passe par fermerBilanSeance() plutôt que la fermeture générique
+    // ci-dessous : un tap sur le fond ne doit pas faire sauter la
+    // proposition « en faire un programme » qui peut suivre le bilan.
+    if (target.id === 'bilan-seance-modal') { fermerBilanSeance(); return true; }
     target.classList.remove('show');
     majCoucheOuverte();
     return true;
