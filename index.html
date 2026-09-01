@@ -1539,7 +1539,9 @@
     .exo-en-programme-entete { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
     .exo-en-programme-nom { font-weight: 700; font-size: 0.88rem; }
     .exo-en-programme-meta { font-size: 0.7rem; color: var(--text-muted); margin-top: 2px; }
-    .exo-en-programme-champs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    /* Un seul champ désormais (Repos) : Séries et Répétitions sont passées
+       au tableau de séries individuelles, comme au lancement de la séance. */
+    .exo-en-programme-champs { display: grid; grid-template-columns: 1fr; gap: 8px; max-width: 160px; }
     .exo-en-programme-champs .input-group { margin-bottom: 0; }
     .exo-en-programme-champs label { font-size: 0.58rem; }
     .exo-en-programme-reordre { display: flex; flex-direction: column; gap: 3px; }
@@ -9410,29 +9412,54 @@ function parseRepsCible(reps) {
   return m ? Number(m[0]) : null;
 }
 
+/* Ancien format d'un exercice de programme : series = un nombre (compte),
+   reps = un texte cible unique pour toutes les séries (ex. "8-12"). Format
+   actuel : series = un tableau, une entrée par série, chacune avec son
+   propre poids et ses propres répétitions cibles — ce qui permet de
+   planifier un dégressif ou un pyramidal (poids/reps qui varient série par
+   série) directement dans le programme, pas seulement en direct pendant la
+   séance. Cette fonction migre l'ancien format à la volée, sans jamais
+   modifier un programme que la personne n'a pas elle-même rouvert : les
+   anciens programmes continuent de s'afficher et de se lancer normalement
+   tant qu'ils ne sont pas édités. */
+function normaliserSeriesProgramme(pe) {
+  if (Array.isArray(pe.series)) return pe.series;
+  const n = Math.max(1, Number(pe.series) || 3);
+  const repsCible = parseRepsCible(pe.reps);
+  const tableau = [];
+  for (let i = 0; i < n; i++) tableau.push({ poids: null, reps: repsCible });
+  return tableau;
+}
+
 /* Construit les séries d'une séance à partir d'un programme : reprend
    exactement les poids/répétitions de la dernière fois quand l'exercice a
    déjà été fait (l'objectif étant de pouvoir juste cocher au fur et à
-   mesure), sinon part des répétitions cibles du programme, poids vide. */
+   mesure), sinon part des poids/répétitions cibles définis dans le
+   programme lui-même, série par série. */
 function construireExercicesSession(programme) {
   return programme.exercices.map(pe => {
     const exo = trouverExercice(pe.exerciceId);
     const derniere = dernierePerfExercice(pe.exerciceId);
-    const nbSeries = Math.max(1, Number(pe.series) || (derniere ? derniere.series.length : 3));
+    const cibles = normaliserSeriesProgramme(pe);
+    const nbSeries = Math.max(1, cibles.length);
     let series;
     if (derniere && derniere.series.length) {
-      series = derniere.series.map(s => ({ poids: s.poids, reps: s.reps, fait: false }));
+      series = derniere.series.map(s => ({ poids: s.poids, reps: s.reps, fait: false, technique: s.technique || null }));
       while (series.length < nbSeries) {
         const derniereSerie = series[series.length - 1];
-        series.push({ poids: derniereSerie ? derniereSerie.poids : null, reps: parseRepsCible(pe.reps), fait: false });
+        const cible = cibles[series.length] || cibles[cibles.length - 1];
+        series.push({
+          poids: derniereSerie ? derniereSerie.poids : (cible ? cible.poids : null),
+          reps: (cible && cible.reps != null) ? cible.reps : parseRepsCible(pe.reps),
+          fait: false, technique: (cible && cible.technique) || null
+        });
       }
     } else {
-      series = [];
-      for (let i = 0; i < nbSeries; i++) series.push({ poids: null, reps: parseRepsCible(pe.reps), fait: false });
+      series = cibles.map(c => ({ poids: c.poids, reps: c.reps, fait: false, technique: c.technique || null }));
     }
     return {
       exerciceId: pe.exerciceId, nom: exo ? exo.nom : 'Exercice', series,
-      technique: pe.technique || 'normale', supersetSuivant: !!pe.supersetSuivant
+      supersetSuivant: !!pe.supersetSuivant
     };
   });
 }
@@ -9854,8 +9881,10 @@ function voirDetailProgramme(cle) {
 
 /* Rendu partagé de la liste d'exercices d'une séance (en cours, ou déjà
    enregistrée dans l'historique) : regroupe les supersets et affiche
-   l'éventuelle technique (dégressif/pyramidal). Réutilisé par le détail
-   d'une séance de l'historique et le détail d'un programme. */
+   l'éventuelle technique (dégressif/pyramidal) de chaque série — elle
+   s'applique à une série précise, pas à tout l'exercice (une série de
+   dégressif est en général suivie de séries normales). Réutilisé par le
+   détail d'une séance de l'historique et le détail d'un programme. */
 function renderListeExercicesDetail(liste) {
   return grouperBlocsExercices(liste).map(indices => {
     const contenu = indices.map(i => {
@@ -9863,8 +9892,8 @@ function renderListeExercicesDetail(liste) {
       const exoRef = trouverExercice(e.exerciceId);
       const label = exoRef ? libelleExercice(exoRef) : e.nom;
       const series = e.series.map((s, si) => `<div style="display:flex; justify-content:space-between; font-size:0.82rem; padding:4px 0; border-bottom:1px solid var(--verre-brd);">
-        <span>Série ${si + 1}</span><span>${s.poids ?? '—'} kg × ${s.reps ?? '—'}${s.fait ? ' ✅' : ''}</span></div>`).join('');
-      return `<div style="margin-bottom:14px;"><div style="font-weight:700; font-size:0.88rem; margin-bottom:6px;">${escapeHtml(label)}${badgeTechnique(e.technique)}</div>${series}</div>`;
+        <span>Série ${si + 1}${badgeTechnique(s.technique)}</span><span>${s.poids ?? '—'} kg × ${s.reps ?? '—'}${s.fait ? ' ✅' : ''}</span></div>`).join('');
+      return `<div style="margin-bottom:14px;"><div style="font-weight:700; font-size:0.88rem; margin-bottom:6px;">${escapeHtml(label)}</div>${series}</div>`;
     }).join('');
     return indices.length > 1
       ? `<div class="session-superset-bloc"><div class="session-superset-titre">🔗 Superset</div>${contenu}</div>`
@@ -9962,7 +9991,10 @@ function ouvrirCreationProgramme() {
 function ouvrirEditionProgramme(id) {
   const p = musculationProgrammes.find(x => x.id === id);
   if (!p) return;
-  programmeEnEdition = { id: p.id, nom: p.nom, exercices: p.exercices.map(e => ({ ...e })) };
+  // Copie profonde : sans elle, le tableau de séries serait partagé avec le
+  // programme enregistré, et modifier une série dans l'éditeur (avant même
+  // d'appuyer sur Enregistrer, ou en cas d'Annuler) l'aurait déjà changée.
+  programmeEnEdition = { id: p.id, nom: p.nom, exercices: p.exercices.map(e => ({ ...e, series: normaliserSeriesProgramme(e).map(s => ({ ...s })) })) };
   document.getElementById('titre-programme-modal').textContent = '✏️ Modifier le programme';
   document.getElementById('programme-nom-input').value = p.nom;
   document.getElementById('btn-suppr-programme').style.display = 'block';
@@ -9975,9 +10007,19 @@ function renderProgrammeExercicesEnEdition() {
   if (!programmeEnEdition.exercices.length) { c.innerHTML = ''; vide.style.display = 'block'; return; }
   vide.style.display = 'none';
   c.innerHTML = programmeEnEdition.exercices.map((pe, i) => {
+    // Migre une fois pour toutes le format série=nombre d'un vieux programme
+    // vers un tableau, à l'ouverture de l'éditeur (voir normaliserSeriesProgramme).
+    pe.series = normaliserSeriesProgramme(pe);
     const exo = trouverExercice(pe.exerciceId);
     const meta = exo ? (GROUPES_MUSCULAIRES[exo.groupe] + ' · ' + MATERIELS[exo.materiel].label) : 'Exercice introuvable';
     const dernierDeLaListe = i === programmeEnEdition.exercices.length - 1;
+    const lignesSeries = pe.series.map((s, si) => `
+      <tr>
+        <td class="serie-num">${si + 1}</td>
+        <td><input type="number" inputmode="decimal" step="0.5" value="${s.poids ?? ''}" placeholder="—" onchange="modifierSerieProgramme(${i},${si},'poids',this.value)"></td>
+        <td><input type="number" inputmode="numeric" step="1" value="${s.reps ?? ''}" placeholder="—" onchange="modifierSerieProgramme(${i},${si},'reps',this.value)"></td>
+        <td>${selectTechniqueSerie(`modifierSerieProgramme(${i},${si},'technique',this.value)`, s.technique)}</td>
+      </tr>`).join('');
     return `<div class="exo-en-programme">
       <div class="exo-en-programme-entete">
         <div>
@@ -9992,18 +10034,19 @@ function renderProgrammeExercicesEnEdition() {
           <button class="btn-delete" onclick="retirerExerciceProgramme(${i})" aria-label="Retirer l'exercice">&times;</button>
         </div>
       </div>
-      <div class="exo-en-programme-technique">
-        <select onchange="modifierExerciceProgramme(${i},'technique',this.value)" aria-label="Technique">
-          <option value="normale" ${pe.technique === 'normale' || !pe.technique ? 'selected' : ''}>Normale</option>
-          <option value="degressif" ${pe.technique === 'degressif' ? 'selected' : ''}>💧 Dégressif</option>
-          <option value="pyramidal" ${pe.technique === 'pyramidal' ? 'selected' : ''}>🔺 Pyramidal</option>
-        </select>
-        ${dernierDeLaListe ? '' : `<button type="button" class="filtre-chip" aria-pressed="${pe.supersetSuivant ? 'true' : 'false'}" onclick="toggleSupersetProgramme(${i})">🔗 Superset avec le suivant</button>`}
+      ${dernierDeLaListe ? '' : `<div class="exo-en-programme-technique">
+        <button type="button" class="filtre-chip" aria-pressed="${pe.supersetSuivant ? 'true' : 'false'}" onclick="toggleSupersetProgramme(${i})">🔗 Superset avec le suivant</button>
+      </div>`}
+      <table class="serie-table">
+        <thead><tr><th>Série</th><th>Poids (kg)</th><th>Répétitions</th><th>Type</th></tr></thead>
+        <tbody>${lignesSeries}</tbody>
+      </table>
+      <div style="display:flex; gap:8px; margin:8px 0;">
+        <button class="btn-icone" style="font-size:0.75rem; font-weight:700;" onclick="ajouterSerieProgramme(${i})">+ Série</button>
+        ${pe.series.length > 1 ? `<button class="btn-icone" style="font-size:0.75rem; font-weight:700;" onclick="retirerSerieProgramme(${i})">– Série</button>` : ''}
       </div>
       <div class="exo-en-programme-champs">
-        <div class="input-group"><label>Séries</label><input type="number" min="1" value="${pe.series}" onchange="modifierExerciceProgramme(${i},'series',this.value)"></div>
-        <div class="input-group"><label>Répétitions</label><input type="text" value="${escapeHtml(pe.reps || '')}" placeholder="ex : 8-12" onchange="modifierExerciceProgramme(${i},'reps',this.value)"></div>
-        <div class="input-group"><label>Repos (s)</label><input type="number" min="0" step="15" value="${pe.repos}" onchange="modifierExerciceProgramme(${i},'repos',this.value)"></div>
+        <div class="input-group"><label>Repos entre les séries (s)</label><input type="number" min="0" step="15" value="${pe.repos}" onchange="modifierExerciceProgramme(${i},'repos',this.value)"></div>
       </div>
     </div>`;
   }).join('');
@@ -10011,10 +10054,27 @@ function renderProgrammeExercicesEnEdition() {
 function modifierExerciceProgramme(i, champ, valeur) {
   const pe = programmeEnEdition.exercices[i];
   if (!pe) return;
-  if (champ === 'series') pe.series = Math.max(1, Number(valeur) || 1);
-  else if (champ === 'repos') pe.repos = Math.max(0, Number(valeur) || 0);
-  else if (champ === 'technique') pe.technique = valeur;
-  else pe.reps = valeur;
+  if (champ === 'repos') pe.repos = Math.max(0, Number(valeur) || 0);
+}
+function modifierSerieProgramme(i, si, champ, valeur) {
+  const pe = programmeEnEdition.exercices[i];
+  const s = pe && pe.series[si];
+  if (!s) return;
+  if (champ === 'technique') s.technique = valeur || null;
+  else s[champ] = valeur === '' ? null : Number(valeur);
+}
+function ajouterSerieProgramme(i) {
+  const pe = programmeEnEdition.exercices[i];
+  if (!pe) return;
+  const derniere = pe.series[pe.series.length - 1];
+  pe.series.push({ poids: derniere ? derniere.poids : null, reps: derniere ? derniere.reps : null, technique: null });
+  renderProgrammeExercicesEnEdition();
+}
+function retirerSerieProgramme(i) {
+  const pe = programmeEnEdition.exercices[i];
+  if (!pe || pe.series.length <= 1) return;
+  pe.series.pop();
+  renderProgrammeExercicesEnEdition();
 }
 /* Un exercice marqué "superset avec le suivant" est exécuté juste après le
    suivant, sans repos entre les deux — deux boutons cochés à la suite
@@ -10080,7 +10140,11 @@ function dupliquerProgramme(id) {
   if (!p) return;
   musculationProgrammes.push({
     id: idUnique('prog'), nom: p.nom + ' (copie)',
-    exercices: p.exercices.map(e => ({ ...e })), creeLe: Date.now(), maj: Date.now()
+    // Copie profonde du tableau de séries : un simple {...e} laisserait la
+    // copie et l'original pointer vers le MÊME tableau, si bien que modifier
+    // une série de la copie modifiait aussi l'originale.
+    exercices: p.exercices.map(e => ({ ...e, series: normaliserSeriesProgramme(e).map(s => ({ ...s })) })),
+    creeLe: Date.now(), maj: Date.now()
   });
   sauvegarderProgrammes();
   renderSeance();
@@ -10159,7 +10223,11 @@ function rendrePickerExercices() {
 }
 function choisirExercicePicker(id) {
   if (pickerMode === 'programme') {
-    programmeEnEdition.exercices.push({ exerciceId: id, series: 3, reps: '8-12', repos: 90, technique: 'normale', supersetSuivant: false });
+    programmeEnEdition.exercices.push({
+      exerciceId: id,
+      series: [{ poids: null, reps: 10, technique: null }, { poids: null, reps: 10, technique: null }, { poids: null, reps: 10, technique: null }],
+      repos: 90, supersetSuivant: false
+    });
     fermerModal('picker-exercices-modal');
     renderProgrammeExercicesEnEdition();
   } else if (pickerMode === 'session') {
@@ -10252,64 +10320,47 @@ function validerExercicePerso() {
    propre bouton "Début entraînement". Le bouton "▶️ Démarrer" des cartes
    programme ouvre désormais cet aperçu ; demarrerSeance() reste la fonction
    qui démarre vraiment la séance, appelée depuis le bouton de cette modale.
-
-   La technique (normale/dégressif/pyramidal) est sélectionnable ici même,
-   juste avant de démarrer — pas seulement en éditant le programme au
-   préalable : un choix ponctuel pour cette séance-ci, sur une copie de
-   travail (apercuProgrammeExercicesCourant), sans jamais toucher au
-   programme enregistré tant que la personne ne l'édite pas explicitement. */
-let apercuProgrammeExercicesCourant = [];
+   Le détail des séries (poids, reps, type dégressif/pyramidal par série) se
+   règle dans le programme lui-même ou en direct pendant la séance — cet
+   aperçu reste volontairement un résumé compact avant de se lancer. */
 function apercuProgramme(programmeId) {
   const programme = musculationProgrammes.find(p => p.id === programmeId);
   if (!programme) return;
-  apercuProgrammeExercicesCourant = programme.exercices.map(pe => ({ ...pe }));
   document.getElementById('titre-apercu-programme').textContent = '📋 ' + programme.nom;
   const derniere = dernierePerfProgramme(programme.id);
   document.getElementById('apercu-programme-sous-titre').textContent =
     derniere ? 'Dernière fois : ' + formatDateDisplay(derniere.date) : 'Jamais effectué sous ce nom.';
-  renderApercuProgrammeExercices();
-  document.getElementById('apercu-programme-btn-demarrer').onclick = () => {
-    fermerModal('apercu-programme-modal');
-    demarrerSeance(programmeId, apercuProgrammeExercicesCourant);
-  };
-  ouvrirModal('apercu-programme-modal');
-}
-function renderApercuProgrammeExercices() {
-  document.getElementById('apercu-programme-container').innerHTML = apercuProgrammeExercicesCourant.map((pe, i) => {
+  document.getElementById('apercu-programme-container').innerHTML = programme.exercices.map(pe => {
     const exo = trouverExercice(pe.exerciceId);
     if (!exo) return '';
-    const derniereExo = dernierePerfExercice(pe.exerciceId);
-    const nbSeries = Math.max(1, Number(pe.series) || (derniereExo ? derniereExo.series.length : 3));
-    return `<div class="exo-ligne" style="cursor:default; flex-wrap:wrap; row-gap:8px;">
+    const nbSeries = normaliserSeriesProgramme(pe).length;
+    return `<div class="exo-ligne" style="cursor:default;">
       <span class="exo-ligne-vignette" aria-hidden="true">${medaillonExercice(exo)}</span>
       <span style="flex:1; min-width:0;">
         <span class="exo-ligne-nom">${nbSeries} × ${escapeHtml(libelleExercice(exo))}</span>
         <span class="exo-ligne-meta">${escapeHtml(GROUPES_MUSCULAIRES[exo.groupe] || '')}</span>
       </span>
-      <select onchange="apercuProgrammeExercicesCourant[${i}].technique=this.value" aria-label="Technique pour cette séance" style="flex:none; width:auto;">
-        <option value="normale" ${pe.technique === 'normale' || !pe.technique ? 'selected' : ''}>Normale</option>
-        <option value="degressif" ${pe.technique === 'degressif' ? 'selected' : ''}>💧 Dégressif</option>
-        <option value="pyramidal" ${pe.technique === 'pyramidal' ? 'selected' : ''}>🔺 Pyramidal</option>
-      </select>
       <button type="button" class="btn-icone" style="flex:none;" onclick="afficherFicheExerciceBiblio('${exo.id}')" aria-label="Détails de l'exercice">❓</button>
     </div>`;
   }).join('');
+  document.getElementById('apercu-programme-btn-demarrer').onclick = () => {
+    fermerModal('apercu-programme-modal');
+    demarrerSeance(programmeId);
+  };
+  ouvrirModal('apercu-programme-modal');
 }
 
 /* =====================================================================
    Séance en cours
    ===================================================================== */
-// exercicesChoisis (facultatif) : la copie de travail de l'aperçu, avec les
-// techniques éventuellement changées juste avant de démarrer — sans ça, on
-// retomberait sur celles enregistrées dans le programme lui-même.
-function demarrerSeance(programmeId, exercicesChoisis) {
+function demarrerSeance(programmeId) {
   if (musculationSessionActive &&
       !confirm('Une séance (' + (musculationSessionActive.programmeNom || 'séance libre') + ') est déjà en cours. L’abandonner pour démarrer celle-ci ?')) return;
   const programme = musculationProgrammes.find(p => p.id === programmeId);
   if (!programme) return;
   musculationSessionActive = {
     programmeId: programme.id, programmeNom: programme.nom, debut: Date.now(), notes: '',
-    exercices: construireExercicesSession({ exercices: exercicesChoisis || programme.exercices })
+    exercices: construireExercicesSession(programme)
   };
   sauvegarderSessionActive();
   renderSeance();
@@ -10351,9 +10402,9 @@ function ajouterExerciceASession(id) {
   if (!exo) return;
   const derniere = dernierePerfExercice(id);
   const series = derniere && derniere.series.length
-    ? derniere.series.map(s => ({ poids: s.poids, reps: s.reps, fait: false }))
-    : [{ poids: null, reps: null, fait: false }, { poids: null, reps: null, fait: false }, { poids: null, reps: null, fait: false }];
-  musculationSessionActive.exercices.push({ exerciceId: id, nom: exo.nom, series, technique: 'normale', supersetSuivant: false });
+    ? derniere.series.map(s => ({ poids: s.poids, reps: s.reps, fait: false, technique: s.technique || null }))
+    : [{ poids: null, reps: null, fait: false, technique: null }, { poids: null, reps: null, fait: false, technique: null }, { poids: null, reps: null, fait: false, technique: null }];
+  musculationSessionActive.exercices.push({ exerciceId: id, nom: exo.nom, series, supersetSuivant: false });
   sauvegarderSessionActive();
   renderSessionModal();
 }
@@ -10385,6 +10436,7 @@ function renderSessionExerciceBlocHTML(exo, ei) {
       <td class="serie-num">${si + 1}</td>
       <td><input type="number" inputmode="decimal" step="0.5" value="${set.poids ?? ''}" placeholder="—" onchange="modifierSerieSession(${ei},${si},'poids',this.value)"></td>
       <td><input type="number" inputmode="numeric" step="1" value="${set.reps ?? ''}" placeholder="—" onchange="modifierSerieSession(${ei},${si},'reps',this.value)"></td>
+      <td>${selectTechniqueSerie(`modifierSerieSession(${ei},${si},'technique',this.value)`, set.technique)}</td>
       <td><button type="button" class="serie-check ${set.fait ? 'faite' : ''}" onclick="basculerSerieSession(${ei},${si})" aria-label="Marquer la série comme faite">✓</button></td>
     </tr>`).join('');
   return `<div class="session-exo-bloc">
@@ -10393,14 +10445,9 @@ function renderSessionExerciceBlocHTML(exo, ei) {
               onclick="afficherFicheExerciceBiblio('${exo.exerciceId}')">${escapeHtml(trouverExercice(exo.exerciceId) ? libelleExercice(trouverExercice(exo.exerciceId)) : exo.nom)}</button>
       <button class="btn-delete" onclick="retirerExerciceSession(${ei})" aria-label="Retirer l'exercice">&times;</button>
     </div>
-    <select onchange="modifierTechniqueSession(${ei},this.value)" aria-label="Technique" style="margin-bottom:8px;">
-      <option value="normale" ${exo.technique === 'normale' || !exo.technique ? 'selected' : ''}>Normale</option>
-      <option value="degressif" ${exo.technique === 'degressif' ? 'selected' : ''}>💧 Dégressif</option>
-      <option value="pyramidal" ${exo.technique === 'pyramidal' ? 'selected' : ''}>🔺 Pyramidal</option>
-    </select>
     <div class="session-exo-derniere">${escapeHtml(infoDerniere)}</div>
     <table class="serie-table">
-      <thead><tr><th>Série</th><th>Poids (kg)</th><th>Répétitions</th><th>✓</th></tr></thead>
+      <thead><tr><th>Série</th><th>Poids (kg)</th><th>Répétitions</th><th>Type</th><th>✓</th></tr></thead>
       <tbody>${lignesSeries}</tbody>
     </table>
     <div style="display:flex; gap:8px; margin-top:8px;">
@@ -10409,16 +10456,24 @@ function renderSessionExerciceBlocHTML(exo, ei) {
     </div>
   </div>`;
 }
-function modifierTechniqueSession(ei, valeur) {
-  const exo = musculationSessionActive.exercices[ei];
-  if (!exo) return;
-  exo.technique = valeur;
-  sauvegarderSessionActive();
+/* Le "type" d'une série (dégressif, pyramidal...) — comme Warm up/Drop
+   set/Failure chez Strong — s'applique à CETTE série précise, pas à tout
+   l'exercice : une même série de dégressif est en général suivie de séries
+   normales, pas l'inverse. D'où un sélecteur par ligne plutôt qu'un seul
+   pour tout l'exercice. Select compact (juste l'icône) : la place manque
+   dans une colonne de tableau sur mobile. */
+function selectTechniqueSerie(onchangeJs, technique) {
+  return `<select onchange="${onchangeJs}" aria-label="Type de série" style="width:auto; min-width:0; padding:2px 4px; font-size:0.85rem;">
+    <option value="" ${!technique ? 'selected' : ''}>—</option>
+    <option value="degressif" ${technique === 'degressif' ? 'selected' : ''}>💧</option>
+    <option value="pyramidal" ${technique === 'pyramidal' ? 'selected' : ''}>🔺</option>
+  </select>`;
 }
 function modifierSerieSession(ei, si, champ, valeur) {
   const set = musculationSessionActive.exercices[ei] && musculationSessionActive.exercices[ei].series[si];
   if (!set) return;
-  set[champ] = valeur === '' ? null : Number(valeur);
+  if (champ === 'technique') set.technique = valeur || null;
+  else set[champ] = valeur === '' ? null : Number(valeur);
   sauvegarderSessionActive();
 }
 function basculerSerieSession(ei, si) {
@@ -10432,7 +10487,7 @@ function basculerSerieSession(ei, si) {
 function ajouterSerieSession(ei) {
   const exo = musculationSessionActive.exercices[ei];
   const derniereSerie = exo.series[exo.series.length - 1];
-  exo.series.push({ poids: derniereSerie ? derniereSerie.poids : null, reps: derniereSerie ? derniereSerie.reps : null, fait: false });
+  exo.series.push({ poids: derniereSerie ? derniereSerie.poids : null, reps: derniereSerie ? derniereSerie.reps : null, fait: false, technique: null });
   sauvegarderSessionActive();
   renderSessionModal();
 }
@@ -10467,7 +10522,7 @@ function terminerSeance() {
     date: todayStr(), debut: s.debut, fin, dureeMin, notes: s.notes || '', maj: fin,
     exercices: s.exercices.map(e => ({
       exerciceId: e.exerciceId, nom: e.nom, series: e.series.filter(x => x.fait || x.poids || x.reps),
-      technique: e.technique || 'normale', supersetSuivant: !!e.supersetSuivant
+      supersetSuivant: !!e.supersetSuivant
     })).filter(e => e.series.length)
   };
   musculationHistorique.unshift(entree);
