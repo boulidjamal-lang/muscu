@@ -2968,6 +2968,7 @@
     </div>
 
     <div id="reader"></div>
+    <p class="note" style="margin:-6px 2px 14px;">Touchez l'image si la mise au point ne s'accroche pas sur le code-barres.</p>
 
     <div id="barcode-result" class="hidden" style="margin-top: 16px; border-top: 1px solid var(--verre-brd); padding-top: 14px;">
       <div class="input-group">
@@ -4606,6 +4607,34 @@ async function startScanner() {
       { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } },
       { facingMode: 'environment' }
     ];
+    /* Sans restriction, la bibliothèque essaie tous les formats qu'elle sait
+       lire (QR compris) sur chaque trame : pure perte de temps ici, un
+       aliment n'est jamais scanné qu'en EAN/UPC (parfois Code 128 pour du
+       vrac). Limiter formatsToSupport réduit d'autant le travail par trame —
+       c'est la principale raison pour laquelle le code met du temps à
+       "accrocher". Idem pour useBarCodeDetectorIfSupported : quand le
+       navigateur expose l'API BarcodeDetector native (Chrome/Android
+       surtout), html5-qrcode délègue le décodage au matériel au lieu de son
+       propre moteur JS — nettement plus rapide, silencieusement ignoré là
+       où l'API n'existe pas (Safari notamment). */
+    const formatsCodeBarres = (typeof Html5QrcodeSupportedFormats !== 'undefined') ? [
+      Html5QrcodeSupportedFormats.EAN_13,
+      Html5QrcodeSupportedFormats.EAN_8,
+      Html5QrcodeSupportedFormats.UPC_A,
+      Html5QrcodeSupportedFormats.UPC_E,
+      Html5QrcodeSupportedFormats.CODE_128,
+      Html5QrcodeSupportedFormats.CODE_39
+    ] : undefined;
+    const configScan = {
+      fps: 15,
+      // Rectangle plus large que haut : ça colle à la forme d'un code-barres
+      // (contrairement au carré précédent) et restreint d'autant la zone que
+      // le moteur doit analyser à chaque trame.
+      qrbox: { width: 280, height: 120 },
+      aspectRatio: 1.777,
+      experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+      ...(formatsCodeBarres ? { formatsToSupport: formatsCodeBarres } : {})
+    };
     let demarre = false, derniereErreur = null;
     for (const contraintesVideo of jeuxContraintes) {
       try {
@@ -4621,7 +4650,7 @@ async function startScanner() {
         const lecteur = document.getElementById('reader');
         if (lecteur) lecteur.innerHTML = '';
         html5QrCode = new Html5Qrcode('reader');
-        await html5QrCode.start(contraintesVideo, { fps: 10, qrbox: 250, aspectRatio: 1.0 }, onScanSuccess);
+        await html5QrCode.start(contraintesVideo, configScan, onScanSuccess);
         demarre = true;
         break;
       } catch (e) {
@@ -4638,6 +4667,7 @@ async function startScanner() {
         await html5QrCode.applyVideoConstraints({ advanced: [{ focusMode: 'continuous' }] });
       }
     } catch (e) { /* pas supporté sur cet appareil : la mise au point par défaut du navigateur prend le relais */ }
+    demarrerAssistanceAutofocus();
   } catch (err) {
     console.error('[Scanner] échec du démarrage :', err);
     const lecteur = document.getElementById('reader');
@@ -4892,12 +4922,63 @@ function saisieManuelleAvecCode(code) {
 /* On capture l'instance en variable locale : si une autre est créée entre-temps,
    ce clear() n'ira pas vider le lecteur de la nouvelle. */
 function stopperScanner() {
+  arreterAssistanceAutofocus();
   const instance = html5QrCode;
   if (!instance) return Promise.resolve();
   html5QrCode = null;
   return instance.stop()
     .then(() => { try { instance.clear(); } catch (e) {} })
     .catch(() => {});
+}
+
+let intervalleAutofocus = null;
+function pisteVideoScanner() {
+  const video = document.querySelector('#reader video');
+  const stream = video && video.srcObject;
+  const track = stream && stream.getVideoTracks && stream.getVideoTracks()[0];
+  return (track && track.readyState === 'live') ? track : null;
+}
+
+/* Le focusMode "continuous" posé juste après le démarrage se fait parfois
+   oublier par le pilote au bout de quelques secondes (observé sur pas mal
+   d'Android) — on le repose donc régulièrement tant que le scanner tourne,
+   plutôt qu'une seule fois au départ. Et pour les appareils où la continue
+   ne "mord" jamais sur le code-barres : un tap sur l'image redemande une
+   mise au point ciblée à cet endroit précis, quand le pilote l'expose. */
+function demarrerAssistanceAutofocus() {
+  arreterAssistanceAutofocus();
+  intervalleAutofocus = setInterval(async () => {
+    const piste = pisteVideoScanner();
+    if (!piste || typeof piste.getCapabilities !== 'function') return;
+    try {
+      const capacites = piste.getCapabilities();
+      if (capacites.focusMode && capacites.focusMode.includes('continuous')) {
+        await piste.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
+      }
+    } catch (e) {}
+  }, 1500);
+
+  const lecteur = document.getElementById('reader');
+  if (lecteur) lecteur.onclick = async (ev) => {
+    const piste = pisteVideoScanner();
+    if (!piste || typeof piste.getCapabilities !== 'function') return;
+    try {
+      const capacites = piste.getCapabilities();
+      const rect = lecteur.getBoundingClientRect();
+      const x = (ev.clientX - rect.left) / rect.width;
+      const y = (ev.clientY - rect.top) / rect.height;
+      const contraintesTap = { advanced: [] };
+      if (capacites.pointsOfInterest) contraintesTap.advanced.push({ pointsOfInterest: [{ x, y }] });
+      if (capacites.focusMode && capacites.focusMode.includes('single-shot')) contraintesTap.advanced.push({ focusMode: 'single-shot' });
+      else if (capacites.focusMode && capacites.focusMode.includes('continuous')) contraintesTap.advanced.push({ focusMode: 'continuous' });
+      if (contraintesTap.advanced.length) await piste.applyConstraints(contraintesTap);
+    } catch (e) {}
+  };
+}
+function arreterAssistanceAutofocus() {
+  if (intervalleAutofocus) { clearInterval(intervalleAutofocus); intervalleAutofocus = null; }
+  const lecteur = document.getElementById('reader');
+  if (lecteur) lecteur.onclick = null;
 }
 
 function ajouterAlimentBarcode() {
