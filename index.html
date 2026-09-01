@@ -617,12 +617,12 @@
       opacity: 0.5; pointer-events: none; z-index: 0;
     }
     .summary-card span.libelle { color: var(--text-muted); font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; }
-    .summary-card h1 { margin: 8px 0 4px 0; font-size: 2.7rem; font-weight: 900; color: var(--primary); text-shadow: 0 0 30px var(--primary-glow); letter-spacing: -1px; }
+    .summary-card h1 { margin: 8px 0 4px 0; font-size: 2.7rem; font-weight: 900; color: var(--primary); letter-spacing: -1px; }
     .target-kcal { font-size: 0.82rem; color: var(--text-muted); margin-bottom: 8px; font-weight: 500; }
     .reste-kcal { font-size: 0.8rem; font-weight: 700; margin-bottom: 16px; }
 
     .jauge { height: 7px; border-radius: 99px; background: var(--verre-creux); overflow: hidden; margin-bottom: 16px; }
-    .jauge > i { display: block; height: 100%; width: 0; border-radius: 99px; background: var(--primary); box-shadow: 0 0 14px var(--primary-glow); transition: width 0.8s cubic-bezier(0.22,1,0.36,1), background 0.4s; }
+    .jauge > i { display: block; height: 100%; width: 0; border-radius: 99px; background: var(--primary); transition: width 0.8s cubic-bezier(0.22,1,0.36,1), background 0.4s; }
 
     .macros-bar {
       display: flex; justify-content: space-around;
@@ -789,7 +789,6 @@
       backdrop-filter: blur(14px) saturate(110%);
       color: var(--primary);
       font-size: 1.5rem; line-height: 1; cursor: pointer;
-      box-shadow: 0 14px 34px var(--primary-glow);
       display: flex; align-items: center; justify-content: center;
       transition: transform 0.32s cubic-bezier(0.16,1,0.3,1), box-shadow 0.3s;
       font-family: inherit;
@@ -1227,7 +1226,7 @@
     }
     .plage-remplie {
       position: absolute; top: 0; bottom: 0; border-radius: 99px;
-      background: var(--primary); box-shadow: 0 0 12px var(--primary-glow);
+      background: var(--primary);
       left: 0; right: 0;
     }
     .plage input[type="range"] {
