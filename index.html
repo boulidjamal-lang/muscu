@@ -1394,6 +1394,12 @@
     html.sans-verre .btn::before, html.sans-verre .feuille-action::before {
       display: none;
     }
+    /* .btn-primary est aplati (voir plus haut) : même l'anneau lentille,
+       flouté par-dessus son fond vert, ressortait comme un fin liseré
+       vert sur le bord. On le coupe spécifiquement ici plutôt que de
+       sortir .btn du groupe partagé, pour ne pas priver .btn-secondaire
+       et .btn-analysis de l'anneau qu'ils gardent. */
+    .btn-primary::before { display: none; }
 
     /* =====================================================================
        SÉANCE — MUSCULATION
