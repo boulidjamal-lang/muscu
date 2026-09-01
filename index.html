@@ -520,8 +520,6 @@
     }
     .btn-icone:hover { color: var(--text); }
     .btn-icone:active { transform: scale(0.97); }
-    /* Anneau vert discret : signale un compte connecté sans avoir a ouvrir la modale. */
-    .btn-icone.compte-actif { border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary-glow); }
 
     /* --- BARRE DE DATE --- */
     .date-nav {
@@ -2207,9 +2205,11 @@
 
       <p class="note" id="note-sync" style="margin:10px 0 0;"></p>
       <p class="note" style="margin:8px 0 0;">L'état détaillé de la synchronisation est visible dans le pop-up ☁️ « À jour » sur l'écran principal.</p>
+      <p class="note" id="popup-note-base" style="margin:8px 0 0;"></p>
       <details style="margin-top:10px;">
         <summary style="cursor:pointer;font-size:0.75rem;color:var(--text-muted);font-weight:700;">Préparer la table des aliments</summary>
         <p class="note" style="margin:10px 0 0;">À exécuter une fois. Ajoute le code-barres, la recherche sans accents, et l'index qui la rend instantanée. Aucune donnée existante n'est touchée.</p>
+        <p class="note" id="popup-note-schema" style="margin:10px 0 0;"></p>
         <div class="bloc-sql" id="bloc-sql-accents"></div>
         <button class="btn btn-secondaire" style="margin-top:9px;" onclick="copierSqlAccents()">📋 Copier</button>
       </details>
@@ -6443,18 +6443,12 @@ async function verifierStatutCompte() {
 }
 
 function majUICompte() {
-  const btn = document.getElementById('btn-compte');
   const zoneAnonyme = document.getElementById('compte-anonyme');
   const zoneConnecte = document.getElementById('compte-connecte');
   const zoneExtras = document.getElementById('compte-extras');
   const croixFermer = document.getElementById('compte-fermer-x');
   const emailAffiche = document.getElementById('compte-email');
   const champId = document.getElementById('supa-id');
-  if (btn) {
-    btn.textContent = sessionUtilisateur ? '👤' : '👤';
-    btn.classList.toggle('compte-actif', !!sessionUtilisateur);
-    btn.title = sessionUtilisateur ? `Connecté : ${sessionUtilisateur.email}` : 'Se connecter';
-  }
   if (zoneAnonyme) zoneAnonyme.classList.toggle('hidden', !!sessionUtilisateur);
   if (zoneConnecte) zoneConnecte.classList.toggle('hidden', !sessionUtilisateur);
   if (zoneExtras) zoneExtras.classList.toggle('hidden', !sessionUtilisateur);
@@ -10354,11 +10348,14 @@ function retirerExerciceProgramme(i) {
   const exo = pe && trouverExercice(pe.exerciceId);
   if (!confirm(`Retirer ${exo ? libelleExercice(exo) : 'cet exercice'} du programme ?`)) return;
   programmeEnEdition.exercices.splice(i, 1);
-  // Un exercice qui devient le dernier de la liste ne peut plus être lié à
-  // "celui d'après" : sans ça, un superset supprimé en plein milieu de sa
-  // chaîne pouvait laisser un drapeau orphelin sur le nouveau dernier.
-  const dernier = programmeEnEdition.exercices[programmeEnEdition.exercices.length - 1];
-  if (dernier) dernier.supersetSuivant = false;
+  // supersetSuivant lie un exercice à celui qui le suit IMMÉDIATEMENT. Après
+  // avoir retiré l'exercice à l'index i, c'est donc celui qui le précédait
+  // (désormais suivi d'un voisin différent) qui doit perdre son drapeau —
+  // pas "le nouveau dernier de la liste" : ça ne couvrait que le cas où
+  // l'exercice supprimé était en toute fin de chaîne, pas une suppression
+  // en plein milieu d'un superset.
+  const precedent = programmeEnEdition.exercices[i - 1];
+  if (precedent) precedent.supersetSuivant = false;
   renderProgrammeExercicesEnEdition();
 }
 function deplacerExerciceProgramme(i, delta) {
@@ -10933,8 +10930,11 @@ function retirerExerciceSession(ei) {
   const nom = exo && (trouverExercice(exo.exerciceId) ? libelleExercice(trouverExercice(exo.exerciceId)) : exo.nom);
   if (!confirm(`Retirer ${nom || 'cet exercice'} de la séance ?`)) return;
   musculationSessionActive.exercices.splice(ei, 1);
-  const dernier = musculationSessionActive.exercices[musculationSessionActive.exercices.length - 1];
-  if (dernier) dernier.supersetSuivant = false;
+  // Voir le même correctif dans retirerExerciceProgramme : c'est l'exercice
+  // qui précédait celui qu'on retire qui perd son lien de superset, pas
+  // "le nouveau dernier de la liste".
+  const precedent = musculationSessionActive.exercices[ei - 1];
+  if (precedent) precedent.supersetSuivant = false;
   sauvegarderSessionActive();
   renderSessionModal();
 }
