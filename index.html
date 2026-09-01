@@ -10251,46 +10251,65 @@ function validerExercicePerso() {
    plutôt que de se lancer à l'aveugle — comme le fait Strong avant son
    propre bouton "Début entraînement". Le bouton "▶️ Démarrer" des cartes
    programme ouvre désormais cet aperçu ; demarrerSeance() reste la fonction
-   qui démarre vraiment la séance, appelée depuis le bouton de cette modale. */
+   qui démarre vraiment la séance, appelée depuis le bouton de cette modale.
+
+   La technique (normale/dégressif/pyramidal) est sélectionnable ici même,
+   juste avant de démarrer — pas seulement en éditant le programme au
+   préalable : un choix ponctuel pour cette séance-ci, sur une copie de
+   travail (apercuProgrammeExercicesCourant), sans jamais toucher au
+   programme enregistré tant que la personne ne l'édite pas explicitement. */
+let apercuProgrammeExercicesCourant = [];
 function apercuProgramme(programmeId) {
   const programme = musculationProgrammes.find(p => p.id === programmeId);
   if (!programme) return;
+  apercuProgrammeExercicesCourant = programme.exercices.map(pe => ({ ...pe }));
   document.getElementById('titre-apercu-programme').textContent = '📋 ' + programme.nom;
   const derniere = dernierePerfProgramme(programme.id);
   document.getElementById('apercu-programme-sous-titre').textContent =
     derniere ? 'Dernière fois : ' + formatDateDisplay(derniere.date) : 'Jamais effectué sous ce nom.';
-  document.getElementById('apercu-programme-container').innerHTML = programme.exercices.map(pe => {
+  renderApercuProgrammeExercices();
+  document.getElementById('apercu-programme-btn-demarrer').onclick = () => {
+    fermerModal('apercu-programme-modal');
+    demarrerSeance(programmeId, apercuProgrammeExercicesCourant);
+  };
+  ouvrirModal('apercu-programme-modal');
+}
+function renderApercuProgrammeExercices() {
+  document.getElementById('apercu-programme-container').innerHTML = apercuProgrammeExercicesCourant.map((pe, i) => {
     const exo = trouverExercice(pe.exerciceId);
     if (!exo) return '';
     const derniereExo = dernierePerfExercice(pe.exerciceId);
     const nbSeries = Math.max(1, Number(pe.series) || (derniereExo ? derniereExo.series.length : 3));
-    return `<div class="exo-ligne" style="cursor:default;">
+    return `<div class="exo-ligne" style="cursor:default; flex-wrap:wrap; row-gap:8px;">
       <span class="exo-ligne-vignette" aria-hidden="true">${medaillonExercice(exo)}</span>
       <span style="flex:1; min-width:0;">
         <span class="exo-ligne-nom">${nbSeries} × ${escapeHtml(libelleExercice(exo))}</span>
-        <span class="exo-ligne-meta">${escapeHtml(GROUPES_MUSCULAIRES[exo.groupe] || '')}${badgeTechnique(pe.technique)}</span>
+        <span class="exo-ligne-meta">${escapeHtml(GROUPES_MUSCULAIRES[exo.groupe] || '')}</span>
       </span>
+      <select onchange="apercuProgrammeExercicesCourant[${i}].technique=this.value" aria-label="Technique pour cette séance" style="flex:none; width:auto;">
+        <option value="normale" ${pe.technique === 'normale' || !pe.technique ? 'selected' : ''}>Normale</option>
+        <option value="degressif" ${pe.technique === 'degressif' ? 'selected' : ''}>💧 Dégressif</option>
+        <option value="pyramidal" ${pe.technique === 'pyramidal' ? 'selected' : ''}>🔺 Pyramidal</option>
+      </select>
       <button type="button" class="btn-icone" style="flex:none;" onclick="afficherFicheExerciceBiblio('${exo.id}')" aria-label="Détails de l'exercice">❓</button>
     </div>`;
   }).join('');
-  document.getElementById('apercu-programme-btn-demarrer').onclick = () => {
-    fermerModal('apercu-programme-modal');
-    demarrerSeance(programmeId);
-  };
-  ouvrirModal('apercu-programme-modal');
 }
 
 /* =====================================================================
    Séance en cours
    ===================================================================== */
-function demarrerSeance(programmeId) {
+// exercicesChoisis (facultatif) : la copie de travail de l'aperçu, avec les
+// techniques éventuellement changées juste avant de démarrer — sans ça, on
+// retomberait sur celles enregistrées dans le programme lui-même.
+function demarrerSeance(programmeId, exercicesChoisis) {
   if (musculationSessionActive &&
       !confirm('Une séance (' + (musculationSessionActive.programmeNom || 'séance libre') + ') est déjà en cours. L’abandonner pour démarrer celle-ci ?')) return;
   const programme = musculationProgrammes.find(p => p.id === programmeId);
   if (!programme) return;
   musculationSessionActive = {
     programmeId: programme.id, programmeNom: programme.nom, debut: Date.now(), notes: '',
-    exercices: construireExercicesSession(programme)
+    exercices: construireExercicesSession({ exercices: exercicesChoisis || programme.exercices })
   };
   sauvegarderSessionActive();
   renderSeance();
@@ -10370,9 +10389,15 @@ function renderSessionExerciceBlocHTML(exo, ei) {
     </tr>`).join('');
   return `<div class="session-exo-bloc">
     <div class="session-exo-titre">
-      <span class="session-exo-nom">${escapeHtml(trouverExercice(exo.exerciceId) ? libelleExercice(trouverExercice(exo.exerciceId)) : exo.nom)}${badgeTechnique(exo.technique)}</span>
+      <button type="button" class="session-exo-nom" style="background:none;border:none;padding:0;font:inherit;color:inherit;cursor:pointer;text-decoration:underline;text-underline-offset:3px;text-align:left;"
+              onclick="afficherFicheExerciceBiblio('${exo.exerciceId}')">${escapeHtml(trouverExercice(exo.exerciceId) ? libelleExercice(trouverExercice(exo.exerciceId)) : exo.nom)}</button>
       <button class="btn-delete" onclick="retirerExerciceSession(${ei})" aria-label="Retirer l'exercice">&times;</button>
     </div>
+    <select onchange="modifierTechniqueSession(${ei},this.value)" aria-label="Technique" style="margin-bottom:8px;">
+      <option value="normale" ${exo.technique === 'normale' || !exo.technique ? 'selected' : ''}>Normale</option>
+      <option value="degressif" ${exo.technique === 'degressif' ? 'selected' : ''}>💧 Dégressif</option>
+      <option value="pyramidal" ${exo.technique === 'pyramidal' ? 'selected' : ''}>🔺 Pyramidal</option>
+    </select>
     <div class="session-exo-derniere">${escapeHtml(infoDerniere)}</div>
     <table class="serie-table">
       <thead><tr><th>Série</th><th>Poids (kg)</th><th>Répétitions</th><th>✓</th></tr></thead>
@@ -10383,6 +10408,12 @@ function renderSessionExerciceBlocHTML(exo, ei) {
       ${exo.series.length > 1 ? `<button class="btn-icone" style="font-size:0.75rem; font-weight:700;" onclick="retirerSerieSession(${ei})">– Série</button>` : ''}
     </div>
   </div>`;
+}
+function modifierTechniqueSession(ei, valeur) {
+  const exo = musculationSessionActive.exercices[ei];
+  if (!exo) return;
+  exo.technique = valeur;
+  sauvegarderSessionActive();
 }
 function modifierSerieSession(ei, si, champ, valeur) {
   const set = musculationSessionActive.exercices[ei] && musculationSessionActive.exercices[ei].series[si];
