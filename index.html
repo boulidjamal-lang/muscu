@@ -1105,11 +1105,12 @@
        aient tous le même poids visuel — plus aucun ne doit jurer à côté
        d'un bouton déjà aplati (ex. "Modifier" dans l'onglet Séance). */
     .btn-primary {
-      background: color-mix(in srgb, var(--primary) 20%, var(--verre-creux));
+      background: var(--verre-creux);
       color: var(--primary);
+      border-color: var(--primary);
     }
     .btn-primary:hover {
-      background: color-mix(in srgb, var(--primary) 28%, var(--verre-creux));
+      background: color-mix(in srgb, var(--primary) 10%, var(--verre-creux));
     }
     .btn-analysis {
       margin-top: 10px;
