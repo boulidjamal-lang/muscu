@@ -503,23 +503,23 @@
     .app-bar h2 .eclair { color: var(--primary); }
     .header-buttons { display: flex; gap: 8px; }
 
+    /* Aplati au même niveau que .filtre-chip/.chip-code : plus de flou
+       vitreux ni de reliefs (box-shadow), juste un fond plat et un liseré
+       léger — l'ancien traitement "verre embouti" faisait plus lourd que
+       tout le reste des petites puces de l'appli, pas plus beau. */
     .btn-icone {
       min-width: 42px; height: 42px; padding: 0 12px;
       display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-      background: var(--verre-sheen), var(--verre-fort);
-      -webkit-backdrop-filter: blur(var(--verre-flou-doux)) saturate(var(--verre-sat));
-      backdrop-filter: blur(var(--verre-flou-doux)) saturate(var(--verre-sat));
-      border: 1px solid var(--verre-brd);
-      box-shadow: inset 0 1px 0 var(--verre-hi), inset 0 -1px 0 var(--verre-lo);
-      color: var(--text);
-      border-radius: 13px; font-weight: 600; cursor: pointer; font-size: 0.9rem;
+      background: var(--verre-creux); border: 1px solid var(--verre-brd);
+      color: var(--text-muted);
+      border-radius: 13px; font-weight: 700; cursor: pointer; font-size: 0.9rem;
       font-family: inherit;
-      transition: transform 0.2s cubic-bezier(0.16,1,0.3,1), border-color 0.2s, background 0.2s, box-shadow 0.2s;
+      transition: background 0.2s, border-color 0.2s, color 0.2s;
     }
-    .btn-icone:hover { border-color: var(--verre-brd-vive); transform: translateY(-1px); box-shadow: var(--ombre), inset 0 1px 0 var(--verre-hi), inset 0 -1px 0 var(--verre-lo); }
-    .btn-icone:active { transform: translateY(0) scale(0.97); }
+    .btn-icone:hover { border-color: var(--verre-brd-vive); color: var(--text); }
+    .btn-icone:active { transform: scale(0.97); }
     /* Anneau vert discret : signale un compte connecté sans avoir a ouvrir la modale. */
-    .btn-icone.compte-actif { border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary-glow), inset 0 1px 0 var(--verre-hi), inset 0 -1px 0 var(--verre-lo); }
+    .btn-icone.compte-actif { border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary-glow); }
 
     /* --- BARRE DE DATE --- */
     .date-nav {
@@ -749,20 +749,20 @@
       display: flex; flex-direction: column; align-items: flex-end; gap: 9px;
       pointer-events: none;
     }
+    /* Plus de pastille de verre par bouton : le fond sombre (#scrim, voir
+       plus bas) porte déjà largement assez le texte pour qu'il se lise
+       seul — la boîte vitrée en plus par-dessus faisait surtout du bruit
+       visuel, avec cinq boutons empilés à l'ouverture. */
     .fab-action {
-      display: flex; align-items: center; gap: 11px; white-space: nowrap;
-      padding: 11px 17px; min-height: 46px; border-radius: 16px;
-      background: var(--verre-fort);
-      -webkit-backdrop-filter: blur(var(--verre-flou)) saturate(var(--verre-sat));
-      backdrop-filter: blur(var(--verre-flou)) saturate(var(--verre-sat));
-      border: 1px solid var(--verre-brd);
-      box-shadow: var(--ombre), inset 0 1px 0 var(--verre-hi);
-      color: var(--text); font-family: inherit; font-weight: 700; font-size: 0.85rem;
+      display: flex; align-items: center; gap: 10px; white-space: nowrap;
+      padding: 11px 6px; min-height: 46px; border: 0; background: none; box-shadow: none;
+      color: #fff; text-shadow: 0 1px 8px rgba(0,0,0,0.5);
+      font-family: inherit; font-weight: 700; font-size: 0.92rem;
       cursor: pointer; opacity: 0; transform: translateY(12px) scale(0.94);
-      transition: opacity 0.22s ease, transform 0.3s cubic-bezier(0.16,1,0.3,1), border-color 0.2s;
+      transition: opacity 0.22s ease, transform 0.3s cubic-bezier(0.16,1,0.3,1), color 0.2s;
     }
-    .fab-action .ic { font-size: 1.1rem; }
-    .fab-action[aria-current="page"] { border-color: var(--primary); color: var(--primary); }
+    .fab-action .ic { font-size: 1.15rem; }
+    .fab-action[aria-current="page"] { color: var(--primary); }
     .fab-zone.ouvert .fab-actions { pointer-events: auto; }
     .fab-zone.ouvert .fab-action { opacity: 1; transform: none; }
     .fab-zone.ouvert .fab-action:nth-child(4) { transition-delay: 0.02s; }
@@ -1336,13 +1336,20 @@
        directionnel. Le reflet spéculaire, lui, suit l'inclinaison du
        téléphone via --lx / --ly.
        ===================================================================== */
-    .verre, .app-bar, .summary-card, .btn, .btn-icone, .fab, .fab-action,
+    /* .btn-icone et .fab-action retirés de ce groupe (voir leurs styles
+       propres, plus bas) : l'anneau lentille — flou + rehauts de bord — est
+       precisement ce qui leur donnait cet aspect embouti/vitreux jugé peu
+       lisible pour de petits boutons utilitaires ou un menu texte sur fond
+       assombri. Les CTA (.btn), le bouton flottant (.fab) et les grandes
+       lignes de feuille (.feuille-action) gardent l'effet, qui reste voulu
+       à cette échelle-là. */
+    .verre, .app-bar, .summary-card, .btn, .fab,
     .feuille-action, .meal-card, .bloc-verre, .fitness-card, .analysis-card,
     .daily-questionnaire, .modal-content, .feuille-contenu {
       isolation: isolate;
     }
     .verre::before, .app-bar::before, .summary-card::before, .btn::before,
-    .btn-icone::before, .fab::before, .fab-action::before, .feuille-action::before,
+    .fab::before, .feuille-action::before,
     .meal-card::before, .bloc-verre::before, .fitness-card::before,
     .analysis-card::before, .daily-questionnaire::before,
     .modal-content::before, .feuille-contenu::before {
@@ -1376,7 +1383,7 @@
        alors que le liseré, qui est déjà l'essentiel de l'effet. */
     @supports not ((mask-composite: exclude) or (-webkit-mask-composite: xor)) {
       .verre::before, .app-bar::before, .summary-card::before, .btn::before,
-      .btn-icone::before, .fab::before, .fab-action::before, .feuille-action::before,
+      .fab::before, .feuille-action::before,
       .meal-card::before, .bloc-verre::before, .fitness-card::before,
       .analysis-card::before, .daily-questionnaire::before,
       .modal-content::before, .feuille-contenu::before {
@@ -1385,27 +1392,26 @@
     }
     /* Les éléments encore statiques ont besoin d'un repère pour l'anneau ;
        ceux qui sont déjà sticky / fixed / relative gardent le leur. */
-    .btn, .btn-icone, .fab, .fab-action, .feuille-action, .meal-card, .bloc-verre,
+    .btn, .fab, .feuille-action, .meal-card, .bloc-verre,
     .fitness-card, .analysis-card, .daily-questionnaire, .modal-content,
     .feuille-contenu, .verre { position: relative; }
     /* Le contenu passe devant l'anneau. */
     .meal-card > *, .bloc-verre > *, .fitness-card > *, .analysis-card > *,
     .daily-questionnaire > *, .modal-content > *, .feuille-contenu > *,
-    .btn > *, .fab-action > *, .feuille-action > * { position: relative; z-index: 1; }
+    .btn > *, .feuille-action > * { position: relative; z-index: 1; }
 
     /* Anneau plus fin sur les petites cibles : sur 46 px de haut, 7 px de bord
        mangeraient la moitié de la pastille. */
-    .btn, .btn-icone, .fab-action, .feuille-action, .puce-sync { --lentille-ep: 4px; }
+    .btn, .feuille-action, .puce-sync { --lentille-ep: 4px; }
     .fab { --lentille-ep: 5px; }
     .summary-card, .modal-content, .feuille-contenu { --lentille-ep: 9px; }
 
     /* Le verre s'enfonce quand on le presse : la lentille se rétracte. */
-    .btn:active, .btn-icone:active, .fab-action:active, .feuille-action:active { --lentille-ep: 2.5px; }
+    .btn:active, .feuille-action:active { --lentille-ep: 2.5px; }
 
     html.sans-verre .verre::before, html.sans-verre .app-bar::before,
     html.sans-verre .summary-card::before, html.sans-verre .btn::before,
-    html.sans-verre .btn-icone::before, html.sans-verre .fab::before,
-    html.sans-verre .fab-action::before, html.sans-verre .feuille-action::before,
+    html.sans-verre .fab::before, html.sans-verre .feuille-action::before,
     html.sans-verre .meal-card::before, html.sans-verre .bloc-verre::before,
     html.sans-verre .fitness-card::before, html.sans-verre .analysis-card::before,
     html.sans-verre .daily-questionnaire::before,
