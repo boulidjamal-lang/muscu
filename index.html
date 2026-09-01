@@ -9494,6 +9494,29 @@ function normaliserSeriesProgramme(pe) {
   for (let i = 0; i < n; i++) tableau.push({ poids: null, reps: repsCible });
   return tableau;
 }
+/* Reprend le poids/répétitions de la dernière fois où l'exercice a été
+   réellement pratiqué, pour toute série encore vierge (poids jamais
+   renseigné) : sans ça, un exercice ajouté au programme (poids null par
+   défaut, voir choisirExercicePicker) puis pratiqué pour de vrai en séance
+   continuait à afficher des champs vides dans l'éditeur — celui-ci ne
+   reflétait alors que le gabarit initial, jamais ce qui a été réellement
+   soulevé. Ne touche jamais une série déjà renseignée : on ne veut pas
+   écraser un objectif de progression volontairement différent de la
+   dernière perf. */
+function backfillDerniereFoisProgramme(pe) {
+  if (!pe.series.some(s => s.poids == null)) return;
+  const derniere = dernierePerfExercice(pe.exerciceId);
+  if (!derniere || !derniere.series.length) return;
+  pe.series.forEach((s, si) => {
+    // Le poids null est le seul signal fiable de « série jamais touchée » :
+    // les répétitions, elles, ont toujours une valeur par défaut (10, ou la
+    // cible d'un vieux programme converti) — donc écraser aussi les
+    // répétitions ici, pas seulement quand elles valent null.
+    if (s.poids != null) return;
+    const ref = derniere.series[si] || derniere.series[derniere.series.length - 1];
+    if (ref) { s.poids = ref.poids; s.reps = ref.reps; }
+  });
+}
 
 /* Construit les séries d'une séance à partir d'un programme : reprend
    exactement les poids/répétitions de la dernière fois quand l'exercice a
@@ -10055,6 +10078,7 @@ function ouvrirEditionProgramme(id) {
   // programme enregistré, et modifier une série dans l'éditeur (avant même
   // d'appuyer sur Enregistrer, ou en cas d'Annuler) l'aurait déjà changée.
   programmeEnEdition = { id: p.id, nom: p.nom, exercices: p.exercices.map(e => ({ ...e, series: normaliserSeriesProgramme(e).map(s => ({ ...s })) })) };
+  programmeEnEdition.exercices.forEach(backfillDerniereFoisProgramme);
   document.getElementById('titre-programme-modal').textContent = '✏️ Modifier le programme';
   document.getElementById('programme-nom-input').value = p.nom;
   document.getElementById('btn-suppr-programme').style.display = 'block';
@@ -10283,11 +10307,13 @@ function rendrePickerExercices() {
 }
 function choisirExercicePicker(id) {
   if (pickerMode === 'programme') {
-    programmeEnEdition.exercices.push({
+    const pe = {
       exerciceId: id,
       series: [{ poids: null, reps: 10, technique: null }, { poids: null, reps: 10, technique: null }, { poids: null, reps: 10, technique: null }],
       supersetSuivant: false
-    });
+    };
+    backfillDerniereFoisProgramme(pe);
+    programmeEnEdition.exercices.push(pe);
     fermerModal('picker-exercices-modal');
     renderProgrammeExercicesEnEdition();
   } else if (pickerMode === 'session') {
