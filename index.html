@@ -494,8 +494,6 @@
       background: var(--verre-sheen), var(--barre);
       -webkit-backdrop-filter: blur(var(--verre-flou)) saturate(var(--verre-sat));
       backdrop-filter: blur(var(--verre-flou)) saturate(var(--verre-sat));
-      border-bottom: 1px solid var(--verre-brd);
-      box-shadow: inset 0 -1px 0 var(--verre-lo);
     }
     .app-bar-inner {
       max-width: 560px; margin: 0 auto;
@@ -744,10 +742,13 @@
        en thème sombre, un bord qui rejoint #000 se fond entièrement dans
        le fond de page (quasi noir lui aussi) et le bouton perd tout
        contour visible — il garde donc une pointe de vert jusqu'au bord. */
+    /* Bouton fantôme : plus d'aplat vert, juste le contour — le fond reprend
+       la couleur de la page (--bg) pour rester net sur les deux thèmes. */
     .fab {
-      width: 60px; height: 60px; border-radius: 21px; border: none;
-      background: radial-gradient(circle at 50% 42%, var(--primary) 0%, var(--primary) 40%, color-mix(in srgb, var(--primary) 55%, #000) 75%, color-mix(in srgb, var(--primary) 30%, #000) 100%);
-      color: var(--primary-txt);
+      width: 60px; height: 60px; border-radius: 21px;
+      border: 2px solid var(--primary);
+      background: var(--bg);
+      color: var(--primary);
       font-size: 1.5rem; line-height: 1; cursor: pointer;
       box-shadow: 0 14px 34px var(--primary-glow);
       display: flex; align-items: center; justify-content: center;
@@ -1397,6 +1398,11 @@
        groupe partagé, pour ne pas priver .feuille-action de l'anneau
        qu'il garde. */
     .btn-primary::before, .btn-analysis::before, .btn-secondaire::before { display: none; }
+    /* Même chose pour la barre du haut : son border-bottom explicite est déjà
+       retiré ci-dessus, mais l'anneau lentille partagé avec .verre/.btn
+       dessinait encore un fin trait sous elle (le seul bord de la lentille
+       qui reste visible sur une barre collée en haut, pleine largeur). */
+    .app-bar::before { display: none; }
 
     /* =====================================================================
        SÉANCE — MUSCULATION
