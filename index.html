@@ -2968,7 +2968,7 @@
     </div>
 
     <div id="reader"></div>
-    <p class="note" style="margin:-6px 2px 14px;">Touchez l'image si la mise au point ne s'accroche pas sur le code-barres.</p>
+    <p class="note" style="margin:-6px 2px 14px;">Touchez l'image si la mise au point ne s'accroche pas sur le code-barres (redémarre la caméra sur iPhone).</p>
 
     <div id="barcode-result" class="hidden" style="margin-top: 16px; border-top: 1px solid var(--verre-brd); padding-top: 14px;">
       <div class="input-group">
@@ -4667,6 +4667,23 @@ async function startScanner() {
         await html5QrCode.applyVideoConstraints({ advanced: [{ focusMode: 'continuous' }] });
       }
     } catch (e) { /* pas supporté sur cet appareil : la mise au point par défaut du navigateur prend le relais */ }
+    /* Safari/iOS n'expose ni focusMode ni pointsOfInterest (WebKit ne
+       implémente pas ce volet de l'API caméra) : aucune des contraintes
+       de mise au point ci-dessus n'y a le moindre effet, alors qu'elles
+       fonctionnent sur la plupart des Android. Le zoom, lui, EST supporté
+       par Safari (iOS 15+) — et sur iPhone le problème n'est pas toujours
+       le flou : c'est souvent que le code-barres est trop petit dans le
+       cadre pour que le décodeur (JS, pas de BarcodeDetector natif sur
+       Safari) l'accroche. Un léger zoom automatique aide donc précisément
+       là où la mise au point ne peut pas être pilotée. */
+    try {
+      const piste = pisteVideoScanner();
+      const capacites = (piste && typeof piste.getCapabilities === 'function') ? piste.getCapabilities() : null;
+      if (capacites && capacites.zoom && typeof capacites.zoom.min === 'number' && typeof capacites.zoom.max === 'number' && capacites.zoom.max > capacites.zoom.min) {
+        const zoomVoulu = capacites.zoom.min + (capacites.zoom.max - capacites.zoom.min) * 0.3;
+        await piste.applyConstraints({ advanced: [{ zoom: zoomVoulu }] });
+      }
+    } catch (e) {}
     demarrerAssistanceAutofocus();
   } catch (err) {
     console.error('[Scanner] échec du démarrage :', err);
@@ -4961,9 +4978,19 @@ function demarrerAssistanceAutofocus() {
   const lecteur = document.getElementById('reader');
   if (lecteur) lecteur.onclick = async (ev) => {
     const piste = pisteVideoScanner();
-    if (!piste || typeof piste.getCapabilities !== 'function') return;
+    if (!piste) return;
+    const capacites = (typeof piste.getCapabilities === 'function') ? piste.getCapabilities() : {};
+    const cibleExposee = capacites.pointsOfInterest || (capacites.focusMode && capacites.focusMode.length);
+    if (!cibleExposee) {
+      // Safari/iOS : ni pointsOfInterest ni focusMode ne sont exposés (WebKit
+      // n'implémente pas ce volet de l'API caméra), donc aucune contrainte à
+      // appliquer ici n'aurait le moindre effet. Le seul levier qui force
+      // réellement une nouvelle recherche de mise au point sur ces appareils
+      // est de réinitialiser le flux caméra.
+      redemarrerCameraPourMiseAuPoint();
+      return;
+    }
     try {
-      const capacites = piste.getCapabilities();
       const rect = lecteur.getBoundingClientRect();
       const x = (ev.clientX - rect.left) / rect.width;
       const y = (ev.clientY - rect.top) / rect.height;
@@ -4979,6 +5006,21 @@ function arreterAssistanceAutofocus() {
   if (intervalleAutofocus) { clearInterval(intervalleAutofocus); intervalleAutofocus = null; }
   const lecteur = document.getElementById('reader');
   if (lecteur) lecteur.onclick = null;
+}
+
+/* startScanner() gère déjà son propre verrou (scannerEnDemarrage) : un
+   second tap pendant le redémarrage est donc sans effet plutôt que de
+   relancer la caméra en boucle. Un léger fondu donne un retour visuel
+   pendant la coupure (quelques centaines de ms, inévitable : c'est une
+   vraie réinitialisation du flux). */
+async function redemarrerCameraPourMiseAuPoint() {
+  const lecteur = document.getElementById('reader');
+  if (lecteur) lecteur.style.opacity = '0.35';
+  try {
+    await startScanner();
+  } finally {
+    if (lecteur) lecteur.style.opacity = '';
+  }
 }
 
 function ajouterAlimentBarcode() {
