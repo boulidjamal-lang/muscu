@@ -122,9 +122,13 @@
          la différence entre « du flou » et du verre. */
       --lx: 22%;
       --ly: 6%;
-      --verre-sheen:
-        radial-gradient(120% 95% at var(--lx) var(--ly), rgba(255,255,255,0.62), rgba(255,255,255,0.18) 34%, rgba(255,255,255,0) 60%),
-        linear-gradient(158deg, rgba(255,255,255,0.34) 0%, rgba(255,255,255,0.06) 34%, rgba(255,255,255,0) 58%);
+      /* --verre-sheen / --verre-sheen-vive (le reflet de verre en haut à
+         gauche) ont été retirés de tous leurs usages : ce reflet ressortait
+         comme un halo en thème sombre, quasi invisible en thème clair. --lx/
+         --ly restent définies et suivies par le script en bas de page (voir
+         actuel.x/actuel.y) même si plus rien ne les lit ici : les retirer
+         est une décision à part (couper le suivi d'inclinaison lui-même),
+         pas juste « enlever un halo ». */
       /* Le bord de la lentille : lumière concentrée en haut, rendue en bas,
          éteinte sur les flancs — la signature d'une épaisseur de verre. */
       --lentille-ep: 7px;
@@ -134,12 +138,6 @@
         inset -1.5px 0 1.5px -1px rgba(255,255,255,0.6),
         inset 0 -2px 2px -1px rgba(255,255,255,0.75),
         inset 0 0 0 0.5px rgba(14,20,32,0.07);
-      /* Reflet plus marqué, réservé aux boutons "verre coloré" : un vrai
-         highlight qui glisse en haut à gauche, comme la matière du Liquid
-         Glass d'Apple — pas juste une teinte, un vrai reflet de lumière. */
-      --verre-sheen-vive:
-        radial-gradient(120% 180% at 12% -20%, rgba(255,255,255,0.85), transparent 42%),
-        linear-gradient(160deg, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0.08) 45%, rgba(255,255,255,0) 65%);
       /* Les barres fixes se superposent au contenu qui defile : trop
          translucides, on lisait le texte du dessous a travers. */
       --barre: rgba(244, 247, 252, 0.95);
@@ -195,18 +193,12 @@
       --verre-brd-vive: rgba(255, 255, 255, 0.18);
       --verre-hi: rgba(255, 255, 255, 0.20);
       --verre-lo: rgba(0, 0, 0, 0.22);
-      --verre-sheen:
-        radial-gradient(120% 95% at var(--lx) var(--ly), rgba(255,255,255,0.20), rgba(255,255,255,0.05) 34%, rgba(255,255,255,0) 60%),
-        linear-gradient(158deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.02) 34%, rgba(255,255,255,0) 58%);
       --lentille-rim:
         inset 0 1.5px 0.5px -0.5px rgba(255,255,255,0.72),
         inset 1.5px 0 1.5px -1px rgba(255,255,255,0.26),
         inset -1.5px 0 1.5px -1px rgba(255,255,255,0.26),
         inset 0 -2px 2px -1px rgba(255,255,255,0.30),
         inset 0 0 0 0.5px rgba(255,255,255,0.08);
-      --verre-sheen-vive:
-        radial-gradient(120% 180% at 12% -20%, rgba(255,255,255,0.55), transparent 42%),
-        linear-gradient(160deg, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0.02) 45%, rgba(255,255,255,0) 65%);
       --barre: rgba(9, 11, 16, 0.94);
       --ombre: 0 14px 34px rgba(0, 0, 0, 0.45);
       --ombre-haute: 0 26px 60px rgba(0, 0, 0, 0.6);
@@ -480,7 +472,7 @@
        ombre en bas) est ce qui donne l'epaisseur. Applique via une classe.
        ===================================================================== */
     .verre {
-      background: var(--verre-sheen), var(--verre);
+      background: var(--verre);
       -webkit-backdrop-filter: blur(var(--verre-flou)) saturate(var(--verre-sat));
       backdrop-filter: blur(var(--verre-flou)) saturate(var(--verre-sat));
       border: 0;
@@ -560,7 +552,7 @@
     /* --- BARRE DE DATE --- */
     .date-nav {
       display: flex; justify-content: space-between; align-items: center;
-      background: var(--verre-sheen), var(--verre);
+      background: var(--verre);
       -webkit-backdrop-filter: blur(var(--verre-flou-doux)) saturate(var(--verre-sat));
       backdrop-filter: blur(var(--verre-flou-doux)) saturate(var(--verre-sat));
       border: 0;
@@ -602,7 +594,11 @@
 
     /* --- CARTE RESUME --- */
     .summary-card {
-      background: var(--verre-sheen), var(--verre-fort);
+      /* Sans --verre-sheen : ce reflet, plus lumineux en haut à gauche,
+         ressort comme un halo en thème sombre (fond de base sombre) mais
+         se fond dans un fond de carte déjà clair en thème clair — d'où le
+         halo visible sur un seul des deux thèmes. */
+      background: var(--verre-fort);
       -webkit-backdrop-filter: blur(var(--verre-flou)) saturate(var(--verre-sat));
       backdrop-filter: blur(var(--verre-flou)) saturate(var(--verre-sat));
       border: 0;
@@ -653,7 +649,7 @@
 
     /* --- CARTES --- */
     .daily-questionnaire, .fitness-card, .analysis-card, .meal-card, .bloc-verre {
-      background: var(--verre-sheen), var(--verre);
+      background: var(--verre);
       -webkit-backdrop-filter: blur(var(--verre-flou)) saturate(var(--verre-sat));
       backdrop-filter: blur(var(--verre-flou)) saturate(var(--verre-sat));
       border: 0;
@@ -841,7 +837,7 @@
     @keyframes fadeInModal { from { opacity: 0; } to { opacity: 1; } }
     .modal.show { display: flex; }
     .modal-content {
-      background: var(--verre-sheen), var(--verre-fort);
+      background: var(--verre-fort);
       -webkit-backdrop-filter: blur(var(--verre-flou)) saturate(var(--verre-sat));
       backdrop-filter: blur(var(--verre-flou)) saturate(var(--verre-sat));
       border: 0;
@@ -1494,7 +1490,7 @@
     #programmes-liste-container { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     #programmes-liste-container .vide { grid-column: 1 / -1; }
     .programme-carte {
-      background: var(--verre-sheen), var(--verre);
+      background: var(--verre);
       -webkit-backdrop-filter: blur(var(--verre-flou)) saturate(var(--verre-sat));
       backdrop-filter: blur(var(--verre-flou)) saturate(var(--verre-sat));
       border: 0; border-radius: var(--rayon);
