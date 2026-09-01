@@ -474,7 +474,7 @@
       background: var(--verre-sheen), var(--verre);
       -webkit-backdrop-filter: blur(var(--verre-flou)) saturate(var(--verre-sat));
       backdrop-filter: blur(var(--verre-flou)) saturate(var(--verre-sat));
-      border: 1px solid var(--verre-brd);
+      border: 0;
       box-shadow: var(--ombre),
                   inset 0 1px 0 var(--verre-hi),
                   inset 0 -1px 0 var(--verre-lo);
@@ -510,13 +510,13 @@
     .btn-icone {
       min-width: 42px; height: 42px; padding: 0 12px;
       display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-      background: var(--verre-creux); border: 1px solid var(--verre-brd);
+      background: var(--verre-creux); border: 0;
       color: var(--text-muted);
       border-radius: 13px; font-weight: 700; cursor: pointer; font-size: 0.9rem;
       font-family: inherit;
       transition: background 0.2s, border-color 0.2s, color 0.2s;
     }
-    .btn-icone:hover { border-color: var(--verre-brd-vive); color: var(--text); }
+    .btn-icone:hover { color: var(--text); }
     .btn-icone:active { transform: scale(0.97); }
     /* Anneau vert discret : signale un compte connecté sans avoir a ouvrir la modale. */
     .btn-icone.compte-actif { border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary-glow); }
@@ -527,7 +527,7 @@
       background: var(--verre-sheen), var(--verre);
       -webkit-backdrop-filter: blur(var(--verre-flou-doux)) saturate(var(--verre-sat));
       backdrop-filter: blur(var(--verre-flou-doux)) saturate(var(--verre-sat));
-      border: 1px solid var(--verre-brd);
+      border: 0;
       box-shadow: var(--ombre), inset 0 1px 0 var(--verre-hi);
       padding: 6px 8px; border-radius: 16px; margin: 14px 0 16px;
     }
@@ -537,7 +537,7 @@
       border: 1px solid transparent; font-size: 1.1rem; cursor: pointer;
       border-radius: 12px; transition: background 0.2s, border-color 0.2s;
     }
-    .date-nav button:hover { background: var(--verre-fort); border-color: var(--verre-brd); }
+    .date-nav button:hover { background: var(--verre-fort); }
     .date-display { font-weight: 700; font-size: 0.95rem; letter-spacing: 0.3px; }
     #btn-aujourdhui {
       font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px;
@@ -569,7 +569,7 @@
       background: var(--verre-sheen), var(--verre-fort);
       -webkit-backdrop-filter: blur(var(--verre-flou)) saturate(var(--verre-sat));
       backdrop-filter: blur(var(--verre-flou)) saturate(var(--verre-sat));
-      border: 1px solid var(--verre-brd);
+      border: 0;
       box-shadow: var(--ombre-haute), inset 0 1px 0 var(--verre-hi), inset 0 -1px 0 var(--verre-lo);
       padding: 24px 20px; border-radius: 24px; text-align: center; margin-bottom: 16px;
       position: relative; overflow: hidden;
@@ -591,7 +591,7 @@
     .macros-bar {
       display: flex; justify-content: space-around;
       background: var(--verre-creux);
-      border: 1px solid var(--verre-brd);
+      border: 0;
       box-shadow: inset 0 1px 0 var(--verre-lo);
       padding: 12px; border-radius: 16px;
     }
@@ -620,14 +620,14 @@
       background: var(--verre-sheen), var(--verre);
       -webkit-backdrop-filter: blur(var(--verre-flou)) saturate(var(--verre-sat));
       backdrop-filter: blur(var(--verre-flou)) saturate(var(--verre-sat));
-      border: 1px solid var(--verre-brd);
+      border: 0;
       border-radius: var(--rayon);
       padding: var(--densite-pad);
       margin-bottom: var(--densite-gap);
       box-shadow: var(--ombre), inset 0 1px 0 var(--verre-hi), inset 0 -1px 0 var(--verre-lo);
       transition: border-color 0.3s, transform 0.3s cubic-bezier(0.16,1,0.3,1), box-shadow 0.3s;
     }
-    .daily-questionnaire:hover, .fitness-card:hover, .analysis-card:hover, .meal-card:hover { border-color: var(--verre-brd-vive); transform: translateY(-2px); box-shadow: var(--ombre-haute), inset 0 1px 0 var(--verre-hi), inset 0 -1px 0 var(--verre-lo); }
+    .daily-questionnaire:hover, .fitness-card:hover, .analysis-card:hover, .meal-card:hover { transform: translateY(-2px); box-shadow: var(--ombre-haute), inset 0 1px 0 var(--verre-hi), inset 0 -1px 0 var(--verre-lo); }
     .daily-questionnaire h3, .fitness-card h3, .analysis-card h3 {
       margin-top: 0; margin-bottom: 14px; font-size: 0.85rem; font-weight: 700;
       color: var(--text); letter-spacing: 0.8px; text-transform: uppercase;
@@ -640,7 +640,7 @@
     }
     .meal-title { font-weight: 700; font-size: 0.98rem; letter-spacing: 0.2px; }
     .meal-kcals {
-      background: var(--verre-creux); border: 1px solid var(--verre-brd);
+      background: var(--verre-creux); border: 0;
       color: var(--primary); padding: 5px 12px; border-radius: 20px;
       font-weight: 700; font-size: 0.78rem; white-space: nowrap;
     }
@@ -663,11 +663,11 @@
       font-size: 0.68rem; letter-spacing: 0.4px;
       padding: 2px 7px; min-height: 22px;
       border-radius: 7px; cursor: pointer;
-      background: var(--verre-creux); border: 1px solid var(--verre-brd);
+      background: var(--verre-creux); border: 0;
       color: var(--text-muted);
       transition: color 0.2s, border-color 0.2s, background 0.2s;
     }
-    .chip-code:hover, .chip-code:focus-visible { color: var(--text); border-color: var(--verre-brd-vive); }
+    .chip-code:hover, .chip-code:focus-visible { color: var(--text); }
     .chip-code.copie { color: var(--primary); border-color: var(--primary); }
     .food-macros { font-size: 0.7rem; display: flex; gap: 8px; margin-top: 2px; }
     :root[data-densite="compact"] .food-macros { display: none; }
@@ -690,11 +690,11 @@
       border-radius: 11px; transition: background 0.2s, border-color 0.2s;
       font-family: inherit;
     }
-    .btn-delete:hover, .btn-delete:focus-visible { background: var(--verre-fort); border-color: var(--verre-brd); }
+    .btn-delete:hover, .btn-delete:focus-visible { background: var(--verre-fort); }
 
     .btn-ajout-repas {
       width: 100%; margin-top: 12px; min-height: 42px;
-      background: var(--verre-creux); border: 1px dashed var(--verre-brd-vive);
+      background: var(--verre-creux); border: 0;
       color: var(--text); border-radius: 13px; font-weight: 700; font-size: 0.82rem;
       cursor: pointer; font-family: inherit; letter-spacing: 0.3px;
       transition: background 0.2s, border-color 0.2s, transform 0.2s;
@@ -705,7 +705,7 @@
     .meal-buttons { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
     .btn-action {
       padding: 11px 12px; min-height: 42px;
-      border: 1px solid var(--verre-brd); border-radius: 13px;
+      border: 0; border-radius: 13px;
       font-weight: 700; font-size: 0.76rem; cursor: pointer; flex: 1; min-width: 92px;
       text-align: center; font-family: inherit; letter-spacing: 0.3px;
       background: var(--verre-fort); color: var(--text);
@@ -797,7 +797,7 @@
       background: var(--verre-sheen), var(--verre-fort);
       -webkit-backdrop-filter: blur(var(--verre-flou)) saturate(var(--verre-sat));
       backdrop-filter: blur(var(--verre-flou)) saturate(var(--verre-sat));
-      border: 1px solid var(--verre-brd);
+      border: 0;
       border-radius: 26px; padding: 22px; max-width: 520px; width: 100%;
       max-height: min(88dvh, 88vh); overflow-y: auto;
       /* Le geste tactile doit fonctionner ici malgré le touch-action:none
@@ -827,7 +827,7 @@
       width: 40px; height: 40px; flex: 0 0 40px;
       display: inline-flex; align-items: center; justify-content: center;
       font-size: 1.35rem; line-height: 1; cursor: pointer; color: var(--text-muted);
-      background: var(--verre-creux); border: 1px solid var(--verre-brd);
+      background: var(--verre-creux); border: 0;
       border-radius: 12px; font-family: inherit;
       transition: color 0.2s, background 0.2s;
     }
@@ -853,7 +853,7 @@
       background: var(--verre-fort);
       -webkit-backdrop-filter: blur(var(--verre-flou)) saturate(var(--verre-sat));
       backdrop-filter: blur(var(--verre-flou)) saturate(var(--verre-sat));
-      border: 1px solid var(--verre-brd);
+      border: 0;
       border-radius: 26px 26px 0 0;
       box-shadow: var(--ombre-haute), inset 0 1px 0 var(--verre-hi);
       padding: 10px 16px calc(20px + env(safe-area-inset-bottom, 0px));
@@ -877,12 +877,12 @@
     .feuille-action {
       display: flex; align-items: center; gap: 12px; width: 100%;
       min-height: 54px; padding: 12px 16px; margin-bottom: 9px;
-      background: var(--verre-creux); border: 1px solid var(--verre-brd);
+      background: var(--verre-creux); border: 0;
       border-radius: 16px; color: var(--text); font-family: inherit;
       font-weight: 700; font-size: 0.9rem; text-align: left; cursor: pointer;
       transition: background 0.2s, border-color 0.2s, transform 0.2s;
     }
-    .feuille-action:hover { background: var(--verre-fort); border-color: var(--verre-brd-vive); }
+    .feuille-action:hover { background: var(--verre-fort); }
     .feuille-action:active { transform: scale(0.985); }
     .feuille-action .ic { font-size: 1.25rem; }
     .feuille-action .sous { display: block; font-weight: 500; font-size: 0.73rem; color: var(--text-muted); margin-top: 2px; }
@@ -897,7 +897,7 @@
     .feuille-entete .feuille-titre { margin: 0; flex: 1; text-align: left; }
     .feuille-fermer {
       flex: none; width: 44px; height: 44px; border-radius: 12px;
-      background: var(--verre-creux); border: 1px solid var(--verre-brd);
+      background: var(--verre-creux); border: 0;
       color: var(--text); font-size: 1.3rem; line-height: 1; cursor: pointer;
       display: flex; align-items: center; justify-content: center;
     }
@@ -923,7 +923,7 @@
     .onb-option {
       display: block; width: 100%; text-align: left;
       padding: 13px 15px; min-height: var(--cible-tactile, 48px);
-      background: var(--verre-creux); border: 1.5px solid var(--verre-brd);
+      background: var(--verre-creux); border: 0;
       border-radius: 14px; color: inherit; font-family: inherit;
       font-weight: 700; font-size: 0.88rem; cursor: pointer;
       transition: border-color 0.2s, background 0.2s;
@@ -938,7 +938,7 @@
     }
     .onb-resultat {
       text-align: center; padding: 18px 0 14px; margin-bottom: 14px;
-      background: var(--verre-creux); border: 1px solid var(--verre-brd);
+      background: var(--verre-creux); border: 0;
       border-radius: 18px;
     }
     .onb-cible {
@@ -965,7 +965,7 @@
     .apercu-case {
       display: flex; flex-direction: column; align-items: center; gap: 3px;
       padding: 11px 4px; min-height: 62px;
-      background: var(--verre-creux); border: 1px solid var(--verre-brd);
+      background: var(--verre-creux); border: 0;
       border-radius: 14px; color: inherit; font-family: inherit;
       cursor: pointer; transition: border-color 0.2s, background 0.2s;
     }
@@ -984,7 +984,7 @@
     .compte-option {
       display: block; width: 100%; text-align: left;
       padding: 12px 14px; min-height: 48px; margin-bottom: 8px;
-      background: var(--verre-creux); border: 1px solid var(--verre-brd);
+      background: var(--verre-creux); border: 0;
       border-radius: 13px; color: inherit; font-family: inherit; cursor: pointer;
     }
     .compte-option:hover { background: var(--verre-fort); }
@@ -1005,7 +1005,7 @@
     .admin-select-ligne input[type="search"] {
       flex: 1; min-width: 0;
       padding: 12px 15px; min-height: 44px;
-      background: var(--verre-creux); border: 1px solid var(--verre-brd);
+      background: var(--verre-creux); border: 0;
       color: var(--text); border-radius: 14px;
       font-size: max(16px, 0.92rem); font-family: inherit; outline: none;
     }
@@ -1035,14 +1035,14 @@
     }
     .aliments-filtres input {
       width: 100%; padding: 9px 12px; min-height: 40px;
-      background: var(--verre); border: 1px solid var(--verre-brd);
+      background: var(--verre); border: 1px solid transparent;
       color: var(--text); border-radius: 10px;
       font-size: 0.88rem; font-family: inherit; outline: none;
     }
     .aliments-filtres input:focus { border-color: var(--primary); }
 
     .admin-aliment-card {
-      background: var(--verre-creux); border: 1px solid var(--verre-brd);
+      background: var(--verre-creux); border: 0;
       border-radius: 16px; padding: 13px; margin-bottom: 10px;
     }
     .aliment-header {
@@ -1058,7 +1058,7 @@
     .aliment-actions { display: flex; gap: 6px; flex: none; }
     .bouton-petit {
       width: 44px; height: 44px; padding: 0; font-size: 1rem;
-      border: 1px solid var(--verre-brd); border-radius: 12px;
+      border: 0; border-radius: 12px;
       background: var(--verre); color: var(--text); cursor: pointer;
       display: flex; align-items: center; justify-content: center;
       transition: background 0.2s, border-color 0.2s;
@@ -1094,7 +1094,7 @@
     .input-group input, .input-group select, .input-group textarea {
       width: 100%; padding: 12px 15px; min-height: 44px;
       background: var(--verre-creux);
-      border: 1px solid var(--verre-brd); color: var(--text);
+      border: 1px solid transparent; color: var(--text);
       border-radius: 14px; font-size: 0.92rem; font-family: inherit;
       outline: none; transition: all 0.25s;
       box-shadow: inset 0 1px 0 var(--verre-lo);
@@ -1114,7 +1114,7 @@
     }
     .trio input {
       width: 100%; padding: 9px 8px; min-height: 38px; text-align: center;
-      background: var(--verre-creux); border: 1px solid var(--verre-brd); color: var(--text);
+      background: var(--verre-creux); border: 1px solid transparent; color: var(--text);
       border-radius: 11px; font-size: 0.82rem; font-family: inherit; outline: none;
       box-shadow: inset 0 1px 0 var(--verre-lo);
     }
@@ -1141,7 +1141,7 @@
     }
     .btn-primary {
       background: var(--verre-sheen-vive), color-mix(in srgb, var(--primary) 16%, var(--verre-fort));
-      border-color: var(--primary); color: var(--primary);
+      color: var(--primary);
       box-shadow:
         0 10px 26px color-mix(in srgb, var(--primary) 30%, transparent),
         inset 0 1px 0 var(--verre-hi), inset 0 -1px 0 var(--verre-lo),
@@ -1157,7 +1157,7 @@
     .btn-analysis {
       margin-top: 10px;
       background: var(--verre-sheen-vive), color-mix(in srgb, var(--ai-color) 16%, var(--verre-fort));
-      border-color: var(--ai-color); color: var(--ai-color);
+      color: var(--ai-color);
       box-shadow:
         0 10px 26px color-mix(in srgb, var(--ai-color) 28%, transparent),
         inset 0 1px 0 var(--verre-hi), inset 0 -1px 0 var(--verre-lo),
@@ -1167,22 +1167,22 @@
       background: var(--verre-sheen-vive), color-mix(in srgb, var(--ai-color) 24%, var(--verre-fort));
     }
     .btn-secondaire {
-      background: var(--verre-sheen), var(--verre-creux); border-color: var(--verre-brd); color: var(--text);
+      background: var(--verre-sheen), var(--verre-creux); color: var(--text);
       box-shadow: inset 0 1px 0 var(--verre-hi);
     }
 
-    #preview-image { max-width: 100%; max-height: 180px; margin: 12px 0; border-radius: 14px; object-fit: cover; border: 1px solid var(--verre-brd); }
+    #preview-image { max-width: 100%; max-height: 180px; margin: 12px 0; border-radius: 14px; object-fit: cover; border: 0; }
     .hidden { display: none !important; }
     .loader { text-align: center; font-weight: 700; color: var(--ai-color); margin: 18px 0; letter-spacing: 0.4px; font-size: 0.88rem; }
     .error-box { background: color-mix(in srgb, var(--danger) 12%, transparent); border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent); color: var(--danger); padding: 14px; border-radius: 13px; font-size: 0.85rem; margin-top: 10px; word-break: break-word; }
 
-    .detected-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--verre-creux); border: 1px solid var(--verre-brd); padding: 11px 14px; border-radius: 13px; margin-bottom: 9px; }
-    .detected-row input[type="number"] { width: 80px; min-height: 42px; padding: 8px; text-align: center; border-radius: 11px; border: 1px solid var(--verre-brd); background: var(--verre-creux); color: var(--text); font-family: inherit; font-weight: 700; }
-    #reader { width: 100%; border-radius: 14px; overflow: hidden; margin-bottom: 14px; background: #000; min-height: 160px; border: 1px solid var(--verre-brd); }
-    .analysis-output { background: var(--verre-creux); border: 1px solid var(--verre-brd); padding: 16px; border-radius: 14px; font-size: 0.9rem; line-height: 1.6; margin-top: 14px; white-space: pre-line; color: var(--text); }
+    .detected-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--verre-creux); border: 0; padding: 11px 14px; border-radius: 13px; margin-bottom: 9px; }
+    .detected-row input[type="number"] { width: 80px; min-height: 42px; padding: 8px; text-align: center; border-radius: 11px; border: 0; background: var(--verre-creux); color: var(--text); font-family: inherit; font-weight: 700; }
+    #reader { width: 100%; border-radius: 14px; overflow: hidden; margin-bottom: 14px; background: #000; min-height: 160px; border: 0; }
+    .analysis-output { background: var(--verre-creux); border: 0; padding: 16px; border-radius: 14px; font-size: 0.9rem; line-height: 1.6; margin-top: 14px; white-space: pre-line; color: var(--text); }
 
-    .chart-container { position: relative; width: 100%; height: 170px; margin-bottom: 16px; background: var(--verre-creux); border: 1px solid var(--verre-brd); border-radius: 16px; padding: 12px; }
-    .slider-control { margin-bottom: 12px; background: var(--verre-creux); padding: 12px 15px; border-radius: 14px; border: 1px solid var(--verre-brd); }
+    .chart-container { position: relative; width: 100%; height: 170px; margin-bottom: 16px; background: var(--verre-creux); border: 0; border-radius: 16px; padding: 12px; }
+    .slider-control { margin-bottom: 12px; background: var(--verre-creux); padding: 12px 15px; border-radius: 14px; border: 0; }
     .slider-control label { display: flex; justify-content: space-between; font-size: 0.72rem; color: var(--text-muted); margin-bottom: 6px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; }
     .slider-control input[type="range"] { width: 100%; accent-color: var(--primary); cursor: pointer; min-height: 28px; }
 
@@ -1234,7 +1234,7 @@
          suggestions. Le dégradé plein posé sur --bg garantit un fond solide
          quelle que soit la couche d'ambiance derrière. */
       background: linear-gradient(var(--barre), var(--barre)), var(--bg);
-      border: 1px solid var(--verre-brd-vive);
+      border: 0;
       box-shadow: var(--ombre-haute);
     }
     .off-suggestion {
@@ -1268,7 +1268,7 @@
     .puce-sync {
       display: inline-flex; align-items: center; gap: 6px;
       min-height: 42px; padding: 0 12px; border-radius: 13px;
-      background: var(--verre-fort); border: 1px solid var(--verre-brd);
+      background: var(--verre-fort); border: 0;
       box-shadow: inset 0 1px 0 var(--verre-hi);
       color: var(--text-muted); font-family: inherit; font-weight: 700;
       font-size: 0.72rem; cursor: pointer;
@@ -1286,7 +1286,7 @@
     @keyframes pulseSync { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
 
     .bloc-sql {
-      background: var(--verre-creux); border: 1px solid var(--verre-brd);
+      background: var(--verre-creux); border: 0;
       border-radius: 13px; padding: 12px 14px; margin-top: 10px;
       font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
       font-size: 0.68rem; line-height: 1.5; color: var(--text-muted);
@@ -1297,7 +1297,7 @@
     .off-suggestion:hover, .off-suggestion:focus-visible { background: color-mix(in srgb, var(--primary) 14%, transparent); }
     .off-vide { padding: 13px 14px; font-size: 0.8rem; color: var(--text-muted); line-height: 1.45; }
 
-    .segment { display: flex; gap: 6px; background: var(--verre-creux); border: 1px solid var(--verre-brd); border-radius: 14px; padding: 4px; }
+    .segment { display: flex; gap: 6px; background: var(--verre-creux); border: 0; border-radius: 14px; padding: 4px; }
     .segment button {
       flex: 1; min-height: 40px; border: none; background: transparent; color: var(--text-muted);
       font-family: inherit; font-weight: 700; font-size: 0.78rem; border-radius: 11px; cursor: pointer;
@@ -1308,7 +1308,7 @@
     /* --- CHIFFRES CLÉS DE LA PÉRIODE --- */
     .grille-cles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     .cle {
-      background: var(--verre-creux); border: 1px solid var(--verre-brd);
+      background: var(--verre-creux); border: 0;
       border-radius: 15px; padding: 13px 14px;
       box-shadow: inset 0 1px 0 var(--verre-lo);
     }
@@ -1471,7 +1471,7 @@
       background: var(--verre-sheen), var(--verre);
       -webkit-backdrop-filter: blur(var(--verre-flou)) saturate(var(--verre-sat));
       backdrop-filter: blur(var(--verre-flou)) saturate(var(--verre-sat));
-      border: 1px solid var(--verre-brd); border-radius: var(--rayon);
+      border: 0; border-radius: var(--rayon);
       padding: 16px; margin-bottom: 12px;
       box-shadow: var(--ombre), inset 0 1px 0 var(--verre-hi), inset 0 -1px 0 var(--verre-lo);
     }
@@ -1485,7 +1485,7 @@
     .filtre-chips { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 12px; }
     .filtre-chip {
       padding: 7px 13px; border-radius: 99px; font-size: 0.76rem; font-weight: 700;
-      background: var(--verre-creux); border: 1px solid var(--verre-brd); color: var(--text-muted);
+      background: var(--verre-creux); border: 0; color: var(--text-muted);
       cursor: pointer; font-family: inherit; white-space: nowrap;
       transition: background 0.2s, border-color 0.2s, color 0.2s;
     }
@@ -1498,11 +1498,11 @@
     .exo-ligne {
       display: flex; align-items: center; gap: 12px; width: 100%;
       padding: 11px 12px; margin-bottom: 8px;
-      background: var(--verre-creux); border: 1px solid var(--verre-brd);
+      background: var(--verre-creux); border: 0;
       border-radius: 14px; cursor: pointer; text-align: left; font-family: inherit;
       transition: background 0.2s, border-color 0.2s;
     }
-    .exo-ligne:hover, .exo-ligne:focus-visible { background: var(--verre-fort); border-color: var(--verre-brd-vive); }
+    .exo-ligne:hover, .exo-ligne:focus-visible { background: var(--verre-fort); }
     .exo-ligne-nom { display: block; font-weight: 700; font-size: 0.88rem; color: var(--text); }
     .exo-ligne-meta { display: block; font-size: 0.72rem; color: var(--text-muted); margin-top: 2px; }
     .exo-ligne-mat { font-size: 1.15rem; flex: none; }
@@ -1510,7 +1510,7 @@
     /* --- Vignette d'exercice : photo (base libre) ou schéma corps de repli --- */
     .exo-ligne-vignette {
       width: 44px; height: 44px; flex: none; border-radius: 11px; overflow: hidden;
-      background: var(--verre-fort); border: 1px solid var(--verre-brd);
+      background: var(--verre-fort); border: 0;
       display: flex; align-items: center; justify-content: center;
     }
     .exo-ligne-vignette img { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -1521,7 +1521,7 @@
     .fiche-exo-image {
       position: relative; width: 100%; aspect-ratio: 4 / 3; border-radius: 14px;
       overflow: hidden; background: #f4f4f4; margin-bottom: 14px;
-      border: 1px solid var(--verre-brd);
+      border: 0;
     }
     .fiche-exo-image img {
       position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain;
@@ -1542,7 +1542,7 @@
 
     /* --- Exercice ajouté à un programme, en édition --- */
     .exo-en-programme {
-      background: var(--verre-creux); border: 1px solid var(--verre-brd);
+      background: var(--verre-creux); border: 0;
       border-radius: 14px; padding: 12px; margin-bottom: 10px;
     }
     .exo-en-programme-entete { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
@@ -1550,7 +1550,7 @@
     .exo-en-programme-meta { font-size: 0.7rem; color: var(--text-muted); margin-top: 2px; }
     .exo-en-programme-reordre { display: flex; flex-direction: column; gap: 3px; }
     .exo-en-programme-reordre button {
-      width: 28px; height: 22px; border-radius: 6px; border: 1px solid var(--verre-brd);
+      width: 28px; height: 22px; border-radius: 6px; border: 0;
       background: var(--verre); color: var(--text-muted); font-size: 0.65rem; cursor: pointer; font-family: inherit;
     }
     .exo-en-programme-reordre button:disabled { opacity: 0.3; cursor: default; }
@@ -1603,7 +1603,7 @@
        fois un type choisi, la pastille affiche sa lettre (D/P/É) au lieu du
        numéro — la couleur suffit à la distinguer d'une numérotation. */
     .serie-num-btn {
-      width: 26px; height: 26px; border-radius: 50%; padding: 0; border: 1px solid var(--verre-brd);
+      width: 26px; height: 26px; border-radius: 50%; padding: 0; border: 0;
       background: var(--verre-fort); color: var(--text-muted); font-size: 0.75rem; font-weight: 700;
       font-family: inherit; display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
     }
@@ -1616,7 +1616,7 @@
     .menu-technique-popup {
       position: fixed; z-index: 3000; min-width: 168px; border-radius: 14px; overflow: hidden;
       background: linear-gradient(var(--barre), var(--barre)), var(--bg);
-      border: 1px solid var(--verre-brd-vive); box-shadow: var(--ombre-haute);
+      border: 0; box-shadow: var(--ombre-haute);
     }
     .menu-technique-popup button {
       display: block; width: 100%; text-align: left; border: 0;
@@ -1628,12 +1628,12 @@
     .menu-technique-popup button:hover, .menu-technique-popup button:focus-visible { background: color-mix(in srgb, var(--primary) 14%, transparent); }
     .serie-table input {
       width: 100%; min-height: 40px; padding: 6px 4px; text-align: center;
-      background: var(--verre); border: 1px solid var(--verre-brd); color: var(--text);
+      background: var(--verre); border: 1px solid transparent; color: var(--text);
       border-radius: 10px; font-size: 0.85rem; font-family: inherit; font-weight: 700; outline: none;
     }
     .serie-table input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 22%, transparent); }
     .serie-check {
-      width: 34px; height: 34px; border-radius: 9px; border: 1.5px solid var(--verre-brd-vive);
+      width: 34px; height: 34px; border-radius: 9px; border: 1.5px solid transparent;
       background: var(--verre-creux); cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
       font-size: 1rem; color: transparent; font-family: inherit; transition: background 0.2s, border-color 0.2s, color 0.2s;
     }
@@ -1650,7 +1650,7 @@
 
     /* --- Historique des séances --- */
     .historique-carte {
-      background: var(--verre-creux); border: 1px solid var(--verre-brd); border-radius: 16px;
+      background: var(--verre-creux); border: 0; border-radius: 16px;
       padding: 13px 15px; margin-bottom: 9px; cursor: pointer; text-align: left; width: 100%;
       font-family: inherit; transition: background 0.2s;
     }
@@ -1669,7 +1669,7 @@
     .exo-en-programme-technique { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
     .exo-en-programme-technique select {
       flex: 1; min-width: 110px; padding: 8px 10px; min-height: 38px;
-      background: var(--verre); border: 1px solid var(--verre-brd); color: var(--text);
+      background: var(--verre); border: 1px solid transparent; color: var(--text);
       border-radius: 10px; font-family: inherit; font-size: 0.78rem; outline: none;
       /* Même flèche personnalisée que .input-group select : sans ça, ce menu
          affichait la flèche native du navigateur, visuellement différente. */
@@ -2288,7 +2288,7 @@
       </div>
     </div>
 
-    <div id="man-preview" style="background: var(--verre-creux); border: 1px solid var(--verre-brd); padding: 14px; border-radius: 13px; text-align: center; font-weight: 700; font-size: 0.88rem; color: var(--primary); margin-bottom: 16px;">
+    <div id="man-preview" style="background: var(--verre-creux); border: 0; padding: 14px; border-radius: 13px; text-align: center; font-weight: 700; font-size: 0.88rem; color: var(--primary); margin-bottom: 16px;">
       Aperçu : 0 kcal | P: 0g | G: 0g | L: 0g
     </div>
 
@@ -3467,7 +3467,7 @@ function renderWorkoutsList(day) {
     // évident que c'est déjà comptée et qu'il ne faut pas en resaisir une.
     if (w.source === 'seance') {
       return `
-    <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 10px; background: var(--verre-creux); padding: 10px; border-radius: 14px; border: 1px solid var(--verre-brd);">
+    <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 10px; background: var(--verre-creux); padding: 10px; border-radius: 14px; border: 0;">
       <div style="flex: 2;">
         <div style="font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">Sport</div>
         <div style="font-weight: 700; font-size: 0.85rem; margin-top: 2px;">🏋️ Musculation <span class="badge-technique">Séance</span></div>
@@ -3481,7 +3481,7 @@ function renderWorkoutsList(day) {
     </div>`;
     }
     return `
-    <div style="display: flex; gap: 10px; align-items: flex-end; margin-bottom: 10px; background: var(--verre-creux); padding: 10px; border-radius: 14px; border: 1px solid var(--verre-brd);">
+    <div style="display: flex; gap: 10px; align-items: flex-end; margin-bottom: 10px; background: var(--verre-creux); padding: 10px; border-radius: 14px; border: 0;">
       <div class="input-group" style="flex: 2; margin-bottom: 0;">
         <label style="font-size: 0.65rem;">Sport</label>
         <select onchange="modifierSport(${index}, 'type', this.value)">
