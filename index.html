@@ -2747,7 +2747,7 @@
     </div>
 
     <button class="btn btn-primary" onclick="synchroniser('manuel')">🔄 Synchroniser maintenant</button>
-    <button class="btn btn-secondaire" style="margin-top:10px; width:100%;" onclick="fermerModal('sync-info-modal'); allerA('reglages');">⚙️ Réglages de synchronisation</button>
+    <button class="btn btn-secondaire" id="btn-sync-reglages" style="margin-top:10px; width:100%;" onclick="ouvrirReglagesSyncOuCompte()">⚙️ Réglages de synchronisation</button>
   </div>
 </div>
 
@@ -6476,6 +6476,24 @@ function majUICompte() {
   document.querySelectorAll('.reserve-admin').forEach(el => {
     el.classList.toggle('hidden', !estAdmin);
   });
+
+  // La section "Réglages de synchronisation" (URL/clé Supabase, SQL à
+  // exécuter…) est elle-même réservée à l'admin (bloc .reserve-admin
+  // ci-dessus) : pour tout autre utilisateur, le bouton du pop-up ☁️ qui y
+  // renvoyait ne menait donc nulle part. Son seul levier réel sur sa propre
+  // synchro, c'est son compte (👤) — se connecter le fait suivre sur tous
+  // ses appareils. Le libellé change en conséquence.
+  const btnSyncReglages = document.getElementById('btn-sync-reglages');
+  if (btnSyncReglages) {
+    btnSyncReglages.textContent = estAdmin ? '⚙️ Réglages de synchronisation' : '👤 Mon compte';
+  }
+}
+
+function ouvrirReglagesSyncOuCompte() {
+  fermerModal('sync-info-modal');
+  const estAdmin = !!(sessionUtilisateur && sessionUtilisateur.email === ADMIN_EMAIL);
+  if (estAdmin) allerA('reglages');
+  else ouvrirModal('compte-modal');
 }
 
 function messageAuth(e) {
