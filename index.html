@@ -1571,7 +1571,13 @@
     }
     .serie-ligne {
       position: relative; display: grid; align-items: center; gap: 6px; padding: 3px 3px;
-      background: var(--verre-fort); border-radius: 10px; text-align: center;
+      /* Doit être vraiment opaque pour cacher le rouge en dessous tant qu'on
+         ne glisse pas : --verre-fort est un voile translucide (10 % en
+         thème sombre) fait pour un fond flouté, pas pour masquer quoi que
+         ce soit — le rouge transparaissait complètement à travers. Même
+         composition opaque que .off-liste. */
+      background: linear-gradient(var(--barre), var(--barre)), var(--bg);
+      border-radius: 10px; text-align: center;
       touch-action: pan-y; transition: transform 0.18s ease;
     }
     .serie-ligne.en-glissement { transition: none; }
