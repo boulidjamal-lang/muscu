@@ -1127,34 +1127,28 @@
     }
     .btn:active { transform: scale(0.985); }
 
-    /* --- BOUTONS "VERRE COLORÉ" ---
+    /* --- BOUTONS "VERRE COLORÉ" (.btn-analysis) ---
        Le principe du Liquid Glass : pas d'aplat de couleur, juste un contour
        teinté et un vrai verre dépoli derrière lui — flou et saturation poussés
        au maximum, un reflet net qui glisse en haut à gauche comme sur du verre
        bombé, et une lueur douce de la couleur qui sourd depuis le bord plutôt
        que de remplir tout le bouton. Le texte reprend la couleur du contour :
        ce sont les mêmes teintes déjà validées ailleurs comme texte sur le
-       fond de l'appli, donc le contraste reste bon dans les deux thèmes. */
-    .btn-primary, .btn-analysis {
-      -webkit-backdrop-filter: blur(calc(var(--verre-flou) + 14px)) saturate(240%);
-      backdrop-filter: blur(calc(var(--verre-flou) + 14px)) saturate(240%);
-    }
+       fond de l'appli, donc le contraste reste bon dans les deux thèmes.
+       .btn-primary n'utilise plus cette recette : même fond plat + teinte
+       que .btn-icone.compte-actif / .filtre-chip sélectionnée, pour rester
+       cohérent avec le reste des boutons désormais aplatis (ex. à côté de
+       "Modifier" dans l'onglet Séance, il jurait avec son halo épais). */
     .btn-primary {
-      background: var(--verre-sheen-vive), color-mix(in srgb, var(--primary) 16%, var(--verre-fort));
+      background: color-mix(in srgb, var(--primary) 20%, var(--verre-creux));
       color: var(--primary);
-      box-shadow:
-        0 10px 26px color-mix(in srgb, var(--primary) 30%, transparent),
-        inset 0 1px 0 var(--verre-hi), inset 0 -1px 0 var(--verre-lo),
-        inset 0 0 22px color-mix(in srgb, var(--primary) 16%, transparent);
     }
     .btn-primary:hover {
-      background: var(--verre-sheen-vive), color-mix(in srgb, var(--primary) 24%, var(--verre-fort));
-      box-shadow:
-        0 14px 32px color-mix(in srgb, var(--primary) 38%, transparent),
-        inset 0 1px 0 var(--verre-hi), inset 0 -1px 0 var(--verre-lo),
-        inset 0 0 26px color-mix(in srgb, var(--primary) 22%, transparent);
+      background: color-mix(in srgb, var(--primary) 28%, var(--verre-creux));
     }
     .btn-analysis {
+      -webkit-backdrop-filter: blur(calc(var(--verre-flou) + 14px)) saturate(240%);
+      backdrop-filter: blur(calc(var(--verre-flou) + 14px)) saturate(240%);
       margin-top: 10px;
       background: var(--verre-sheen-vive), color-mix(in srgb, var(--ai-color) 16%, var(--verre-fort));
       color: var(--ai-color);
@@ -1344,19 +1338,18 @@
        styles propres) : l'anneau lentille — flou + rehauts de bord — est
        precisement ce qui leur donnait cet aspect embouti/vitreux. Pour le
        bouton flottant (.fab), le liseré est remplacé par un fondu radial
-       (vert au centre, qui se mêle au noir vers le bord). Les CTA (.btn)
-       et les grandes lignes de feuille (.feuille-action) gardent l'anneau,
-       qui reste voulu à cette échelle-là. */
-    .verre, .app-bar, .summary-card, .btn,
-    .feuille-action, .meal-card, .bloc-verre, .fitness-card, .analysis-card,
-    .daily-questionnaire, .modal-content, .feuille-contenu {
+       (vert au centre, qui se mêle au noir vers le bord). Les cartes
+       (.summary-card, .meal-card, .bloc-verre, .fitness-card,
+       .analysis-card, .daily-questionnaire) et les conteneurs de modale/
+       feuille (.modal-content, .feuille-contenu) sont retirées elles aussi :
+       même sans bordure propre, cet anneau dessinait encore un contour
+       visible tout autour. Les CTA (.btn) et les grandes lignes de feuille
+       (.feuille-action) gardent l'anneau, qui reste voulu à cette
+       échelle-là. */
+    .verre, .app-bar, .btn, .feuille-action {
       isolation: isolate;
     }
-    .verre::before, .app-bar::before, .summary-card::before, .btn::before,
-    .feuille-action::before,
-    .meal-card::before, .bloc-verre::before, .fitness-card::before,
-    .analysis-card::before, .daily-questionnaire::before,
-    .modal-content::before, .feuille-contenu::before {
+    .verre::before, .app-bar::before, .btn::before, .feuille-action::before {
       content: '';
       position: absolute; inset: 0; z-index: 0;
       border-radius: inherit;
@@ -1375,22 +1368,10 @@
       mask-clip: content-box, border-box;
       mask-composite: exclude;
     }
-    /* Même correctif que .modal-content/.feuille-contenu plus haut : cet
-       anneau décoratif est positionné à l'intérieur d'un élément qui défile
-       (overflow-y:auto) et son propre backdrop-filter ne s'étendait pas au
-       contenu révélé par le scroll. Le liseré (box-shadow) et la bordure
-       restent ; seul le flou en direct du bord est retiré ici. */
-    .modal-content::before, .feuille-contenu::before {
-      -webkit-backdrop-filter: none; backdrop-filter: none;
-    }
     /* Sans mask-composite, l'anneau couvrirait toute la carte : on n'en garde
        alors que le liseré, qui est déjà l'essentiel de l'effet. */
     @supports not ((mask-composite: exclude) or (-webkit-mask-composite: xor)) {
-      .verre::before, .app-bar::before, .summary-card::before, .btn::before,
-      .feuille-action::before,
-      .meal-card::before, .bloc-verre::before, .fitness-card::before,
-      .analysis-card::before, .daily-questionnaire::before,
-      .modal-content::before, .feuille-contenu::before {
+      .verre::before, .app-bar::before, .btn::before, .feuille-action::before {
         -webkit-backdrop-filter: none; backdrop-filter: none; border-color: transparent;
       }
     }
@@ -1400,25 +1381,17 @@
     .fitness-card, .analysis-card, .daily-questionnaire, .modal-content,
     .feuille-contenu, .verre { position: relative; }
     /* Le contenu passe devant l'anneau. */
-    .meal-card > *, .bloc-verre > *, .fitness-card > *, .analysis-card > *,
-    .daily-questionnaire > *, .modal-content > *, .feuille-contenu > *,
     .btn > *, .feuille-action > * { position: relative; z-index: 1; }
 
     /* Anneau plus fin sur les petites cibles : sur 46 px de haut, 7 px de bord
        mangeraient la moitié de la pastille. */
     .btn, .feuille-action, .puce-sync { --lentille-ep: 4px; }
-    .summary-card, .modal-content, .feuille-contenu { --lentille-ep: 9px; }
 
     /* Le verre s'enfonce quand on le presse : la lentille se rétracte. */
     .btn:active, .feuille-action:active { --lentille-ep: 2.5px; }
 
     html.sans-verre .verre::before, html.sans-verre .app-bar::before,
-    html.sans-verre .summary-card::before, html.sans-verre .btn::before,
-    html.sans-verre .feuille-action::before,
-    html.sans-verre .meal-card::before, html.sans-verre .bloc-verre::before,
-    html.sans-verre .fitness-card::before, html.sans-verre .analysis-card::before,
-    html.sans-verre .daily-questionnaire::before,
-    html.sans-verre .modal-content::before, html.sans-verre .feuille-contenu::before {
+    html.sans-verre .btn::before, html.sans-verre .feuille-action::before {
       display: none;
     }
 
