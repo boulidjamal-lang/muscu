@@ -742,12 +742,15 @@
        en thème sombre, un bord qui rejoint #000 se fond entièrement dans
        le fond de page (quasi noir lui aussi) et le bouton perd tout
        contour visible — il garde donc une pointe de vert jusqu'au bord. */
-    /* Bouton fantôme : plus d'aplat vert, juste le contour — le fond reprend
-       la couleur de la page (--bg) pour rester net sur les deux thèmes. */
+    /* Bouton fantôme : plus d'aplat vert, juste le contour — fond blanc
+       translucide (dépoli) plutôt qu'un aplat opaque, pour laisser deviner
+       ce qu'il y a derrière tout en gardant le bouton bien lisible. */
     .fab {
       width: 60px; height: 60px; border-radius: 21px;
       border: 2px solid var(--primary);
-      background: var(--bg);
+      background: rgba(255,255,255,0.18);
+      -webkit-backdrop-filter: blur(14px) saturate(160%);
+      backdrop-filter: blur(14px) saturate(160%);
       color: var(--primary);
       font-size: 1.5rem; line-height: 1; cursor: pointer;
       box-shadow: 0 14px 34px var(--primary-glow);
