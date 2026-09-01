@@ -10570,6 +10570,13 @@ let menuProgrammeSur = null;
 function ouvrirMenuProgramme(boutonEl, id) {
   const menu = document.getElementById('menu-programme-popup');
   if (!menu) return;
+  // Rappuyer sur le bouton qui l'a ouvert doit le refermer (bascule) : sans
+  // ce cas, le clic-extérieur exclut justement ce bouton (voir plus bas)
+  // pour ne pas le rouvrir aussitôt fermé, donc rien ne le fermait jamais.
+  if (!menu.classList.contains('hidden') && menuProgrammeSur === id) {
+    fermerMenuProgramme();
+    return;
+  }
   menuProgrammeSur = id;
   const r = boutonEl.getBoundingClientRect();
   const largeurMenu = 168;
