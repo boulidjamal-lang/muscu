@@ -254,7 +254,13 @@
       background-color: var(--bg);
       color: var(--text);
       margin: 0;
-      padding: 0 0 calc(96px + env(safe-area-inset-bottom, 0px));
+      /* Le FAB (60px + 18px de décalage bas = 78px de sa base à son sommet)
+         n'a que 18px de marge avec 96px : sur un vrai téléphone (métriques
+         de police différentes du rendu de test, texte qui passe sur une
+         ligne de plus...), cette marge trop juste laissait le dernier
+         paragraphe de certains écrans (ex. la note "Statistiques" en bas de
+         Séance) se faire recouvrir par le bouton. */
+      padding: 0 0 calc(130px + env(safe-area-inset-bottom, 0px));
       position: relative;
       overflow-x: hidden;
       transition: background-color 0.4s ease, color 0.4s ease;
