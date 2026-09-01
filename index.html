@@ -8495,6 +8495,12 @@ grant execute on function public.admin_rattacher_donnees(text, text) to authenti
 -- utilisée uniquement par ce compte, exactement comme s'il l'avait saisie
 -- lui-même dans ⚙️ Profil. Rien n'est jamais écrit dans le code de
 -- l'application : la clé ne transite que par cet appel, réservé à l'admin.
+-- maj est aussi mis à jour (horodatage epoch ms, même format que le reste de
+-- l'appli) : synchroniser() ne redescend le profil sur l'appareil du compte
+-- que si le maj du serveur dépasse celui déjà connu localement — sans ce
+-- rafraîchissement, l'admin avait beau enregistrer la clé, l'appareil du
+-- compte gardait indéfiniment son ancien profil (donc pas de clé) puisque
+-- rien ne semblait avoir changé de son point de vue.
 create or replace function public.admin_definir_cle_gemini(p_utilisateur text, p_cle text)
 returns void
 language plpgsql
@@ -8506,7 +8512,8 @@ begin
     raise exception 'Accès réservé à l''administrateur';
   end if;
   update profil
-    set donnees = jsonb_set(coalesce(donnees, '{}'::jsonb), '{geminiKey}', to_jsonb(coalesce(p_cle, '')), true)
+    set donnees = jsonb_set(coalesce(donnees, '{}'::jsonb), '{geminiKey}', to_jsonb(coalesce(p_cle, '')), true),
+        maj = (extract(epoch from clock_timestamp()) * 1000)::bigint
     where utilisateur = p_utilisateur;
   if not found then
     raise exception 'Compte introuvable (aucun profil enregistré pour cet utilisateur)';
