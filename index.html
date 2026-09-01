@@ -2706,6 +2706,12 @@
       </div>
     </div>
 
+    <div class="input-group">
+      <label>🧭 Reflet qui suit l'inclinaison (iPhone)</label>
+      <button class="btn btn-secondaire" type="button" style="width:100%;" onclick="redemanderInclinaison()">Redemander l'autorisation</button>
+      <p class="note" style="margin:8px 0 0;">Elle n'est demandée automatiquement qu'une seule fois sur cet appareil, pour ne pas t'interrompre à chaque ouverture — utilise ce bouton si tu veux la redemander (accès refusé par erreur, autorisation retirée depuis Réglages iOS...).</p>
+    </div>
+
     <hr class="sep">
 
     <div class="bloc-verre reserve-admin hidden" style="padding:15px; margin-bottom:16px;">
@@ -11288,18 +11294,41 @@ function fermerFeuilles() {
      sans bouton dédié : l'effet est cosmétique, inutile d'interrompre
      l'ouverture de l'appli avec une demande d'autorisation visible avant
      même le premier geste. Sans effet sur Android, qui n'a pas cette API. */
+  /* iOS ne mémorise pas toujours cette autorisation d'une session à l'autre
+     (particulièrement pour une appli ajoutée à l'écran d'accueil) : sans
+     verrou, on la redemandait à chaque premier effleurement de CHAQUE
+     nouvelle ouverture, ce qui revenait à la redemander sans arrêt. On ne la
+     demande donc plus qu'une seule fois pour de bon, mémorisée sur cet
+     appareil — au prix, si iOS ne s'en souvient pas non plus de son côté,
+     de laisser le reflet immobile plutôt que de redemander. Un bouton dans
+     Réglages permet de redemander volontairement si besoin (accès refusé
+     par erreur, autorisation retirée entre-temps...). */
+  var ORIENTATION_LS = 'mc_orientation_demandee';
   if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-    var demandeFaite = false;
-    var demanderInclinaison = function () {
-      if (demandeFaite) return;
-      demandeFaite = true;
-      DeviceOrientationEvent.requestPermission().catch(function () {});
-      document.removeEventListener('touchend', demanderInclinaison);
-      document.removeEventListener('click', demanderInclinaison);
-    };
-    document.addEventListener('touchend', demanderInclinaison, { passive: true });
-    document.addEventListener('click', demanderInclinaison, { passive: true });
+    var dejaDemandee = false;
+    try { dejaDemandee = localStorage.getItem(ORIENTATION_LS) === '1'; } catch (e) {}
+    if (!dejaDemandee) {
+      var demandeFaite = false;
+      var demanderInclinaison = function () {
+        if (demandeFaite) return;
+        demandeFaite = true;
+        try { localStorage.setItem(ORIENTATION_LS, '1'); } catch (e) {}
+        DeviceOrientationEvent.requestPermission().catch(function () {});
+        document.removeEventListener('touchend', demanderInclinaison);
+        document.removeEventListener('click', demanderInclinaison);
+      };
+      document.addEventListener('touchend', demanderInclinaison, { passive: true });
+      document.addEventListener('click', demanderInclinaison, { passive: true });
+    }
   }
+  // Réglages → "Redemander l'autorisation d'inclinaison" (voir plus bas).
+  window.redemanderInclinaison = function () {
+    try { localStorage.removeItem(ORIENTATION_LS); } catch (e) {}
+    if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+      DeviceOrientationEvent.requestPermission().catch(function () {});
+      try { localStorage.setItem(ORIENTATION_LS, '1'); } catch (e) {}
+    }
+  };
 })();
 </script>
 </body>
