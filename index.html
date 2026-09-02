@@ -1893,7 +1893,7 @@
       </div>
       <div class="input-group" style="margin-top:14px;">
         <label for="programme-nom-input">Nom du programme</label>
-        <input type="text" id="programme-nom-input" placeholder="ex : Push, Pull, Legs, Full body…" autocomplete="off">
+        <input type="text" id="programme-nom-input" placeholder="ex : Push, Pull, Legs, Full body…" autocomplete="off" oninput="onSaisieNomProgramme(this.value)">
       </div>
       <label style="display:block; font-weight:700; font-size:0.72rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.8px; margin-bottom:12px;">Exercices</label>
       <div id="programme-exercices-container"></div>
@@ -9089,6 +9089,7 @@ const MUSCU_PROGRAMMES_KEY = 'elite_musculation_programmes_v1';
 const MUSCU_HISTORIQUE_KEY = 'elite_musculation_historique_v1';
 const MUSCU_EXOS_PERSO_KEY = 'elite_musculation_exercices_perso_v1';
 const MUSCU_SESSION_KEY = 'elite_musculation_session_active_v1';
+const MUSCU_PROGRAMME_EDITION_KEY = 'elite_musculation_programme_en_edition_v1';
 
 const GROUPES_MUSCULAIRES = {
   pectoraux: 'Pectoraux', dos: 'Dos', epaules: 'Épaules', biceps: 'Biceps', triceps: 'Triceps',
@@ -9752,6 +9753,7 @@ function chargerMuscu() {
   try { musculationHistorique = JSON.parse(localStorage.getItem(MUSCU_HISTORIQUE_KEY)) || []; } catch (e) { musculationHistorique = []; }
   try { musculationExosPerso = JSON.parse(localStorage.getItem(MUSCU_EXOS_PERSO_KEY)) || []; } catch (e) { musculationExosPerso = []; }
   try { musculationSessionActive = JSON.parse(localStorage.getItem(MUSCU_SESSION_KEY)) || null; } catch (e) { musculationSessionActive = null; }
+  try { programmeEnEdition = JSON.parse(localStorage.getItem(MUSCU_PROGRAMME_EDITION_KEY)) || null; } catch (e) { programmeEnEdition = null; }
 }
 function sauvegarderProgrammes() {
   try { localStorage.setItem(MUSCU_PROGRAMMES_KEY, JSON.stringify(musculationProgrammes)); planifierSync(); }
@@ -9772,6 +9774,15 @@ function sauvegarderSessionActive() {
   try {
     if (musculationSessionActive) localStorage.setItem(MUSCU_SESSION_KEY, JSON.stringify(musculationSessionActive));
     else localStorage.removeItem(MUSCU_SESSION_KEY);
+  } catch (e) {}
+}
+function sauvegarderProgrammeEnEdition() {
+  // Même logique que sauvegarderSessionActive() ci-dessus : local uniquement,
+  // pour survivre à un rechargement accidentel pendant l'édition, pas
+  // synchronisé (le programme fini l'est via sauvegarderProgrammes()).
+  try {
+    if (programmeEnEdition) localStorage.setItem(MUSCU_PROGRAMME_EDITION_KEY, JSON.stringify(programmeEnEdition));
+    else localStorage.removeItem(MUSCU_PROGRAMME_EDITION_KEY);
   } catch (e) {}
 }
 
@@ -9996,6 +10007,12 @@ function afficherVueSeance() {
   const accueil = document.getElementById('seance-vue-accueil');
   const active = document.getElementById('seance-vue-active');
   const programme = document.getElementById('seance-vue-programme');
+  if (programmeEnEdition) {
+    if (accueil) accueil.classList.add('hidden');
+    if (active) active.classList.add('hidden');
+    if (programme) { afficherFormulaireProgramme(); programme.classList.remove('hidden'); }
+    return;
+  }
   if (programme) programme.classList.add('hidden');
   if (!accueil || !active) return;
   if (!musculationSessionActive) {
@@ -10014,6 +10031,8 @@ function afficherVueProgramme() {
   document.getElementById('seance-vue-programme').classList.remove('hidden');
 }
 function fermerEditionProgramme() {
+  programmeEnEdition = null;
+  sauvegarderProgrammeEnEdition();
   afficherVueSeance();
 }
 
@@ -10486,12 +10505,25 @@ function supprimerSeanceHistorique() {
 /* =====================================================================
    Programmes — création / édition
    ===================================================================== */
+// Remplit les champs du formulaire (titre, nom, bouton supprimer) à partir de
+// programmeEnEdition — factorisé car utilisé à l'ouverture ET pour restaurer
+// l'écran après un rechargement de page en plein milieu d'édition (voir
+// afficherVueSeance).
+function afficherFormulaireProgramme() {
+  document.getElementById('titre-programme-modal').textContent = programmeEnEdition.id ? '✏️ Modifier le programme' : '📋 Nouveau programme';
+  document.getElementById('programme-nom-input').value = programmeEnEdition.nom || '';
+  document.getElementById('btn-suppr-programme').style.display = programmeEnEdition.id ? 'block' : 'none';
+  renderProgrammeExercicesEnEdition();
+}
+function onSaisieNomProgramme(v) {
+  if (!programmeEnEdition) return;
+  programmeEnEdition.nom = v;
+  sauvegarderProgrammeEnEdition();
+}
 function ouvrirCreationProgramme() {
   programmeEnEdition = { id: null, nom: '', exercices: [] };
-  document.getElementById('titre-programme-modal').textContent = '📋 Nouveau programme';
-  document.getElementById('programme-nom-input').value = '';
-  document.getElementById('btn-suppr-programme').style.display = 'none';
-  renderProgrammeExercicesEnEdition();
+  sauvegarderProgrammeEnEdition();
+  afficherFormulaireProgramme();
   afficherVueProgramme();
 }
 function ouvrirEditionProgramme(id) {
@@ -10502,13 +10534,12 @@ function ouvrirEditionProgramme(id) {
   // d'appuyer sur Enregistrer, ou en cas d'Annuler) l'aurait déjà changée.
   programmeEnEdition = { id: p.id, nom: p.nom, exercices: p.exercices.map(e => ({ ...e, series: normaliserSeriesProgramme(e).map(s => ({ ...s })) })) };
   programmeEnEdition.exercices.forEach(backfillDerniereFoisProgramme);
-  document.getElementById('titre-programme-modal').textContent = '✏️ Modifier le programme';
-  document.getElementById('programme-nom-input').value = p.nom;
-  document.getElementById('btn-suppr-programme').style.display = 'block';
-  renderProgrammeExercicesEnEdition();
+  sauvegarderProgrammeEnEdition();
+  afficherFormulaireProgramme();
   afficherVueProgramme();
 }
 function renderProgrammeExercicesEnEdition() {
+  sauvegarderProgrammeEnEdition();
   const c = document.getElementById('programme-exercices-container');
   initSwipeSeries('programme-exercices-container');
   const vide = document.getElementById('programme-exercices-vide');
@@ -10562,6 +10593,7 @@ function modifierSerieProgramme(i, si, champ, valeur) {
   const s = pe && pe.series[si];
   if (!s) return;
   s[champ] = valeur === '' ? null : Number(valeur);
+  sauvegarderProgrammeEnEdition();
 }
 function ajouterSerieProgramme(i) {
   const pe = programmeEnEdition.exercices[i];
@@ -10626,6 +10658,8 @@ function validerProgramme() {
     musculationProgrammes.push({ id: idUnique('prog'), nom, exercices: programmeEnEdition.exercices, creeLe: Date.now(), maj: Date.now() });
   }
   sauvegarderProgrammes();
+  programmeEnEdition = null;
+  sauvegarderProgrammeEnEdition();
   renderSeance();
 }
 function supprimerProgrammeDepuisModal() {
@@ -10634,6 +10668,8 @@ function supprimerProgrammeDepuisModal() {
   musculationProgrammes = musculationProgrammes.filter(p => p.id !== programmeEnEdition.id);
   sauvegarderProgrammes();
   ajouterSuppressionMuscu('programmes_musculation', programmeEnEdition.id);
+  programmeEnEdition = null;
+  sauvegarderProgrammeEnEdition();
   renderSeance();
 }
 function supprimerProgramme(id) {
@@ -11338,10 +11374,8 @@ function fermerBilanSeance() {
       supersetSuivant: !!e.supersetSuivant
     }))
   };
-  document.getElementById('titre-programme-modal').textContent = '📋 Nouveau programme';
-  document.getElementById('programme-nom-input').value = '';
-  document.getElementById('btn-suppr-programme').style.display = 'none';
-  renderProgrammeExercicesEnEdition();
+  sauvegarderProgrammeEnEdition();
+  afficherFormulaireProgramme();
   afficherVueProgramme();
 }
 function abandonnerSeance() {
