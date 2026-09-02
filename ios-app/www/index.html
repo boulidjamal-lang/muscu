@@ -1885,6 +1885,25 @@
       <button class="btn btn-primary" onclick="terminerSeance()">✅ Terminer la séance</button>
       <button class="btn btn-secondaire" style="margin-top:10px;" onclick="abandonnerSeance()">Abandonner la séance</button>
     </div>
+
+    <div id="seance-vue-programme" class="hidden">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:2px;">
+        <h3 id="titre-programme-modal" style="margin:0; font-size:1.05rem; font-weight:800;">📋 Nouveau programme</h3>
+        <button class="btn-icone" onclick="fermerEditionProgramme()">Annuler</button>
+      </div>
+      <div class="input-group" style="margin-top:14px;">
+        <label for="programme-nom-input">Nom du programme</label>
+        <input type="text" id="programme-nom-input" placeholder="ex : Push, Pull, Legs, Full body…" autocomplete="off">
+      </div>
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+        <label style="font-weight:700; font-size:0.72rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.8px;">Exercices</label>
+        <button class="btn-icone" style="font-size:0.75rem; font-weight:700;" onclick="ouvrirPickerExercices('programme')">+ Ajouter</button>
+      </div>
+      <div id="programme-exercices-container"></div>
+      <p class="note" id="programme-exercices-vide" style="margin:0 0 12px;">Aucun exercice ajouté pour l'instant.</p>
+      <button class="btn btn-primary" onclick="validerProgramme()">💾 Enregistrer le programme</button>
+      <button class="btn btn-secondaire" id="btn-suppr-programme" style="margin-top:10px; display:none;" onclick="supprimerProgrammeDepuisModal()">🗑️ Supprimer ce programme</button>
+    </div>
   </section>
 
   <!-- ================= ÉCRAN 3 : STATISTIQUES ================= -->
@@ -3042,28 +3061,6 @@
     <p class="note" id="apercu-programme-sous-titre" style="margin:-8px 0 14px;"></p>
     <div id="apercu-programme-container"></div>
     <button class="btn btn-primary" style="margin-top:10px;" id="apercu-programme-btn-demarrer">▶️ Début entraînement</button>
-  </div>
-</div>
-
-<!-- ================= SÉANCE — Création / édition d'un programme ================= -->
-<div id="programme-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="titre-programme-modal">
-  <div class="modal-content" style="max-width:560px;">
-    <div class="modal-entete">
-      <h3 id="titre-programme-modal">📋 Nouveau programme</h3>
-      <button class="close-modal" onclick="fermerModal('programme-modal')" aria-label="Fermer">&times;</button>
-    </div>
-    <div class="input-group">
-      <label for="programme-nom-input">Nom du programme</label>
-      <input type="text" id="programme-nom-input" placeholder="ex : Push, Pull, Legs, Full body…" autocomplete="off">
-    </div>
-    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
-      <label style="font-weight:700; font-size:0.72rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.8px;">Exercices</label>
-      <button class="btn-icone" style="font-size:0.75rem; font-weight:700;" onclick="ouvrirPickerExercices('programme')">+ Ajouter</button>
-    </div>
-    <div id="programme-exercices-container"></div>
-    <p class="note" id="programme-exercices-vide" style="margin:0 0 12px;">Aucun exercice ajouté pour l'instant.</p>
-    <button class="btn btn-primary" onclick="validerProgramme()">💾 Enregistrer le programme</button>
-    <button class="btn btn-secondaire" id="btn-suppr-programme" style="margin-top:10px; display:none;" onclick="supprimerProgrammeDepuisModal()">🗑️ Supprimer ce programme</button>
   </div>
 </div>
 
@@ -10000,6 +9997,8 @@ function renderSeance() {
 function afficherVueSeance() {
   const accueil = document.getElementById('seance-vue-accueil');
   const active = document.getElementById('seance-vue-active');
+  const programme = document.getElementById('seance-vue-programme');
+  if (programme) programme.classList.add('hidden');
   if (!accueil || !active) return;
   if (!musculationSessionActive) {
     accueil.classList.remove('hidden');
@@ -10010,6 +10009,14 @@ function afficherVueSeance() {
   active.classList.remove('hidden');
   renderSessionModal();
   assurerChronoSession();
+}
+function afficherVueProgramme() {
+  document.getElementById('seance-vue-accueil').classList.add('hidden');
+  document.getElementById('seance-vue-active').classList.add('hidden');
+  document.getElementById('seance-vue-programme').classList.remove('hidden');
+}
+function fermerEditionProgramme() {
+  afficherVueSeance();
 }
 
 /* Rappel flottant visible sur tous les onglets : ne double pas le bandeau
@@ -10487,7 +10494,7 @@ function ouvrirCreationProgramme() {
   document.getElementById('programme-nom-input').value = '';
   document.getElementById('btn-suppr-programme').style.display = 'none';
   renderProgrammeExercicesEnEdition();
-  ouvrirModal('programme-modal');
+  afficherVueProgramme();
 }
 function ouvrirEditionProgramme(id) {
   const p = musculationProgrammes.find(x => x.id === id);
@@ -10501,7 +10508,7 @@ function ouvrirEditionProgramme(id) {
   document.getElementById('programme-nom-input').value = p.nom;
   document.getElementById('btn-suppr-programme').style.display = 'block';
   renderProgrammeExercicesEnEdition();
-  ouvrirModal('programme-modal');
+  afficherVueProgramme();
 }
 function renderProgrammeExercicesEnEdition() {
   const c = document.getElementById('programme-exercices-container');
@@ -10621,7 +10628,6 @@ function validerProgramme() {
     musculationProgrammes.push({ id: idUnique('prog'), nom, exercices: programmeEnEdition.exercices, creeLe: Date.now(), maj: Date.now() });
   }
   sauvegarderProgrammes();
-  fermerModal('programme-modal');
   renderSeance();
 }
 function supprimerProgrammeDepuisModal() {
@@ -10630,7 +10636,6 @@ function supprimerProgrammeDepuisModal() {
   musculationProgrammes = musculationProgrammes.filter(p => p.id !== programmeEnEdition.id);
   sauvegarderProgrammes();
   ajouterSuppressionMuscu('programmes_musculation', programmeEnEdition.id);
-  fermerModal('programme-modal');
   renderSeance();
 }
 function supprimerProgramme(id) {
@@ -11339,7 +11344,7 @@ function fermerBilanSeance() {
   document.getElementById('programme-nom-input').value = '';
   document.getElementById('btn-suppr-programme').style.display = 'none';
   renderProgrammeExercicesEnEdition();
-  ouvrirModal('programme-modal');
+  afficherVueProgramme();
 }
 function abandonnerSeance() {
   if (!confirm('Abandonner cette séance ? Rien ne sera enregistré dans ton historique.')) return;
