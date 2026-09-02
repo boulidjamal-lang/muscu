@@ -1263,7 +1263,8 @@
        Musculation) --- Le contenu de l'onglet inactif reste dans le DOM
        (jamais display:none) — seul max-height + overflow varie. Les
        graphiques Chart.js, dessinés une fois pour toutes par
-       mettreAJourStats()/mettreAJourStatsMuscu() à l'entrée sur l'écran,
+       mettreAJourStats()/mettreAJourStatsNutrition()/mettreAJourStatsMuscu()
+       à l'entrée sur l'écran,
        gardent ainsi une largeur/hauteur réelles même quand leur onglet
        n'est pas affiché (voir .chart-container, hauteur fixe). */
     .stats-onglets-nav { margin-bottom: 14px; }
@@ -1888,7 +1889,7 @@
   <section id="ecran-stats" class="ecran" role="region" aria-label="Statistiques">
     <h2 class="titre-ecran"><span class="ic" aria-hidden="true">📊</span> Statistiques</h2>
 
-    <div class="bloc-verre" id="periode-nutrition-bloc">
+    <div class="bloc-verre" id="periode-poids-bloc">
       <h3 style="margin-top:0;font-size:0.85rem;text-transform:uppercase;letter-spacing:0.8px;">🗓️ Période analysée</h3>
       <div class="plage">
         <div class="plage-piste"><div class="plage-remplie" id="plage-remplie"></div></div>
@@ -1902,11 +1903,25 @@
       <div class="plage-duree" id="plage-duree"></div>
     </div>
 
+    <div class="bloc-verre hidden" id="periode-nutrition-bloc">
+      <h3 style="margin-top:0;font-size:0.85rem;text-transform:uppercase;letter-spacing:0.8px;">🗓️ Période analysée (nutrition)</h3>
+      <div class="plage">
+        <div class="plage-piste"><div class="plage-remplie" id="nutrition-plage-remplie"></div></div>
+        <input type="range" id="nutrition-slider-start" min="0" max="179" value="150" aria-label="Début de la période (nutrition)" oninput="mettreAJourStatsNutrition()">
+        <input type="range" id="nutrition-slider-end" min="0" max="179" value="179" aria-label="Fin de la période (nutrition)" oninput="mettreAJourStatsNutrition()">
+      </div>
+      <div class="plage-bornes">
+        <span><small>Du</small> <span id="nutrition-start-date-label">-</span></span>
+        <span><small>au</small> <span id="nutrition-end-date-label">-</span></span>
+      </div>
+      <div class="plage-duree" id="nutrition-plage-duree"></div>
+    </div>
+
     <!-- Séances de musculation indépendantes des repas (rythme différent :
          quelques fois par semaine contre trois fois par jour). Ce bloc occupe
-         la même position que celui de nutrition ci-dessus : les deux ne sont
-         jamais visibles en même temps (voir choisirOngletStats), l'un
-         remplace l'autre selon l'onglet actif au lieu de s'empiler. -->
+         la même position que les blocs Poids et Nutrition ci-dessus : les
+         trois ne sont jamais visibles en même temps (voir choisirOngletStats),
+         un seul remplace les autres selon l'onglet actif au lieu de s'empiler. -->
     <div class="bloc-verre hidden" id="periode-muscu-bloc">
       <h3 style="margin-top:0;font-size:0.85rem;text-transform:uppercase;letter-spacing:0.8px;">🗓️ Période analysée (séances)</h3>
       <div class="plage">
@@ -1922,8 +1937,8 @@
     </div>
 
     <!-- Navigation des onglets : commune aux 3 onglets. La période ci-dessus
-         (nutrition ou séances) change selon l'onglet actif — voir
-         choisirOngletStats, qui bascule laquelle des deux est visible. -->
+         (poids, nutrition ou séances) change selon l'onglet actif — voir
+         choisirOngletStats, qui bascule laquelle des trois est visible. -->
     <div class="segment stats-onglets-nav" id="stats-onglets-nav" role="group" aria-label="Catégorie de statistiques">
       <button type="button" onclick="choisirOngletStats('poids')" aria-pressed="true">⚖️ Poids</button>
       <button type="button" onclick="choisirOngletStats('nutrition')" aria-pressed="false">🍽️ Nutrition</button>
@@ -3872,7 +3887,7 @@ function changerObjectif() {
   const day = getDay(currentDate);
   updateSummary(day);
   buildMasterArrays();
-  if (ecranActif === 'stats') mettreAJourStats();
+  if (ecranActif === 'stats') { mettreAJourStats(); mettreAJourStatsNutrition(); }
 }
 
 /* =====================================================================
@@ -5263,7 +5278,7 @@ async function lancerAnalysePeriode() {
   // Les deux curseurs sont indépendants : si « Début » dépasse « Fin », slice()
   // renvoyait un tableau vide et le prompt annonçait « undefined → undefined,
   // 0 kcal » — Gemini répondait alors une analyse entièrement inventée.
-  const bornes = bornesPlage();
+  const bornes = bornesPlageNutrition();
   const s = bornes.s, e = bornes.e;
   const labels = globalMasterLabels.slice(s, e + 1);
   if (!labels.length) {
@@ -5699,15 +5714,28 @@ function prepareStats() {
       mEnd.value = globalMasterLabels.length - 1;
     }
   }
+  // Curseur indépendant pour la Nutrition, comme pour la Musculation : même
+  // grille de dates, plage à part. Par défaut les 30 derniers jours, comme
+  // Poids (c'était leur réglage commun avant la séparation des deux périodes).
+  const nStart = document.getElementById('nutrition-slider-start');
+  const nEnd = document.getElementById('nutrition-slider-end');
+  if (nStart && nEnd) {
+    nStart.max = nEnd.max = globalMasterLabels.length - 1;
+    if (!nStart.dataset.touche) {
+      nStart.value = Math.max(0, globalMasterLabels.length - 30);
+      nEnd.value = globalMasterLabels.length - 1;
+    }
+  }
   mettreAJourStats();
   mettreAJourStatsMuscu();
+  mettreAJourStatsNutrition();
 }
 /* =====================================================================
    ÉCRAN STATISTIQUES — navigation par onglets (Poids / Nutrition /
    Musculation). Ne touche jamais à display:none sur un conteneur de
    canvas : uniquement max-height/overflow, pour ne jamais dessiner un
    graphique Chart.js dans un conteneur de largeur/hauteur nulle (voir
-   mettreAJourStats()/mettreAJourStatsMuscu(), inchangées par ailleurs).
+   mettreAJourStats()/mettreAJourStatsNutrition()/mettreAJourStatsMuscu()).
    Le premier onglet (Poids) est actif par défaut à l'entrée sur l'écran
    (classe stats-tab-actif posée directement dans le HTML). */
 function choisirOngletStats(nom) {
@@ -5715,10 +5743,11 @@ function choisirOngletStats(nom) {
     t.classList.toggle('stats-tab-actif', t.dataset.tab === nom);
   });
   majSegment('stats-onglets-nav', ['poids', 'nutrition', 'muscu'], nom);
-  // Les deux sélecteurs de période (nutrition et séances) occupent la même
-  // position en haut de l'écran : un seul visible à la fois, celui qui
-  // correspond à l'onglet actif remplace l'autre au lieu de s'y ajouter.
-  document.getElementById('periode-nutrition-bloc').classList.toggle('hidden', nom === 'muscu');
+  // Les trois sélecteurs de période (poids, nutrition, séances) occupent la
+  // même position en haut de l'écran : un seul visible à la fois, celui qui
+  // correspond à l'onglet actif remplace les autres au lieu de s'y ajouter.
+  document.getElementById('periode-poids-bloc').classList.toggle('hidden', nom !== 'poids');
+  document.getElementById('periode-nutrition-bloc').classList.toggle('hidden', nom !== 'nutrition');
   document.getElementById('periode-muscu-bloc').classList.toggle('hidden', nom !== 'muscu');
 }
 
@@ -5766,7 +5795,30 @@ function mettreAJourStats() {
      les courbes revenaient vides au retour sur l'onglet. */
   const ecran = document.getElementById('ecran-stats');
   if (!ecran || !ecran.classList.contains('actif')) return;
-  statsTimer = setTimeout(() => renderCharts(s, e), 120);
+  statsTimer = setTimeout(() => renderChartsPoids(s, e), 120);
+}
+
+let statsNutritionTimer = null;
+function mettreAJourStatsNutrition() {
+  const { s, e, max } = bornesPlageNutrition();
+  document.getElementById('nutrition-start-date-label').textContent = globalMasterLabels[s] || '-';
+  document.getElementById('nutrition-end-date-label').textContent = globalMasterLabels[e] || '-';
+
+  const remplie = document.getElementById('nutrition-plage-remplie');
+  if (remplie && max > 0) {
+    remplie.style.left = (s / max * 100) + '%';
+    remplie.style.right = (100 - e / max * 100) + '%';
+  }
+  const duree = document.getElementById('nutrition-plage-duree');
+  if (duree) {
+    const n = e - s + 1;
+    duree.textContent = n === 1 ? '1 jour' : n + ' jours';
+  }
+
+  clearTimeout(statsNutritionTimer);
+  const ecran = document.getElementById('ecran-stats');
+  if (!ecran || !ecran.classList.contains('actif')) return;
+  statsNutritionTimer = setTimeout(() => renderChartsNutrition(s, e), 120);
 }
 
 /* --- Curseur de période INDÉPENDANT pour la Musculation ---
@@ -5784,6 +5836,16 @@ function dateIsoPourIndexStats(idx) {
 function bornesPlageMuscu() {
   const a = document.getElementById('muscu-slider-start');
   const b = document.getElementById('muscu-slider-end');
+  let s = Number(a.value), e = Number(b.value);
+  if (s > e) {
+    if (document.activeElement === a) { e = s; b.value = String(e); }
+    else { s = e; a.value = String(s); }
+  }
+  return { s, e, max: Number(a.max) || 1 };
+}
+function bornesPlageNutrition() {
+  const a = document.getElementById('nutrition-slider-start');
+  const b = document.getElementById('nutrition-slider-end');
   let s = Number(a.value), e = Number(b.value);
   if (s > e) {
     if (document.activeElement === a) { e = s; b.value = String(e); }
@@ -5888,7 +5950,7 @@ function rayonPileBarres(index, total, rayon) {
   return 0;
 }
 
-function renderCharts(s, e) {
+function renderChartsPoids(s, e) {
   // Chart.js vient d'un CDN : hors ligne, l'onglet s'ouvrait vide et figé
   // sur un « ReferenceError: Chart is not defined » invisible.
   if (typeof Chart === 'undefined') {
@@ -5929,6 +5991,53 @@ function renderCharts(s, e) {
     },
     options: Object.assign({}, optionsGraphiqueBase(p, { avecLegende: true, beginAtZero: false }))
   });
+
+  /* --- COMPOSITION CORPORELLE : masse grasse, muscle, os, hydratation,
+     corps entier, dans le temps --- tout en %, un seul axe : muscle et os
+     n'existent qu'en kg côté Withings, convertis plus haut (buildMasterArrays)
+     par rapport au poids du jour pour rester comparables aux deux autres.
+     spanGaps relie les mesures entre elles par-dessus les semaines sans
+     pesée détaillée : sans cela, une mesure par semaine donnerait un nuage
+     de points isolés plutôt qu'une tendance. */
+  if (compoChartInstance) compoChartInstance.destroy();
+  compoChartInstance = new Chart(document.getElementById('compoChart'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Masse grasse (%)', data: globalMasterGrasse.slice(s, e + 1), borderColor: cLip, backgroundColor: 'transparent', tension: 0.35, pointRadius: 3, pointHoverRadius: 5, borderWidth: 2.5, spanGaps: true },
+        { label: 'Muscle (%)', data: globalMasterMuscle.slice(s, e + 1), borderColor: cPrimaire, backgroundColor: 'transparent', tension: 0.35, pointRadius: 3, pointHoverRadius: 5, borderWidth: 2.5, spanGaps: true },
+        { label: 'Os (%)', data: globalMasterOs.slice(s, e + 1), borderColor: cGluc, backgroundColor: 'transparent', tension: 0.35, pointRadius: 3, pointHoverRadius: 5, borderWidth: 2.5, spanGaps: true },
+        { label: 'Hydratation (%)', data: globalMasterEau.slice(s, e + 1), borderColor: cAccent, backgroundColor: 'transparent', tension: 0.35, pointRadius: 3, pointHoverRadius: 5, borderWidth: 2.5, spanGaps: true }
+      ]
+    },
+    options: optionsGraphiqueBase(p, { avecLegende: true, beginAtZero: false })
+  });
+  majNoteCompo(s, e);
+}
+
+function renderChartsNutrition(s, e) {
+  // Chart.js vient d'un CDN : hors ligne, l'onglet s'ouvrait vide et figé
+  // sur un « ReferenceError: Chart is not defined » invisible.
+  if (typeof Chart === 'undefined') {
+    const zone = document.getElementById('ecran-stats');
+    if (zone && !zone.querySelector('.chart-indispo')) {
+      const msg = document.createElement('p');
+      msg.className = 'chart-indispo error-box';
+      msg.textContent = "Graphiques indisponibles : la bibliothèque n'a pas pu être chargée (connexion ?).";
+      zone.prepend(msg);
+    }
+    return;
+  }
+  const labels = globalMasterLabels.slice(s, e + 1);
+
+  /* Les graphiques sont peints en pixels : en theme clair, des axes gris clair
+     sur fond clair devenaient illisibles. On lit les jetons CSS courants via
+     la fabrique commune (voir plus haut), plutôt que de refaire cette
+     lecture à la main pour chaque graphique. */
+  const p = paletteGraphique();
+  const cPrimaire = p.primaire, cAccent = p.accent, cProt = p.protein, cGluc = p.carbs, cLip = p.fat;
+  const baseOpts = optionsGraphiqueBase(p, { avecLegende: false });
 
   if (caloriesChartInstance) caloriesChartInstance.destroy();
   caloriesChartInstance = new Chart(document.getElementById('caloriesChart'), {
@@ -5994,29 +6103,6 @@ function renderCharts(s, e) {
       })
     })
   });
-
-  /* --- COMPOSITION CORPORELLE : masse grasse, muscle, os, hydratation,
-     corps entier, dans le temps --- tout en %, un seul axe : muscle et os
-     n'existent qu'en kg côté Withings, convertis plus haut (buildMasterArrays)
-     par rapport au poids du jour pour rester comparables aux deux autres.
-     spanGaps relie les mesures entre elles par-dessus les semaines sans
-     pesée détaillée : sans cela, une mesure par semaine donnerait un nuage
-     de points isolés plutôt qu'une tendance. */
-  if (compoChartInstance) compoChartInstance.destroy();
-  compoChartInstance = new Chart(document.getElementById('compoChart'), {
-    type: 'line',
-    data: {
-      labels,
-      datasets: [
-        { label: 'Masse grasse (%)', data: globalMasterGrasse.slice(s, e + 1), borderColor: cLip, backgroundColor: 'transparent', tension: 0.35, pointRadius: 3, pointHoverRadius: 5, borderWidth: 2.5, spanGaps: true },
-        { label: 'Muscle (%)', data: globalMasterMuscle.slice(s, e + 1), borderColor: cPrimaire, backgroundColor: 'transparent', tension: 0.35, pointRadius: 3, pointHoverRadius: 5, borderWidth: 2.5, spanGaps: true },
-        { label: 'Os (%)', data: globalMasterOs.slice(s, e + 1), borderColor: cGluc, backgroundColor: 'transparent', tension: 0.35, pointRadius: 3, pointHoverRadius: 5, borderWidth: 2.5, spanGaps: true },
-        { label: 'Hydratation (%)', data: globalMasterEau.slice(s, e + 1), borderColor: cAccent, backgroundColor: 'transparent', tension: 0.35, pointRadius: 3, pointHoverRadius: 5, borderWidth: 2.5, spanGaps: true }
-      ]
-    },
-    options: optionsGraphiqueBase(p, { avecLegende: true, beginAtZero: false })
-  });
-  majNoteCompo(s, e);
 }
 
 function majNoteCompo(s, e) {
@@ -6224,7 +6310,7 @@ function appliquerTheme(t) {
   majSegment('segment-theme', ['light', 'dark'], t);
   // Les graphiques sont dessines en pixels : leurs couleurs ne suivent pas le
   // theme toutes seules, il faut les redessiner.
-  if (ecranActif === 'stats') { mettreAJourStats(); renderStatsMuscu(); }
+  if (ecranActif === 'stats') { mettreAJourStats(); mettreAJourStatsNutrition(); renderStatsMuscu(); }
 }
 // Plus de bouton dans l'en-tete (retiré) : seul le choix explicite dans les
 // réglages (choisirTheme, via le segment Clair/Sombre) appelle encore
@@ -11405,6 +11491,17 @@ window.addEventListener('load', () => {
     mSl.addEventListener('change', () => { mSl.dataset.touche = '1'; });
     mEl.addEventListener('change', () => { mSl.dataset.touche = '1'; });
     mettreAJourStatsMuscu();
+  }
+  // Même chose pour le curseur indépendant de la Nutrition.
+  const nSl = document.getElementById('nutrition-slider-start');
+  const nEl = document.getElementById('nutrition-slider-end');
+  if (nSl && nEl) {
+    nSl.max = nEl.max = globalMasterLabels.length - 1;
+    nSl.value = Math.max(0, globalMasterLabels.length - 30);
+    nEl.value = globalMasterLabels.length - 1;
+    nSl.addEventListener('change', () => { nSl.dataset.touche = '1'; });
+    nEl.addEventListener('change', () => { nSl.dataset.touche = '1'; });
+    mettreAJourStatsNutrition();
   }
 
   const lim = limiteIA();
