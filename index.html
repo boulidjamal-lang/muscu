@@ -1888,7 +1888,7 @@
   <section id="ecran-stats" class="ecran" role="region" aria-label="Statistiques">
     <h2 class="titre-ecran"><span class="ic" aria-hidden="true">📊</span> Statistiques</h2>
 
-    <div class="bloc-verre">
+    <div class="bloc-verre" id="periode-nutrition-bloc">
       <h3 style="margin-top:0;font-size:0.85rem;text-transform:uppercase;letter-spacing:0.8px;">🗓️ Période analysée</h3>
       <div class="plage">
         <div class="plage-piste"><div class="plage-remplie" id="plage-remplie"></div></div>
@@ -1902,8 +1902,9 @@
       <div class="plage-duree" id="plage-duree"></div>
     </div>
 
-    <!-- Navigation des onglets : commune aux 3 onglets, la période ci-dessus
-         reste visible au-dessus. -->
+    <!-- Navigation des onglets : commune aux 3 onglets. La période ci-dessus
+         (nutrition) ne s'applique qu'aux onglets Poids/Nutrition — masquée sur
+         Muscu, qui a son propre sélecteur de période plus bas (séances). -->
     <div class="segment stats-onglets-nav" id="stats-onglets-nav" role="group" aria-label="Catégorie de statistiques">
       <button type="button" onclick="choisirOngletStats('poids')" aria-pressed="true">⚖️ Poids</button>
       <button type="button" onclick="choisirOngletStats('nutrition')" aria-pressed="false">🍽️ Nutrition</button>
@@ -5707,6 +5708,10 @@ function choisirOngletStats(nom) {
     t.classList.toggle('stats-tab-actif', t.dataset.tab === nom);
   });
   majSegment('stats-onglets-nav', ['poids', 'nutrition', 'muscu'], nom);
+  // La période « nutrition » du haut ne pilote que Poids/Nutrition : sur
+  // Muscu, elle ne sert à rien et faisait doublon avec la période (séances)
+  // de cet onglet — on la masque plutôt que d'afficher deux sélecteurs.
+  document.getElementById('periode-nutrition-bloc').classList.toggle('hidden', nom === 'muscu');
 }
 
 /* Les curseurs émettent « input » à chaque pixel. Sans temporisation, glisser
