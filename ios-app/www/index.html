@@ -1959,6 +1959,9 @@
     </div>
 
     <div class="stats-tab" data-tab="nutrition">
+      <div class="titre-section">🎯 Chiffres clés</div>
+      <div class="grille-cles" id="grille-cles-nutrition"></div>
+
       <div class="titre-section">📈 Calories (consommées vs objectif)</div>
       <div class="chart-container"><canvas id="caloriesChart"></canvas></div>
 
@@ -5594,16 +5597,16 @@ function fmtSigne(v, unite, dec) {
   return (v > 0 ? '+' : v < 0 ? '−' : '') + s + (unite || '');
 }
 
-function afficherChiffresCles(s, e) {
+function afficherChiffresClesPoids(s, e) {
   const g = document.getElementById('grille-cles');
   if (!g) return;
   const b = bilanPeriode(s, e);
 
-  if (!b.joursRemplis) {
+  if (!b.pesees) {
     g.innerHTML = '';
     const vide = document.createElement('div');
     vide.className = 'cle large';
-    vide.innerHTML = '<div class="cle-sous">Aucune journée renseignée sur cette période. Élargis la sélection ou commence à noter tes repas.</div>';
+    vide.innerHTML = '<div class="cle-sous">Aucune pesée sur cette période. Élargis la sélection ou ajoute ton poids du jour.</div>';
     g.appendChild(vide);
     majNoteTendance(null);
     return;
@@ -5620,6 +5623,67 @@ function afficherChiffresCles(s, e) {
   }
 
   const cartes = [
+    { lbl: 'Pesées', val: b.pesees + ' sur ' + b.jours + ' jours',
+      sous: b.pesees < 2 ? 'Il faut au moins deux pesées pour une tendance.' : 'Suivi régulier, la tendance est fiable.' },
+    { lbl: 'Variation de poids', val: fmtSigne(b.deltaPoids, ' kg'),
+      cls: classeRythme,
+      sous: b.pesees < 2 ? 'Il faut au moins deux pesées.' : avisRythme },
+    { lbl: 'Rythme', val: b.rythmeSemaine == null ? '—' : fmtSigne(b.rythmeSemaine, ' kg/sem.', 2),
+      sous: b.pesees + (b.pesees > 1 ? ' pesées' : ' pesée') + ' sur la période' }
+  ];
+
+  g.innerHTML = '';
+  cartes.forEach(c => {
+    const el = document.createElement('div');
+    el.className = 'cle';
+    const l = document.createElement('div'); l.className = 'cle-lbl'; l.textContent = c.lbl;
+    const v = document.createElement('div'); v.className = 'cle-val' + (c.cls ? ' ' + c.cls : ''); v.textContent = c.val;
+    el.appendChild(l); el.appendChild(v);
+    if (c.sous) { const sx = document.createElement('div'); sx.className = 'cle-sous'; sx.textContent = c.sous; el.appendChild(sx); }
+    g.appendChild(el);
+  });
+
+  /* La carte la plus intéressante : la théorie confrontée à la balance.
+     Si l'écart est gros, c'est que les portions sont mal estimées ou que la
+     dépense est mal calibrée — dans les deux cas, c'est bon à savoir. Écart
+     calorique cumulé sur CETTE période (Poids) : prévision et réel doivent
+     porter sur la même fenêtre de temps pour rester comparables — n'existe
+     que si des repas ont aussi été notés sur cette période (deltaPrevu). */
+  if (b.deltaPrevu != null && b.deltaPoids != null && b.pesees >= 2) {
+    const el = document.createElement('div');
+    el.className = 'cle large';
+    const l = document.createElement('div'); l.className = 'cle-lbl'; l.textContent = 'Prévision vs réalité';
+    const v = document.createElement('div'); v.className = 'cle-val';
+    v.textContent = fmtSigne(b.deltaPrevu, ' kg') + '  →  ' + fmtSigne(b.deltaPoids, ' kg');
+    const ecart = Math.abs(b.deltaPrevu - b.deltaPoids);
+    v.className += ecart <= 0.7 ? ' pos' : ' att';
+    const sx = document.createElement('div'); sx.className = 'cle-sous';
+    sx.textContent = ecart <= 0.7
+      ? 'Ta balance suit le calcul : les portions et la dépense estimée sont cohérentes.'
+      : 'Écart de ' + ecart.toFixed(1).replace('.', ',') + ' kg avec la prévision. Portions sous-estimées, dépense mal calibrée, ou variations d’eau sur une période courte.';
+    el.appendChild(l); el.appendChild(v); el.appendChild(sx);
+    g.appendChild(el);
+  }
+
+  majNoteTendance(b);
+  return b;
+}
+
+function afficherChiffresClesNutrition(s, e) {
+  const g = document.getElementById('grille-cles-nutrition');
+  if (!g) return;
+  const b = bilanPeriode(s, e);
+
+  if (!b.joursRemplis) {
+    g.innerHTML = '';
+    const vide = document.createElement('div');
+    vide.className = 'cle large';
+    vide.innerHTML = '<div class="cle-sous">Aucune journée renseignée sur cette période. Élargis la sélection ou commence à noter tes repas.</div>';
+    g.appendChild(vide);
+    return b;
+  }
+
+  const cartes = [
     { lbl: 'Jours renseignés', val: b.joursRemplis + ' / ' + b.jours,
       sous: b.joursRemplis < b.jours * 0.6 ? 'Trop de trous : les moyennes ci-dessous sont fragiles.' : 'Suivi régulier, les moyennes sont fiables.' },
     { lbl: 'Calories / jour', val: b.moyConso + ' kcal',
@@ -5630,11 +5694,6 @@ function afficherChiffresCles(s, e) {
     { lbl: 'Dans la cible', val: b.partCible + ' %',
       cls: b.partCible >= 70 ? 'pos' : b.partCible >= 40 ? 'att' : 'neg',
       sous: b.dansLaCible + ' jours à ± 10 % de l’objectif' },
-    { lbl: 'Variation de poids', val: fmtSigne(b.deltaPoids, ' kg'),
-      cls: classeRythme,
-      sous: b.pesees < 2 ? 'Il faut au moins deux pesées.' : avisRythme },
-    { lbl: 'Rythme', val: b.rythmeSemaine == null ? '—' : fmtSigne(b.rythmeSemaine, ' kg/sem.', 2),
-      sous: b.pesees + (b.pesees > 1 ? ' pesées' : ' pesée') + ' sur la période' },
     { lbl: 'Protéines', val: b.protParKg == null ? '—' : (Math.round(b.protParKg * 10) / 10).toString().replace('.', ',') + ' g/kg',
       cls: b.protParKg == null ? '' : (b.protParKg >= 1.6 ? 'pos' : 'att'),
       sous: b.protParKg == null ? '' : (b.protParKg >= 1.6 ? 'Suffisant pour préserver le muscle' : 'En dessous de 1,6 g/kg, la masse maigre trinque') },
@@ -5658,26 +5717,6 @@ function afficherChiffresCles(s, e) {
     g.appendChild(el);
   });
 
-  /* La carte la plus intéressante : la théorie confrontée à la balance.
-     Si l'écart est gros, c'est que les portions sont mal estimées ou que la
-     dépense est mal calibrée — dans les deux cas, c'est bon à savoir. */
-  if (b.deltaPrevu != null && b.deltaPoids != null && b.pesees >= 2) {
-    const el = document.createElement('div');
-    el.className = 'cle large';
-    const l = document.createElement('div'); l.className = 'cle-lbl'; l.textContent = 'Prévision vs réalité';
-    const v = document.createElement('div'); v.className = 'cle-val';
-    v.textContent = fmtSigne(b.deltaPrevu, ' kg') + '  →  ' + fmtSigne(b.deltaPoids, ' kg');
-    const ecart = Math.abs(b.deltaPrevu - b.deltaPoids);
-    v.className += ecart <= 0.7 ? ' pos' : ' att';
-    const sx = document.createElement('div'); sx.className = 'cle-sous';
-    sx.textContent = ecart <= 0.7
-      ? 'Ta balance suit le calcul : les portions et la dépense estimée sont cohérentes.'
-      : 'Écart de ' + ecart.toFixed(1).replace('.', ',') + ' kg avec la prévision. Portions sous-estimées, dépense mal calibrée, ou variations d’eau sur une période courte.';
-    el.appendChild(l); el.appendChild(v); el.appendChild(sx);
-    g.appendChild(el);
-  }
-
-  majNoteTendance(b);
   return b;
 }
 
@@ -5789,7 +5828,7 @@ function mettreAJourStats() {
 
   // Les chiffres clés ne coûtent rien à recalculer : pas besoin d'attendre
   // le rendu des graphiques, ni que l'écran soit visible.
-  afficherChiffresCles(s, e);
+  afficherChiffresClesPoids(s, e);
   clearTimeout(statsTimer);
   /* Chart.js dessine dans un canvas de taille nulle quand l'ecran est masque :
      les courbes revenaient vides au retour sur l'onglet. */
@@ -5815,6 +5854,9 @@ function mettreAJourStatsNutrition() {
     duree.textContent = n === 1 ? '1 jour' : n + ' jours';
   }
 
+  // Même logique que pour Poids : les chiffres clés ne coûtent rien à
+  // recalculer, pas besoin d'attendre le rendu des graphiques.
+  afficherChiffresClesNutrition(s, e);
   clearTimeout(statsNutritionTimer);
   const ecran = document.getElementById('ecran-stats');
   if (!ecran || !ecran.classList.contains('actif')) return;
