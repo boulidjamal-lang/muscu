@@ -1895,12 +1895,10 @@
         <label for="programme-nom-input">Nom du programme</label>
         <input type="text" id="programme-nom-input" placeholder="ex : Push, Pull, Legs, Full body…" autocomplete="off">
       </div>
-      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
-        <label style="font-weight:700; font-size:0.72rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.8px;">Exercices</label>
-        <button class="btn-icone" style="font-size:0.75rem; font-weight:700;" onclick="ouvrirPickerExercices('programme')">+ Ajouter</button>
-      </div>
+      <label style="display:block; font-weight:700; font-size:0.72rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.8px; margin-bottom:12px;">Exercices</label>
       <div id="programme-exercices-container"></div>
       <p class="note" id="programme-exercices-vide" style="margin:0 0 12px;">Aucun exercice ajouté pour l'instant.</p>
+      <button class="btn btn-secondaire" style="width:100%; margin-bottom:14px;" onclick="ouvrirPickerExercices('programme')">➕ Ajouter un exercice</button>
       <button class="btn btn-primary" onclick="validerProgramme()">💾 Enregistrer le programme</button>
       <button class="btn btn-secondaire" id="btn-suppr-programme" style="margin-top:10px; display:none;" onclick="supprimerProgrammeDepuisModal()">🗑️ Supprimer ce programme</button>
     </div>
