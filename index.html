@@ -9640,6 +9640,10 @@ let musculationExosPerso = [];
 let musculationSessionActive = null;
 let programmeEnEdition = null;
 let pickerMode = null;
+// Index (dans musculationSessionActive.exercices) de l'exercice à remplacer,
+// mémorisé le temps que le sélecteur d'exercices soit ouvert en mode
+// 'session-remplacer' — voir remplacerExerciceSession().
+let pickerRemplacerIndex = null;
 let historiqueDetailCourant = null;
 let sessionChronoInterval = null;
 // Séance libre venant d'être terminée, en attente de la proposition « en
@@ -10717,7 +10721,8 @@ function ouvrirPickerExercices(mode) {
   document.getElementById('picker-recherche').value = '';
   document.getElementById('titre-picker-exercices').textContent =
     mode === 'programme' ? '➕ Ajouter un exercice au programme' :
-    mode === 'session' ? '➕ Ajouter un exercice à la séance' : '📚 Bibliothèque d’exercices';
+    mode === 'session' ? '➕ Ajouter un exercice à la séance' :
+    mode === 'session-remplacer' ? '🔁 Remplacer cet exercice' : '📚 Bibliothèque d’exercices';
   rendrePickerExercices();
   ouvrirModal('picker-exercices-modal');
 }
@@ -10761,6 +10766,9 @@ function choisirExercicePicker(id) {
     renderProgrammeExercicesEnEdition();
   } else if (pickerMode === 'session') {
     ajouterExerciceASession(id);
+    fermerModal('picker-exercices-modal');
+  } else if (pickerMode === 'session-remplacer') {
+    remplacerExerciceSessionConfirme(id);
     fermerModal('picker-exercices-modal');
   } else {
     afficherFicheExerciceBiblio(id);
@@ -10938,6 +10946,33 @@ function ajouterExerciceASession(id) {
   sauvegarderSessionActive();
   renderSessionModal();
 }
+// Change d'exercice en pleine séance (ex. machine prise, salle bondée) sans
+// toucher au programme enregistré : musculationSessionActive est une copie
+// indépendante depuis le début de la séance (voir construireExercicesSession),
+// donc ce remplacement ne modifie jamais musculationProgrammes. Garde la
+// position dans la liste et le lien de superset avec le voisin ; les séries
+// repartent des valeurs par défaut du nouvel exercice (dernière fois dessus,
+// comme un ajout classique).
+function remplacerExerciceSession(ei) {
+  pickerRemplacerIndex = ei;
+  ouvrirPickerExercices('session-remplacer');
+}
+function remplacerExerciceSessionConfirme(id) {
+  if (!musculationSessionActive) return;
+  const ei = pickerRemplacerIndex;
+  const ancien = musculationSessionActive.exercices[ei];
+  if (!ancien) return;
+  const exo = trouverExercice(id);
+  if (!exo) return;
+  const derniere = dernierePerfExercice(id);
+  const series = derniere && derniere.series.length
+    ? derniere.series.map(s => ({ poids: s.poids, reps: s.reps, fait: false, technique: s.technique || null }))
+    : [{ poids: null, reps: null, fait: false, technique: null }, { poids: null, reps: null, fait: false, technique: null }, { poids: null, reps: null, fait: false, technique: null }];
+  musculationSessionActive.exercices[ei] = { exerciceId: id, nom: exo.nom, series, supersetSuivant: ancien.supersetSuivant };
+  pickerRemplacerIndex = null;
+  sauvegarderSessionActive();
+  renderSessionModal();
+}
 function renderSessionModal() {
   const s = musculationSessionActive;
   if (!s) return;
@@ -10976,7 +11011,10 @@ function renderSessionExerciceBlocHTML(exo, ei) {
     <div class="session-exo-titre">
       <button type="button" class="session-exo-nom" style="background:none;border:none;padding:0;font:inherit;color:inherit;cursor:pointer;text-decoration:underline;text-underline-offset:3px;text-align:left;"
               onclick="afficherFicheExerciceBiblio('${exo.exerciceId}')">${escapeHtml(trouverExercice(exo.exerciceId) ? libelleExercice(trouverExercice(exo.exerciceId)) : exo.nom)}</button>
-      <button class="btn-delete" onclick="retirerExerciceSession(${ei})" aria-label="Retirer l'exercice">&times;</button>
+      <div style="display:flex; gap:4px; align-items:center;">
+        <button type="button" class="btn-icone" onclick="remplacerExerciceSession(${ei})" aria-label="Remplacer cet exercice" title="Remplacer cet exercice (pour cette séance uniquement)">🔁</button>
+        <button class="btn-delete" onclick="retirerExerciceSession(${ei})" aria-label="Retirer l'exercice">&times;</button>
+      </div>
     </div>
     <div class="session-exo-derniere">${escapeHtml(infoDerniere)}</div>
     <div class="serie-table">
