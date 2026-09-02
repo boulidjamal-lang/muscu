@@ -1259,6 +1259,34 @@
     }
     .segment button[aria-pressed="true"] { background: var(--verre-fort); color: var(--text); box-shadow: inset 0 1px 0 var(--verre-hi); }
 
+    /* --- Écran Statistiques : bascule Accordéon / Onglets ---
+       Panneau repliable : le conteneur de contenu (.stats-panneau-corps) est
+       toujours présent dans le DOM (jamais display:none) — seul max-height
+       + overflow varie. Les graphiques Chart.js, dessinés une fois pour
+       toutes par mettreAJourStats()/mettreAJourStatsMuscu() sans changer
+       quand ils tournent, gardent ainsi une largeur/hauteur réelles même
+       quand leur panneau est fermé (voir .chart-container, hauteur fixe). */
+    .stats-panneau-titre {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%;
+      background: none; border: 0; padding: 0; margin: 20px 0 8px; font-family: inherit;
+      font-size: 0.7rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase;
+      letter-spacing: 1px; text-align: left; -webkit-tap-highlight-color: transparent;
+    }
+    #ecran-stats[data-vue-stats="accordeon"] .stats-panneau-titre { cursor: pointer; }
+    .stats-panneau-chevron { display: inline-block; flex: none; font-size: 0.85rem; transition: transform 0.25s ease; }
+    .stats-panneau-titre[aria-expanded="true"] .stats-panneau-chevron { transform: rotate(180deg); }
+    .stats-panneau-corps { max-height: 0; overflow: hidden; transition: max-height 0.32s cubic-bezier(0.16, 1, 0.3, 1); }
+    #ecran-stats[data-vue-stats="onglets"] .stats-panneau-titre { cursor: default; }
+    #ecran-stats[data-vue-stats="onglets"] .stats-panneau-chevron { display: none; }
+    #ecran-stats[data-vue-stats="onglets"] .stats-panneau-corps { max-height: none !important; overflow: visible !important; }
+
+    .stats-onglets-nav { display: none; margin-bottom: 14px; }
+    #ecran-stats[data-vue-stats="onglets"] .stats-onglets-nav { display: flex; }
+    #ecran-stats[data-vue-stats="onglets"] .stats-tab {
+      max-height: 0; overflow: hidden; transition: max-height 0.28s ease;
+    }
+    #ecran-stats[data-vue-stats="onglets"] .stats-tab.stats-tab-actif { max-height: none; overflow: visible; }
+
     /* --- CHIFFRES CLÉS DE LA PÉRIODE --- */
     .grille-cles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     .cle {
@@ -1865,8 +1893,17 @@
   </section>
 
   <!-- ================= ÉCRAN 3 : STATISTIQUES ================= -->
-  <section id="ecran-stats" class="ecran" role="region" aria-label="Statistiques">
+  <section id="ecran-stats" class="ecran" role="region" aria-label="Statistiques" data-vue-stats="accordeon">
     <h2 class="titre-ecran"><span class="ic" aria-hidden="true">📊</span> Statistiques</h2>
+
+    <!-- Bascule Accordéon / Onglets : mémorisée (localStorage statsVueMode),
+         appliquée immédiatement (voir choisirVueStats()). Réutilise le même
+         composant « .segment » que Thème/Densité dans Réglages. -->
+    <div class="segment" id="segment-vue-stats" role="group" aria-label="Mode d'affichage des statistiques" style="margin-bottom:14px;">
+      <button type="button" onclick="choisirVueStats('accordeon')" aria-pressed="true">📂 Accordéon</button>
+      <button type="button" onclick="choisirVueStats('onglets')" aria-pressed="false">🗂️ Onglets</button>
+    </div>
+
     <div class="bloc-verre">
       <h3 style="margin-top:0;font-size:0.85rem;text-transform:uppercase;letter-spacing:0.8px;">🗓️ Période analysée</h3>
       <div class="plage">
@@ -1881,38 +1918,104 @@
       <div class="plage-duree" id="plage-duree"></div>
     </div>
 
-    <div class="titre-section">🎯 Chiffres clés</div>
-    <div class="grille-cles" id="grille-cles"></div>
+    <!-- Navigation des onglets : masquée en mode Accordéon (CSS). Commune
+         aux 3 onglets : la période ci-dessus reste visible au-dessus. -->
+    <div class="segment stats-onglets-nav" id="stats-onglets-nav" role="group" aria-label="Catégorie de statistiques">
+      <button type="button" onclick="choisirOngletStats('poids')" aria-pressed="true">⚖️ Poids</button>
+      <button type="button" onclick="choisirOngletStats('nutrition')" aria-pressed="false">🍽️ Nutrition</button>
+      <button type="button" onclick="choisirOngletStats('muscu')" aria-pressed="false">🏋️ Muscu</button>
+    </div>
 
-    <div class="titre-section">⚖️ Poids &amp; tendance</div>
-    <div class="chart-container"><canvas id="poidsChart"></canvas></div>
-    <p class="note" id="note-tendance" style="margin: -6px 2px 4px;"></p>
+    <div class="stats-tab stats-tab-actif" data-tab="poids">
+      <div class="stats-panneau">
+        <button type="button" class="stats-panneau-titre" onclick="toggleStatsPanneau('panneau-cles')" aria-expanded="true">
+          <span>🎯 Chiffres clés</span><span class="stats-panneau-chevron" aria-hidden="true">▾</span>
+        </button>
+        <div class="stats-panneau-corps ouvert" id="panneau-cles" style="max-height:none;">
+          <div class="grille-cles" id="grille-cles"></div>
+        </div>
+      </div>
 
-    <div class="titre-section">📈 Calories (consommées vs objectif)</div>
-    <div class="chart-container"><canvas id="caloriesChart"></canvas></div>
+      <div class="stats-panneau">
+        <button type="button" class="stats-panneau-titre" onclick="toggleStatsPanneau('panneau-poids')" aria-expanded="true">
+          <span>⚖️ Poids &amp; tendance</span><span class="stats-panneau-chevron" aria-hidden="true">▾</span>
+        </button>
+        <div class="stats-panneau-corps ouvert" id="panneau-poids" style="max-height:none;">
+          <div class="chart-container"><canvas id="poidsChart"></canvas></div>
+          <p class="note" id="note-tendance" style="margin: -6px 2px 4px;"></p>
+        </div>
+      </div>
 
-    <div class="titre-section">🥩 Macronutriments</div>
-    <div class="chart-container"><canvas id="macrosChart"></canvas></div>
+      <div class="stats-panneau">
+        <button type="button" class="stats-panneau-titre" onclick="toggleStatsPanneau('panneau-compo')" aria-expanded="false">
+          <span>📏 Composition corporelle (balance à impédancemétrie)</span><span class="stats-panneau-chevron" aria-hidden="true">▾</span>
+        </button>
+        <div class="stats-panneau-corps" id="panneau-compo">
+          <div class="chart-container"><canvas id="compoChart"></canvas></div>
+          <p class="note" id="note-compo" style="margin: -6px 2px 4px;"></p>
+        </div>
+      </div>
+    </div>
 
-    <div class="titre-section">👟 Pas quotidiens</div>
-    <div class="chart-container"><canvas id="stepsChart"></canvas></div>
+    <div class="stats-tab" data-tab="nutrition">
+      <div class="stats-panneau">
+        <button type="button" class="stats-panneau-titre" onclick="toggleStatsPanneau('panneau-calories')" aria-expanded="false">
+          <span>📈 Calories (consommées vs objectif)</span><span class="stats-panneau-chevron" aria-hidden="true">▾</span>
+        </button>
+        <div class="stats-panneau-corps" id="panneau-calories">
+          <div class="chart-container"><canvas id="caloriesChart"></canvas></div>
+        </div>
+      </div>
 
-    <div class="titre-section">💧 Eau bue (vs objectif)</div>
-    <div class="chart-container"><canvas id="eauChart"></canvas></div>
+      <div class="stats-panneau">
+        <button type="button" class="stats-panneau-titre" onclick="toggleStatsPanneau('panneau-macros')" aria-expanded="false">
+          <span>🥩 Macronutriments</span><span class="stats-panneau-chevron" aria-hidden="true">▾</span>
+        </button>
+        <div class="stats-panneau-corps" id="panneau-macros">
+          <div class="chart-container"><canvas id="macrosChart"></canvas></div>
+        </div>
+      </div>
 
-    <div class="titre-section">🏋️ Activités (minutes par sport)</div>
-    <div class="chart-container"><canvas id="workoutChart"></canvas></div>
+      <div class="stats-panneau">
+        <button type="button" class="stats-panneau-titre" onclick="toggleStatsPanneau('panneau-pas')" aria-expanded="false">
+          <span>👟 Pas quotidiens</span><span class="stats-panneau-chevron" aria-hidden="true">▾</span>
+        </button>
+        <div class="stats-panneau-corps" id="panneau-pas">
+          <div class="chart-container"><canvas id="stepsChart"></canvas></div>
+        </div>
+      </div>
 
-    <div class="titre-section">📏 Composition corporelle (balance à impédancemétrie)</div>
-    <div class="chart-container"><canvas id="compoChart"></canvas></div>
-    <p class="note" id="note-compo" style="margin: -6px 2px 4px;"></p>
+      <div class="stats-panneau">
+        <button type="button" class="stats-panneau-titre" onclick="toggleStatsPanneau('panneau-eau')" aria-expanded="false">
+          <span>💧 Eau bue (vs objectif)</span><span class="stats-panneau-chevron" aria-hidden="true">▾</span>
+        </button>
+        <div class="stats-panneau-corps" id="panneau-eau">
+          <div class="chart-container"><canvas id="eauChart"></canvas></div>
+        </div>
+      </div>
 
-    <div class="titre-section">📊 Bilan de la période</div>
-    <div class="analysis-card">
-      <p class="note">Utilise la période choisie ci-dessus (curseurs « Période analysée »).</p>
-      <button class="btn btn-analysis" onclick="lancerAnalysePeriode()">✨ Analyser ma période</button>
-      <div id="analysis-loader-stats" class="loader hidden">🧠 Analyse de la période…</div>
-      <div id="analysis-box-stats" class="analysis-output hidden"></div>
+      <div class="stats-panneau">
+        <button type="button" class="stats-panneau-titre" onclick="toggleStatsPanneau('panneau-activites')" aria-expanded="false">
+          <span>🏋️ Activités (minutes par sport)</span><span class="stats-panneau-chevron" aria-hidden="true">▾</span>
+        </button>
+        <div class="stats-panneau-corps" id="panneau-activites">
+          <div class="chart-container"><canvas id="workoutChart"></canvas></div>
+        </div>
+      </div>
+
+      <div class="stats-panneau">
+        <button type="button" class="stats-panneau-titre" onclick="toggleStatsPanneau('panneau-bilan')" aria-expanded="false">
+          <span>📊 Bilan de la période</span><span class="stats-panneau-chevron" aria-hidden="true">▾</span>
+        </button>
+        <div class="stats-panneau-corps" id="panneau-bilan">
+          <div class="analysis-card">
+            <p class="note">Utilise la période choisie ci-dessus (curseurs « Période analysée »).</p>
+            <button class="btn btn-analysis" onclick="lancerAnalysePeriode()">✨ Analyser ma période</button>
+            <div id="analysis-loader-stats" class="loader hidden">🧠 Analyse de la période…</div>
+            <div id="analysis-box-stats" class="analysis-output hidden"></div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- ========== MUSCULATION ==========
@@ -1921,47 +2024,93 @@
          contre trois fois par jour), pas de raison de partager le même
          curseur. Par défaut sur tout l'historique disponible (rien ne
          change tant qu'on n'y touche pas). -->
-    <div class="bloc-verre">
-      <h3 style="margin-top:0;font-size:0.85rem;text-transform:uppercase;letter-spacing:0.8px;">🗓️ Période analysée (séances)</h3>
-      <div class="plage">
-        <div class="plage-piste"><div class="plage-remplie" id="muscu-plage-remplie"></div></div>
-        <input type="range" id="muscu-slider-start" min="0" max="179" value="0" aria-label="Début de la période (séances)" oninput="mettreAJourStatsMuscu()">
-        <input type="range" id="muscu-slider-end" min="0" max="179" value="179" aria-label="Fin de la période (séances)" oninput="mettreAJourStatsMuscu()">
+    <div class="stats-tab" data-tab="muscu">
+      <div class="stats-panneau">
+        <button type="button" class="stats-panneau-titre" onclick="toggleStatsPanneau('panneau-muscu-periode')" aria-expanded="false">
+          <span>🗓️ Période analysée (séances)</span><span class="stats-panneau-chevron" aria-hidden="true">▾</span>
+        </button>
+        <div class="stats-panneau-corps" id="panneau-muscu-periode">
+          <div class="bloc-verre">
+            <!-- Titre masqué : déjà porté par le bouton du panneau ci-dessus
+                 (accordéon) / par le libellé de section (onglets). -->
+            <h3 style="margin-top:0;font-size:0.85rem;text-transform:uppercase;letter-spacing:0.8px;display:none;">🗓️ Période analysée (séances)</h3>
+            <div class="plage">
+              <div class="plage-piste"><div class="plage-remplie" id="muscu-plage-remplie"></div></div>
+              <input type="range" id="muscu-slider-start" min="0" max="179" value="0" aria-label="Début de la période (séances)" oninput="mettreAJourStatsMuscu()">
+              <input type="range" id="muscu-slider-end" min="0" max="179" value="179" aria-label="Fin de la période (séances)" oninput="mettreAJourStatsMuscu()">
+            </div>
+            <div class="plage-bornes">
+              <span><small>Du</small> <span id="muscu-start-date-label">-</span></span>
+              <span><small>au</small> <span id="muscu-end-date-label">-</span></span>
+            </div>
+            <div class="plage-duree" id="muscu-plage-duree"></div>
+          </div>
+        </div>
       </div>
-      <div class="plage-bornes">
-        <span><small>Du</small> <span id="muscu-start-date-label">-</span></span>
-        <span><small>au</small> <span id="muscu-end-date-label">-</span></span>
+
+      <div class="stats-panneau">
+        <button type="button" class="stats-panneau-titre" onclick="toggleStatsPanneau('panneau-muscu-totaux')" aria-expanded="true">
+          <span>🏋️ Musculation</span><span class="stats-panneau-chevron" aria-hidden="true">▾</span>
+        </button>
+        <div class="stats-panneau-corps ouvert" id="panneau-muscu-totaux" style="max-height:none;">
+          <div class="stats-grille" id="muscu-stats-totaux"></div>
+          <div class="chart-container"><canvas id="muscuParMoisChart"></canvas></div>
+        </div>
       </div>
-      <div class="plage-duree" id="muscu-plage-duree"></div>
+
+      <div class="stats-panneau">
+        <button type="button" class="stats-panneau-titre" onclick="toggleStatsPanneau('panneau-muscu-progression')" aria-expanded="false">
+          <span>📈 Progression par exercice</span><span class="stats-panneau-chevron" aria-hidden="true">▾</span>
+        </button>
+        <div class="stats-panneau-corps" id="panneau-muscu-progression">
+          <div class="input-group" style="margin-bottom:12px;">
+            <label for="muscu-exo-select">Exercice (tous ceux déjà pratiqués, ne serait-ce qu'une fois)</label>
+            <select id="muscu-exo-select" onchange="afficherProgressionExercice(this.value)"></select>
+          </div>
+          <p class="note" id="muscu-progression-vide" style="margin:0 0 12px; display:none;">Aucun exercice pratiqué pour l'instant.</p>
+          <div class="chart-container" id="muscu-progression-conteneur"><canvas id="muscuProgressionChart"></canvas></div>
+        </div>
+      </div>
+
+      <div class="stats-panneau">
+        <button type="button" class="stats-panneau-titre" onclick="toggleStatsPanneau('panneau-muscu-records')" aria-expanded="false">
+          <span>🏆 Records personnels</span><span class="stats-panneau-chevron" aria-hidden="true">▾</span>
+        </button>
+        <div class="stats-panneau-corps" id="panneau-muscu-records">
+          <div id="muscu-stats-records"></div>
+        </div>
+      </div>
+
+      <div class="stats-panneau">
+        <button type="button" class="stats-panneau-titre" onclick="toggleStatsPanneau('panneau-muscu-groupe')" aria-expanded="false">
+          <span>💪 Séances par groupe musculaire</span><span class="stats-panneau-chevron" aria-hidden="true">▾</span>
+        </button>
+        <div class="stats-panneau-corps" id="panneau-muscu-groupe">
+          <div class="chart-container"><canvas id="muscuGroupeChart"></canvas></div>
+        </div>
+      </div>
+
+      <div class="stats-panneau">
+        <button type="button" class="stats-panneau-titre" onclick="toggleStatsPanneau('panneau-muscu-programmes')" aria-expanded="false">
+          <span>📋 Statistiques par programme</span><span class="stats-panneau-chevron" aria-hidden="true">▾</span>
+        </button>
+        <div class="stats-panneau-corps" id="panneau-muscu-programmes">
+          <div id="muscu-stats-programmes"></div>
+        </div>
+      </div>
+
+      <!-- Plus de fenêtre fixe (30 j) dans le titre : la période affichée ici
+           est désormais celle du curseur « Période analysée (séances) »
+           ci-dessus, visible juste au-dessus (Du … au …). -->
+      <div class="stats-panneau">
+        <button type="button" class="stats-panneau-titre" onclick="toggleStatsPanneau('panneau-muscu-historique')" aria-expanded="false">
+          <span>🗓️ Historique des séances</span><span class="stats-panneau-chevron" aria-hidden="true">▾</span>
+        </button>
+        <div class="stats-panneau-corps" id="panneau-muscu-historique">
+          <div id="muscu-historique-container"></div>
+        </div>
+      </div>
     </div>
-
-    <div class="titre-section">🏋️ Musculation</div>
-    <div class="stats-grille" id="muscu-stats-totaux"></div>
-
-    <div class="chart-container"><canvas id="muscuParMoisChart"></canvas></div>
-
-    <div class="titre-section">📈 Progression par exercice</div>
-    <div class="input-group" style="margin-bottom:12px;">
-      <label for="muscu-exo-select">Exercice (tous ceux déjà pratiqués, ne serait-ce qu'une fois)</label>
-      <select id="muscu-exo-select" onchange="afficherProgressionExercice(this.value)"></select>
-    </div>
-    <p class="note" id="muscu-progression-vide" style="margin:0 0 12px; display:none;">Aucun exercice pratiqué pour l'instant.</p>
-    <div class="chart-container" id="muscu-progression-conteneur"><canvas id="muscuProgressionChart"></canvas></div>
-
-    <div class="titre-section">🏆 Records personnels</div>
-    <div id="muscu-stats-records"></div>
-
-    <div class="titre-section">💪 Séances par groupe musculaire</div>
-    <div class="chart-container"><canvas id="muscuGroupeChart"></canvas></div>
-
-    <div class="titre-section">📋 Statistiques par programme</div>
-    <div id="muscu-stats-programmes"></div>
-
-    <!-- Plus de fenêtre fixe (30 j) dans le titre : la période affichée ici
-         est désormais celle du curseur « Période analysée (séances) »
-         ci-dessus, visible juste au-dessus (Du … au …). -->
-    <div class="titre-section">🗓️ Historique des séances</div>
-    <div id="muscu-historique-container"></div>
   </section>
 
   <!-- ================= ÉCRAN ADMIN (visible uniquement pour ADMIN_EMAIL) ================= -->
@@ -5623,6 +5772,73 @@ function prepareStats() {
   mettreAJourStats();
   mettreAJourStatsMuscu();
 }
+/* =====================================================================
+   ÉCRAN STATISTIQUES — bascule Accordéon / Onglets
+   Mémorisée dans localStorage (statsVueMode), appliquée immédiatement sans
+   recharger la page. Ne touche jamais à display:none sur un conteneur de
+   canvas : uniquement max-height/overflow, pour ne jamais dessiner un
+   graphique Chart.js dans un conteneur de largeur/hauteur nulle (voir
+   mettreAJourStats()/mettreAJourStatsMuscu(), inchangées par ailleurs). */
+let statsVueMode = 'accordeon';
+let statsOngletActif = 'poids';
+
+function chargerVueStats() {
+  let v = null;
+  try { v = localStorage.getItem('statsVueMode'); } catch (err) {}
+  return v === 'onglets' ? 'onglets' : 'accordeon';
+}
+
+function appliquerVueStats(mode) {
+  statsVueMode = mode === 'onglets' ? 'onglets' : 'accordeon';
+  const ecran = document.getElementById('ecran-stats');
+  if (ecran) ecran.setAttribute('data-vue-stats', statsVueMode);
+  majSegment('segment-vue-stats', ['accordeon', 'onglets'], statsVueMode);
+  if (statsVueMode === 'onglets') appliquerOngletStats(statsOngletActif);
+}
+function choisirVueStats(mode) {
+  appliquerVueStats(mode);
+  try { localStorage.setItem('statsVueMode', mode); } catch (err) {}
+}
+
+function appliquerOngletStats(nom) {
+  statsOngletActif = nom;
+  document.querySelectorAll('#ecran-stats .stats-tab').forEach(t => {
+    t.classList.toggle('stats-tab-actif', t.dataset.tab === nom);
+  });
+  majSegment('stats-onglets-nav', ['poids', 'nutrition', 'muscu'], nom);
+}
+function choisirOngletStats(nom) { appliquerOngletStats(nom); }
+
+/* Panneau repliable de l'accordéon : le contenu (canvas Chart.js compris)
+   reste en permanence dans le DOM, jamais display:none — seul max-height
+   varie, ce qui n'affecte pas la largeur/hauteur propres du canvas (voir
+   .chart-container, hauteur fixe en CSS) même quand le panneau est fermé. */
+function toggleStatsPanneau(idCorps) {
+  if (statsVueMode !== 'accordeon') return; // Non interactif en mode Onglets (déjà tout ouvert).
+  const corps = document.getElementById(idCorps);
+  if (!corps) return;
+  const bouton = corps.previousElementSibling;
+  const estOuvert = corps.classList.contains('ouvert');
+  if (estOuvert) {
+    corps.style.maxHeight = corps.scrollHeight + 'px';
+    void corps.offsetHeight; // force le calcul ci-dessus avant de repasser à 0 (sinon pas d'animation)
+    requestAnimationFrame(() => { corps.style.maxHeight = '0px'; });
+    corps.classList.remove('ouvert');
+    if (bouton) bouton.setAttribute('aria-expanded', 'false');
+  } else {
+    corps.classList.add('ouvert');
+    corps.style.maxHeight = corps.scrollHeight + 'px';
+    if (bouton) bouton.setAttribute('aria-expanded', 'true');
+    corps.addEventListener('transitionend', function surFinTransition(ev) {
+      if (ev.propertyName !== 'max-height') return;
+      corps.removeEventListener('transitionend', surFinTransition);
+      // 'none' plutôt qu'une valeur figée : le contenu (chiffres clés,
+      // historique…) peut changer de hauteur après coup (nouveau filtre).
+      if (corps.classList.contains('ouvert')) corps.style.maxHeight = 'none';
+    });
+  }
+}
+
 /* Les curseurs émettent « input » à chaque pixel. Sans temporisation, glisser
    le doigt détruisait et recréait les 4 graphiques des centaines de fois :
    l'interface se figeait complètement sur mobile. Les libellés, eux, suivent
@@ -11224,6 +11440,7 @@ window.addEventListener('load', () => {
   let densite = 'confort';
   try { densite = localStorage.getItem('elite_densite') || 'confort'; } catch (e) {}
   choisirDensite(densite);
+  appliquerVueStats(chargerVueStats());
 
   // Champs volontairement vides quand aucune valeur n'a été enregistrée sur
   // cet appareil : ça montre clairement qu'ils tournent sur les valeurs par
