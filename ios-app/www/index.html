@@ -1775,6 +1775,15 @@
 
     <div id="meals-container"></div>
 
+    <div class="titre-section">🍳 Idées recettes</div>
+    <div class="analysis-card">
+      <p class="note">Des idées de repas ou collations pour compléter tes macros du jour, sans dépasser ton objectif.</p>
+      <button class="btn btn-analysis" onclick="chercherRecettesMacros()">🍳 Trouver des recettes</button>
+      <span class="puce-ia"></span>
+      <div id="recette-loader" class="loader hidden">🧠 Recherche de recettes…</div>
+      <div id="recette-box" class="analysis-output hidden"></div>
+    </div>
+
     <div class="titre-section">🤖 Bilan de la journée</div>
     <div class="analysis-card">
       <p class="note">Un bilan de ta nutrition et de ton activité (pas, séances, et le détail de ta séance de musculation si tu en as fait une) pour la date affichée en haut.</p>
@@ -5189,6 +5198,43 @@ async function lancerAnalyseJour() {
 Objectif: ${t.goal}. Poids: ${t.poids} kg. Pas: ${day.steps}. Eau bue: ${Number(day.eauMl) || 0} / ${quotaEauSuggere(currentDate)} ml. Sports: ${workoutsDesc}.${seanceMuscuDesc ? `
 Détail de la séance de musculation du jour: ${seanceMuscuDesc}.` : ''}
 Calories consommées: ${totals.kcal} / objectif ${t.target} kcal. Protéines ${totals.p}/${t.protein}g, Glucides ${totals.c}/${t.carbs}g, Lipides ${totals.f}/${t.fat}g.`;
+  try {
+    const res = await geminiGenerate([{ text: prompt }]);
+    loader.classList.add('hidden');
+    box.textContent = res.trim(); box.classList.remove('hidden');
+  } catch (e) {
+    loader.classList.add('hidden');
+    box.textContent = messageIA(e); box.classList.remove('hidden');
+  }
+}
+async function chercherRecettesMacros() {
+  if (!geminiKey) { alert('Ajoute ta clé API Gemini dans ⚙️ Profil.'); return; }
+  const loader = document.getElementById('recette-loader');
+  const box = document.getElementById('recette-box');
+  loader.classList.remove('hidden'); box.classList.add('hidden');
+
+  const day = getDay(currentDate);
+  const totals = sumMeals(day); const t = computeTargets(day, currentDate);
+  const reste = {
+    kcal: Math.max(0, t.target - totals.kcal),
+    p: Math.max(0, t.protein - totals.p),
+    c: Math.max(0, t.carbs - totals.c),
+    f: Math.max(0, t.fat - totals.f)
+  };
+
+  // Objectif déjà atteint ou dépassé : pas la peine de consommer une requête IA.
+  if (reste.kcal <= 0) {
+    loader.classList.add('hidden');
+    box.textContent = "Tu as déjà atteint (ou dépassé) ton objectif calorique du jour, bravo ! Pas besoin de recette supplémentaire.";
+    box.classList.remove('hidden');
+    return;
+  }
+
+  const prompt = `Tu es un coach nutrition. Propose 2 idées de repas ou collations simples et rapides à préparer, en français, sans markdown, pour aider la personne à se rapprocher de ses objectifs nutritionnels du jour sans les dépasser. Pour chaque idée : un nom, les ingrédients principaux avec quantités approximatives, et une estimation kcal/protéines/glucides/lipides.
+
+Objectif du jour : ${t.goal}.
+Il reste à consommer aujourd'hui : ${reste.kcal} kcal, dont ${reste.p}g de protéines, ${reste.c}g de glucides, ${reste.f}g de lipides.`;
+
   try {
     const res = await geminiGenerate([{ text: prompt }]);
     loader.classList.add('hidden');
