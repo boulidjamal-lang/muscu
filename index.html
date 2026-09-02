@@ -1392,15 +1392,6 @@
     #picker-exercices-modal, #exercice-perso-modal { z-index: 1200; }
     #fiche-exercice-modal { z-index: 1300; }
 
-    .bandeau-seance-active {
-      display: flex; align-items: center; justify-content: space-between; gap: 12px;
-      background: color-mix(in srgb, var(--danger) 12%, var(--verre-fort));
-      border: 1px solid color-mix(in srgb, var(--danger) 35%, var(--verre-brd));
-      border-radius: var(--rayon); padding: 14px 16px; margin-bottom: var(--densite-gap);
-    }
-    .bandeau-seance-titre { font-weight: 800; font-size: 0.9rem; }
-    .bandeau-seance-sous { font-size: 0.75rem; color: var(--text-muted); margin-top: 2px; }
-
     /* Rappel flottant : une séance reste "en cours" tant qu'elle n'est pas
        terminée ou abandonnée, même en quittant l'onglet Séance (changer
        d'onglet ne l'interrompt pas). Sans rappel visible ailleurs, il est
@@ -1860,29 +1851,40 @@
   <section id="ecran-seance" class="ecran" role="region" aria-label="Séance">
     <h2 class="titre-ecran"><span class="ic" aria-hidden="true">🏋️</span> Séance</h2>
 
-    <div class="bandeau-seance-active hidden" id="bandeau-seance-active">
-      <div>
-        <div class="bandeau-seance-titre">🔴 Séance en cours</div>
-        <div class="bandeau-seance-sous" id="bandeau-seance-sous"></div>
+    <div id="seance-vue-accueil">
+      <div class="titre-section">📋 Mes programmes</div>
+      <div id="programmes-liste-container"></div>
+      <div style="display:flex; gap:8px; margin-top:12px; margin-bottom:6px;">
+        <button class="btn btn-primary" style="flex:1; min-height:auto; padding:10px 8px; font-size:0.78rem;" onclick="ouvrirCreationProgramme()">➕ Créer un programme</button>
+        <button class="btn btn-secondaire" style="flex:1; min-height:auto; padding:10px 8px; font-size:0.78rem;" onclick="demarrerSeanceLibre()">⚡ Séance libre</button>
       </div>
-      <button class="btn btn-primary" style="width:auto;" onclick="ouvrirSessionModal()">Reprendre</button>
+      <p class="note" style="margin:10px 2px 0;">Une séance libre n'est rattachée à aucun programme : choisis tes exercices au fil de la séance, tu pourras l'enregistrer comme programme à la fin.</p>
+
+      <div class="titre-section">📚 Bibliothèque d'exercices</div>
+      <div class="fitness-card">
+        <p class="note" style="margin:0 0 12px;">Parcours la base d'exercices (<span id="nb-exercices-total">—</span>), filtrée par groupe musculaire et par matériel.</p>
+        <button class="btn btn-secondaire" style="width:100%;" onclick="ouvrirBibliotheque()">🔍 Parcourir les exercices</button>
+      </div>
+
+      <p class="note" style="margin:4px 2px 0;">📊 Les statistiques de musculation (progression, records, historique…) sont dans l'onglet <a href="#" onclick="event.preventDefault(); allerA('stats');" style="color:var(--accent);">Statistiques</a>.</p>
     </div>
 
-    <div class="titre-section">📋 Mes programmes</div>
-    <div id="programmes-liste-container"></div>
-    <div style="display:flex; gap:8px; margin-top:12px; margin-bottom:6px;">
-      <button class="btn btn-primary" style="flex:1; min-height:auto; padding:10px 8px; font-size:0.78rem;" onclick="ouvrirCreationProgramme()">➕ Créer un programme</button>
-      <button class="btn btn-secondaire" style="flex:1; min-height:auto; padding:10px 8px; font-size:0.78rem;" onclick="demarrerSeanceLibre()">⚡ Séance libre</button>
+    <div id="seance-vue-active" class="hidden">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:2px;">
+        <h3 id="titre-session-modal" style="margin:0; font-size:1.05rem; font-weight:800;">🏋️ Séance</h3>
+        <span style="font-size:0.78rem; font-weight:700; color:var(--danger); display:flex; align-items:center; gap:5px; white-space:nowrap;"><span class="bandeau-seance-flottant-pastille" aria-hidden="true">🔴</span> En cours</span>
+      </div>
+      <p class="note" id="session-chrono" style="margin:2px 0 14px; font-weight:700;"></p>
+      <div id="session-exercices-container"></div>
+      <button class="btn btn-secondaire" style="margin-bottom:14px;" onclick="ouvrirPickerExercices('session')">➕ Ajouter un exercice</button>
+      <div class="input-group">
+        <label for="session-notes">Notes (facultatif)</label>
+        <textarea id="session-notes" rows="2" placeholder="Sensations, douleurs, forme du jour…"
+                  oninput="modifierNotesSession(this.value)" style="width:100%; resize:vertical; font-family:inherit;"></textarea>
+      </div>
+      <button class="btn btn-primary" onclick="terminerSeance()">✅ Terminer la séance</button>
+      <button class="btn btn-secondaire" style="margin-top:10px;" onclick="abandonnerSeance()">Abandonner la séance</button>
     </div>
-    <p class="note" style="margin:10px 2px 0;">Une séance libre n'est rattachée à aucun programme : choisis tes exercices au fil de la séance, tu pourras l'enregistrer comme programme à la fin.</p>
-
-    <div class="titre-section">📚 Bibliothèque d'exercices</div>
-    <div class="fitness-card">
-      <p class="note" style="margin:0 0 12px;">Parcours la base d'exercices (<span id="nb-exercices-total">—</span>), filtrée par groupe musculaire et par matériel.</p>
-      <button class="btn btn-secondaire" style="width:100%;" onclick="ouvrirBibliotheque()">🔍 Parcourir les exercices</button>
-    </div>
-
-    <p class="note" style="margin:4px 2px 0;">📊 Les statistiques de musculation (progression, records, historique…) sont dans l'onglet <a href="#" onclick="event.preventDefault(); allerA('stats');" style="color:var(--accent);">Statistiques</a>.</p>
   </section>
 
   <!-- ================= ÉCRAN 3 : STATISTIQUES ================= -->
@@ -3062,26 +3064,6 @@
     <p class="note" id="programme-exercices-vide" style="margin:0 0 12px;">Aucun exercice ajouté pour l'instant.</p>
     <button class="btn btn-primary" onclick="validerProgramme()">💾 Enregistrer le programme</button>
     <button class="btn btn-secondaire" id="btn-suppr-programme" style="margin-top:10px; display:none;" onclick="supprimerProgrammeDepuisModal()">🗑️ Supprimer ce programme</button>
-  </div>
-</div>
-
-<!-- ================= SÉANCE — Séance en cours ================= -->
-<div id="session-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="titre-session-modal">
-  <div class="modal-content" style="max-width:560px;">
-    <div class="modal-entete">
-      <h3 id="titre-session-modal">🏋️ Séance</h3>
-      <button class="close-modal" onclick="fermerModal('session-modal')" aria-label="Réduire" title="Réduire (la séance continue en arrière-plan)">&times;</button>
-    </div>
-    <p class="note" id="session-chrono" style="margin:-6px 0 14px; font-weight:700;"></p>
-    <div id="session-exercices-container"></div>
-    <button class="btn btn-secondaire" style="margin-bottom:14px;" onclick="ouvrirPickerExercices('session')">➕ Ajouter un exercice</button>
-    <div class="input-group">
-      <label for="session-notes">Notes (facultatif)</label>
-      <textarea id="session-notes" rows="2" placeholder="Sensations, douleurs, forme du jour…"
-                oninput="modifierNotesSession(this.value)" style="width:100%; resize:vertical; font-family:inherit;"></textarea>
-    </div>
-    <button class="btn btn-primary" onclick="terminerSeance()">✅ Terminer la séance</button>
-    <button class="btn btn-secondaire" style="margin-top:10px;" onclick="abandonnerSeance()">Abandonner la séance</button>
   </div>
 </div>
 
@@ -10010,19 +9992,24 @@ const TECHNIQUE_LETTRES = { degressif: 'D', pyramidal: 'P', echec: 'É' };
 function renderSeance() {
   const nb = document.getElementById('nb-exercices-total');
   if (nb) nb.textContent = toutesLesExercices().length + ' exercices';
-  renderBandeauSessionActive();
+  afficherVueSeance();
   renderListeProgrammes();
+  majBandeauSeanceFlottant();
 }
 
-function renderBandeauSessionActive() {
-  const b = document.getElementById('bandeau-seance-active');
-  majBandeauSeanceFlottant();
-  if (!b) return;
-  if (!musculationSessionActive) { b.classList.add('hidden'); return; }
-  b.classList.remove('hidden');
-  const nbFaites = musculationSessionActive.exercices.reduce((n, e) => n + e.series.filter(s => s.fait).length, 0);
-  document.getElementById('bandeau-seance-sous').textContent =
-    (musculationSessionActive.programmeNom || 'Séance libre') + ' · ' + nbFaites + ' série(s) cochée(s)';
+function afficherVueSeance() {
+  const accueil = document.getElementById('seance-vue-accueil');
+  const active = document.getElementById('seance-vue-active');
+  if (!accueil || !active) return;
+  if (!musculationSessionActive) {
+    accueil.classList.remove('hidden');
+    active.classList.add('hidden');
+    return;
+  }
+  accueil.classList.add('hidden');
+  active.classList.remove('hidden');
+  renderSessionModal();
+  assurerChronoSession();
 }
 
 /* Rappel flottant visible sur tous les onglets : ne double pas le bandeau
@@ -10882,17 +10869,15 @@ function demarrerSeanceLibre() {
 }
 function ouvrirSessionModal() {
   if (!musculationSessionActive) return;
-  renderSessionModal();
-  ouvrirModal('session-modal');
-  assurerChronoSession();
+  allerA('seance');
 }
 function assurerChronoSession() {
   if (sessionChronoInterval) return;
   majChronoSession();
   sessionChronoInterval = setInterval(() => {
     if (!musculationSessionActive) { clearInterval(sessionChronoInterval); sessionChronoInterval = null; return; }
-    const modal = document.getElementById('session-modal');
-    if (modal && modal.classList.contains('show')) majChronoSession();
+    const vue = document.getElementById('seance-vue-active');
+    if (vue && !vue.classList.contains('hidden')) majChronoSession();
   }, 1000);
 }
 function majChronoSession() {
@@ -11147,7 +11132,7 @@ function basculerSerieSession(ei, si) {
   set.fait = !set.fait;
   sauvegarderSessionActive();
   renderSessionModal();
-  renderBandeauSessionActive();
+  majBandeauSeanceFlottant();
 }
 function ajouterSerieSession(ei) {
   const exo = musculationSessionActive.exercices[ei];
@@ -11219,7 +11204,6 @@ function terminerSeance() {
   const etaitLibre = !s.programmeId && entree.exercices.length > 0;
   musculationSessionActive = null;
   sauvegarderSessionActive();
-  fermerModal('session-modal');
   renderSeance();
   renderApp();
 
@@ -11361,7 +11345,6 @@ function abandonnerSeance() {
   if (!confirm('Abandonner cette séance ? Rien ne sera enregistré dans ton historique.')) return;
   musculationSessionActive = null;
   sauvegarderSessionActive();
-  fermerModal('session-modal');
   renderSeance();
 }
 
