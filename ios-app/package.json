@@ -1,0 +1,19 @@
+{
+  "name": "anqa-ios-app",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Enveloppe iOS native (Capacitor) autour de la PWA Anqā, pour installation personnelle sur iPhone via Xcode.",
+  "scripts": {
+    "assets": "capacitor-assets generate --ios",
+    "sync": "cap sync ios",
+    "open": "cap open ios"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^8.5.1"
+  },
+  "dependencies": {
+    "@capacitor/core": "^8.5.1",
+    "@capacitor/ios": "^8.5.1"
+  }
+}
