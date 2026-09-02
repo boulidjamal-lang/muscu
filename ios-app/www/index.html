@@ -1902,9 +1902,28 @@
       <div class="plage-duree" id="plage-duree"></div>
     </div>
 
+    <!-- Séances de musculation indépendantes des repas (rythme différent :
+         quelques fois par semaine contre trois fois par jour). Ce bloc occupe
+         la même position que celui de nutrition ci-dessus : les deux ne sont
+         jamais visibles en même temps (voir choisirOngletStats), l'un
+         remplace l'autre selon l'onglet actif au lieu de s'empiler. -->
+    <div class="bloc-verre hidden" id="periode-muscu-bloc">
+      <h3 style="margin-top:0;font-size:0.85rem;text-transform:uppercase;letter-spacing:0.8px;">🗓️ Période analysée (séances)</h3>
+      <div class="plage">
+        <div class="plage-piste"><div class="plage-remplie" id="muscu-plage-remplie"></div></div>
+        <input type="range" id="muscu-slider-start" min="0" max="179" value="0" aria-label="Début de la période (séances)" oninput="mettreAJourStatsMuscu()">
+        <input type="range" id="muscu-slider-end" min="0" max="179" value="179" aria-label="Fin de la période (séances)" oninput="mettreAJourStatsMuscu()">
+      </div>
+      <div class="plage-bornes">
+        <span><small>Du</small> <span id="muscu-start-date-label">-</span></span>
+        <span><small>au</small> <span id="muscu-end-date-label">-</span></span>
+      </div>
+      <div class="plage-duree" id="muscu-plage-duree"></div>
+    </div>
+
     <!-- Navigation des onglets : commune aux 3 onglets. La période ci-dessus
-         (nutrition) ne s'applique qu'aux onglets Poids/Nutrition — masquée sur
-         Muscu, qui a son propre sélecteur de période plus bas (séances). -->
+         (nutrition ou séances) change selon l'onglet actif — voir
+         choisirOngletStats, qui bascule laquelle des deux est visible. -->
     <div class="segment stats-onglets-nav" id="stats-onglets-nav" role="group" aria-label="Catégorie de statistiques">
       <button type="button" onclick="choisirOngletStats('poids')" aria-pressed="true">⚖️ Poids</button>
       <button type="button" onclick="choisirOngletStats('nutrition')" aria-pressed="false">🍽️ Nutrition</button>
@@ -1950,26 +1969,14 @@
     </div>
 
     <!-- ========== MUSCULATION ==========
-         Période indépendante de celle des repas ci-dessus : les séances
-         n'ont pas le même rythme que les repas (quelques fois par semaine
-         contre trois fois par jour), pas de raison de partager le même
-         curseur. Par défaut sur tout l'historique disponible (rien ne
-         change tant qu'on n'y touche pas). -->
+         Période indépendante de celle des repas : les séances n'ont pas le
+         même rythme que les repas (quelques fois par semaine contre trois
+         fois par jour). Son sélecteur de période vit désormais tout en haut
+         de l'écran (periode-muscu-bloc), à la place de celui de nutrition
+         quand cet onglet est actif — voir choisirOngletStats. Par défaut sur
+         tout l'historique disponible (rien ne change tant qu'on n'y touche
+         pas). -->
     <div class="stats-tab" data-tab="muscu">
-      <div class="bloc-verre">
-        <h3 style="margin-top:0;font-size:0.85rem;text-transform:uppercase;letter-spacing:0.8px;">🗓️ Période analysée (séances)</h3>
-        <div class="plage">
-          <div class="plage-piste"><div class="plage-remplie" id="muscu-plage-remplie"></div></div>
-          <input type="range" id="muscu-slider-start" min="0" max="179" value="0" aria-label="Début de la période (séances)" oninput="mettreAJourStatsMuscu()">
-          <input type="range" id="muscu-slider-end" min="0" max="179" value="179" aria-label="Fin de la période (séances)" oninput="mettreAJourStatsMuscu()">
-        </div>
-        <div class="plage-bornes">
-          <span><small>Du</small> <span id="muscu-start-date-label">-</span></span>
-          <span><small>au</small> <span id="muscu-end-date-label">-</span></span>
-        </div>
-        <div class="plage-duree" id="muscu-plage-duree"></div>
-      </div>
-
       <div class="titre-section">🏋️ Musculation</div>
       <div class="stats-grille" id="muscu-stats-totaux"></div>
       <div class="chart-container"><canvas id="muscuParMoisChart"></canvas></div>
@@ -5708,10 +5715,11 @@ function choisirOngletStats(nom) {
     t.classList.toggle('stats-tab-actif', t.dataset.tab === nom);
   });
   majSegment('stats-onglets-nav', ['poids', 'nutrition', 'muscu'], nom);
-  // La période « nutrition » du haut ne pilote que Poids/Nutrition : sur
-  // Muscu, elle ne sert à rien et faisait doublon avec la période (séances)
-  // de cet onglet — on la masque plutôt que d'afficher deux sélecteurs.
+  // Les deux sélecteurs de période (nutrition et séances) occupent la même
+  // position en haut de l'écran : un seul visible à la fois, celui qui
+  // correspond à l'onglet actif remplace l'autre au lieu de s'y ajouter.
   document.getElementById('periode-nutrition-bloc').classList.toggle('hidden', nom === 'muscu');
+  document.getElementById('periode-muscu-bloc').classList.toggle('hidden', nom !== 'muscu');
 }
 
 /* Les curseurs émettent « input » à chaque pixel. Sans temporisation, glisser
