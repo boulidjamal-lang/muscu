@@ -5114,7 +5114,7 @@ function fichierVersBase64(file) {
   });
 }
 
-const PROMPT_JSON_ALIMENTS = "Renvoie UNIQUEMENT un tableau JSON (sans texte autour) des aliments. Pour chaque aliment: {\"name\": string en français, \"grams\": number (portion estimée en g), \"kcal100\": number (kcal pour 100g), \"p100\": number, \"c100\": number, \"f100\": number}.";
+const PROMPT_JSON_ALIMENTS = "Renvoie UNIQUEMENT un tableau JSON (sans texte autour) des aliments. Pour chaque aliment: {\"name\": string en français, \"grams\": number (portion estimée en g), \"kcal100\": number (kcal pour 100g), \"p100\": number, \"c100\": number, \"f100\": number}. Pour estimer grams le plus précisément possible : si une photo est fournie, appuie-toi sur les repères visuels de taille présents dans l'image (diamètre de l'assiette ou du bol, longueur des couverts, taille d'un verre ou d'une main) plutôt que sur une estimation à l'aveugle, et tiens compte de la densité de l'aliment (un féculent cuit ou une viande pèsent plus qu'un légume vert pour un volume équivalent) ; sans photo, base-toi sur une portion individuelle standard pour ce type d'aliment.";
 
 /* Photo, description, ou les deux : les deux champs sont maintenant
    indépendants (avant, seule une photo pouvait déclencher l'analyse — pas
