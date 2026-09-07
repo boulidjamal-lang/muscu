@@ -1768,7 +1768,13 @@
     <div class="titre-section">🍳 Idées recettes</div>
     <div class="analysis-card">
       <p class="note">Des idées de repas ou collations pour compléter tes macros du jour, sans dépasser ton objectif.</p>
-      <button class="btn btn-analysis" onclick="chercherRecettesMacros()">🍳 Trouver des recettes</button>
+      <p class="note" style="margin:0 0 8px; font-weight:700;">Pour quel repas ?</p>
+      <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px;">
+        <button type="button" class="filtre-chip" onclick="chercherRecettesMacros('breakfast')">🌅 Petit-déj</button>
+        <button type="button" class="filtre-chip" onclick="chercherRecettesMacros('lunch')">🍴 Déjeuner</button>
+        <button type="button" class="filtre-chip" onclick="chercherRecettesMacros('snack')">🍪 Collation</button>
+        <button type="button" class="filtre-chip" onclick="chercherRecettesMacros('dinner')">🍽️ Dîner</button>
+      </div>
       <span class="puce-ia"></span>
       <div id="recette-loader" class="loader hidden">🧠 Recherche de recettes…</div>
       <div id="recette-box" class="analysis-output hidden"></div>
@@ -5210,7 +5216,7 @@ Calories consommées: ${totals.kcal} / objectif ${t.target} kcal. Protéines ${t
     box.textContent = messageIA(e); box.classList.remove('hidden');
   }
 }
-async function chercherRecettesMacros() {
+async function chercherRecettesMacros(typeRepas) {
   if (!geminiKey) { alert('Ajoute ta clé API Gemini dans ⚙️ Profil.'); return; }
   const loader = document.getElementById('recette-loader');
   const box = document.getElementById('recette-box');
@@ -5233,7 +5239,12 @@ async function chercherRecettesMacros() {
     return;
   }
 
-  const prompt = `Tu es un coach nutrition. Propose 2 idées de repas ou collations simples et rapides à préparer, en français, sans markdown, pour aider la personne à se rapprocher de ses objectifs nutritionnels du jour sans les dépasser. Pour chaque idée : un nom, les ingrédients principaux avec quantités approximatives, et une estimation kcal/protéines/glucides/lipides.
+  // Le libellé du repas (ex. "🌅 Petit-déjeuner") oriente le type de plat
+  // proposé — sans ça, Gemini pouvait suggérer un plat de dîner pour un
+  // petit-déjeuner. MEAL_LABELS est déjà utilisé pour les repas eux-mêmes.
+  const libelleRepas = (typeRepas && MEAL_LABELS[typeRepas]) ? MEAL_LABELS[typeRepas].replace(/^\S+\s/, '') : null;
+
+  const prompt = `Tu es un coach nutrition. Propose 2 idées de${libelleRepas ? ' ' + libelleRepas.toLowerCase() : ' repas ou collations'} simples et rapides à préparer, en français, sans markdown, pour aider la personne à se rapprocher de ses objectifs nutritionnels du jour sans les dépasser. Pour chaque idée : un nom, les ingrédients principaux avec quantités approximatives, et une estimation kcal/protéines/glucides/lipides.
 
 Objectif du jour : ${t.goal}.
 Il reste à consommer aujourd'hui : ${reste.kcal} kcal, dont ${reste.p}g de protéines, ${reste.c}g de glucides, ${reste.f}g de lipides.`;
