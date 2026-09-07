@@ -803,6 +803,16 @@
     }
     .close-modal:hover, .close-modal:focus-visible { color: var(--text); background: var(--verre-fort); }
 
+    /* Saisie manuelle d'un aliment : plein écran plutôt qu'une petite carte
+       centrée — la recherche (voir .off-liste plus bas) a besoin de place
+       pour être parcourue confortablement, pas juste 232px coincés par-dessus
+       le formulaire. */
+    #manual-modal { padding: 0; align-items: stretch; }
+    #manual-modal .modal-content {
+      max-width: none; width: 100%; height: 100dvh; max-height: 100dvh;
+      border-radius: 0; margin: 0;
+    }
+
     /* --- FEUILLE D'ACTION (bottom sheet) --- */
     .feuille {
       position: fixed; inset: 0; z-index: 1100; display: none;
@@ -1188,6 +1198,16 @@
       background: linear-gradient(var(--barre), var(--barre)), var(--bg);
       border: 0;
       box-shadow: var(--ombre-haute);
+    }
+    /* Dans la saisie manuelle plein écran (#manual-modal), la liste n'a plus
+       besoin de flotter par-dessus le formulaire ni d'être plafonnée à
+       232px : elle prend sa place normale dans le flux, sur toute la
+       hauteur disponible — c'est elle, l'essentiel de l'écran pendant
+       qu'on cherche. Les champs de saisie manuelle restent juste en
+       dessous, atteignables en descendant. */
+    #manual-modal .off-liste {
+      position: static; width: auto; margin: 12px 0 0; max-height: none;
+      box-shadow: none;
     }
     .off-suggestion {
       display: block; width: 100%; text-align: left; border: 0;
