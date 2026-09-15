@@ -2320,6 +2320,11 @@
       <input type="number" id="base-height" value="175" inputmode="numeric" onchange="sauvegarderParametresGlobaux()">
     </div>
     <div class="input-group">
+      <label for="base-bodyfat">% de masse grasse (optionnel)</label>
+      <input type="number" id="base-bodyfat" placeholder="ex : 15" inputmode="decimal" step="0.1" min="3" max="60" onchange="sauvegarderParametresGlobaux()">
+      <small style="display:block; margin-top:4px; color: var(--texte-att);">Si renseigné, le calcul de tes calories se base sur ta masse maigre (plus précis) au lieu du poids total.</small>
+    </div>
+    <div class="input-group">
       <label>💧 Objectif d'eau bue</label>
       <p style="margin:0; font-weight:700;" id="affichage-objectif-eau"></p>
       <p class="note" style="margin:6px 0 0;">Calculé automatiquement à partir de ton poids, ton âge, ton sexe et le sport du jour — rien à régler ici, visible sur l'écran Repas.</p>
@@ -3270,7 +3275,7 @@ let eauChartInstance = null;
 let compoChartInstance = null;
 let poidsChartInstance = null;
 
-let userProfile = { height: 175, age: 25, gender: 'm', weight: 70 };
+let userProfile = { height: 175, age: 25, gender: 'm', weight: 70, bodyFatPercent: null };
 /* La clé Gemini est liée au COMPTE (via le profil synchronisé), pas à
    l'appareil : chacun peut avoir la sienne, avec son propre quota, et la
    retrouve automatiquement en se connectant depuis n'importe quel appareil.
@@ -3398,7 +3403,19 @@ function computeTargets(day, dateStr) {
   const weight = Number(day.weight) || dernierPoidsConnu(dateStr || todayStr());
   const height = Number(userProfile.height) || 175;
   const age = Number(userProfile.age) || 25;
-  const bmr = 10 * weight + 6.25 * height - 5 * age + (userProfile.gender === 'f' ? -161 : 5);
+  const bodyFatPercent = Number(userProfile.bodyFatPercent) || 0;
+  // Katch-McArdle (basée sur la masse maigre) quand le % de masse grasse est
+  // renseigné : plus précis, notamment pour les profils très musclés ou avec
+  // un taux de masse grasse élevé, que Mifflin-St Jeor qui ignore la
+  // composition corporelle et ne voit que le poids total. À défaut, on
+  // retombe sur Mifflin-St Jeor (poids total).
+  let bmr;
+  if (bodyFatPercent > 0) {
+    const masseMaigre = weight * (1 - bodyFatPercent / 100);
+    bmr = 370 + 21.6 * masseMaigre;
+  } else {
+    bmr = 10 * weight + 6.25 * height - 5 * age + (userProfile.gender === 'f' ? -161 : 5);
+  }
 
   /* Le facteur 1,2 de Mifflin-St Jeor correspond à « sédentaire », qui inclut
      déjà environ 4 000 pas quotidiens. Ajouter tous les pas par-dessus les
@@ -3990,6 +4007,8 @@ function sauvegarderParametresGlobaux() {
   userProfile.gender = document.getElementById('base-gender').value;
   userProfile.age = Number(document.getElementById('base-age').value) || 25;
   userProfile.height = Number(document.getElementById('base-height').value) || 175;
+  const bodyFatSaisi = document.getElementById('base-bodyfat').value.trim();
+  userProfile.bodyFatPercent = bodyFatSaisi !== '' ? Number(bodyFatSaisi) : null;
   saveData();
   updateSummary(getDay(currentDate));
   majJaugeEau();
@@ -6605,7 +6624,7 @@ function definirSessionUtilisateur(user) {
    retrouve poussé par erreur vers son compte à elle. */
 function viderDonneesLocales() {
   appData = {};
-  userProfile = { height: 175, age: 25, gender: 'm', weight: 70 };
+  userProfile = { height: 175, age: 25, gender: 'm', weight: 70, bodyFatPercent: null };
   musculationProgrammes = []; musculationHistorique = []; musculationExosPerso = [];
   try {
     localStorage.removeItem(STORAGE_KEY);
@@ -8189,7 +8208,7 @@ async function synchroniser(raison) {
     try { derniereReset = Number(localStorage.getItem('mc_dernier_reset_' + id)) || 0; } catch (e) {}
     if (resetLe && resetLe > derniereReset) {
       appData = {};
-      userProfile = { height: 175, age: 25, gender: 'm', weight: 70 };
+      userProfile = { height: 175, age: 25, gender: 'm', weight: 70, bodyFatPercent: null };
       musculationProgrammes = []; musculationHistorique = []; musculationExosPerso = [];
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
@@ -11549,6 +11568,7 @@ window.addEventListener('load', () => {
   document.getElementById('base-gender').value = userProfile.gender;
   document.getElementById('base-age').value = userProfile.age;
   document.getElementById('base-height').value = userProfile.height;
+  document.getElementById('base-bodyfat').value = userProfile.bodyFatPercent != null ? userProfile.bodyFatPercent : '';
   majAffichageObjectifEau();
 
   const cs = confSupabase();
