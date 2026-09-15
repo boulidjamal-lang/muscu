@@ -1866,7 +1866,9 @@
           la main ou importé depuis la balance Withings), la formule Katch-McArdle
           prend le relais et se base sur ta masse maigre plutôt que ton poids total
           — plus précis pour les profils très musclés ou avec un taux de masse
-          grasse élevé.
+          grasse élevé. L'objectif de protéines se base aussi sur la masse maigre
+          dans ce cas (les lipides restent sur le poids total, leur plancher étant
+          hormonal, pas lié au tissu maigre).
           Le facteur × 1,2 correspond à un mode de vie sédentaire — il inclut déjà
           environ 4 000 pas, c'est pourquoi seuls les pas au-delà sont ajoutés.
           Les séances utilisent les MET du <em>Compendium of Physical Activities</em>,
@@ -3424,9 +3426,9 @@ function computeTargets(day, dateStr) {
   // musclés ou avec un taux de masse grasse élevé, que Mifflin-St Jeor qui
   // ignore la composition corporelle et ne voit que le poids total. Sans
   // mesure disponible, on retombe sur Mifflin-St Jeor (poids total).
+  const masseMaigre = bodyFatPercent ? weight * (1 - bodyFatPercent / 100) : null;
   let bmr;
-  if (bodyFatPercent) {
-    const masseMaigre = weight * (1 - bodyFatPercent / 100);
+  if (masseMaigre) {
     bmr = 370 + 21.6 * masseMaigre;
   } else {
     bmr = 10 * weight + 6.25 * height - 5 * age + (userProfile.gender === 'f' ? -161 : 5);
@@ -3468,8 +3470,13 @@ function computeTargets(day, dateStr) {
   const sousPlancher = target < plancher;
   if (sousPlancher) target = plancher;
 
-  const protein = Math.round(weight * (objectif === 'seche' ? 2.2 : 1.8));
-  // Les lipides ne descendent pas sous 0,8 g/kg : en dessous, c'est hormonal.
+  // Sur la masse maigre quand elle est connue : la graisse n'a pas besoin de
+  // protéines pour se maintenir, seul le tissu maigre (muscle, organes...) en
+  // a besoin. Sans mesure de masse grasse, on retombe sur le poids total.
+  const protein = Math.round((masseMaigre || weight) * (objectif === 'seche' ? 2.2 : 1.8));
+  // Les lipides ne descendent pas sous 0,8 g/kg (de poids total, pas de masse
+  // maigre) : en dessous, c'est hormonal — lié à la taille du corps dans son
+  // ensemble, pas seulement au tissu maigre.
   const fat = Math.max(Math.round(weight * 0.8), Math.round((target * 0.25) / 9));
   const carbs = Math.max(0, Math.round((target - protein * 4 - fat * 9) / 4));
   return {
